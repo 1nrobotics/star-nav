@@ -1,0 +1,89 @@
+# Git
+.git
+.gitignore
+.gitattributes
+.gitmodules
+*.git
+
+# Build artifacts
+build/
+devel/
+logs/
+install/
+.catkin_workspace
+**/build/
+**/devel/
+**/logs/
+**/install/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Documentation (keep essential ones, exclude media)
+media/
+docs/
+*.md
+!README.md
+!DEPLOYMENT.md
+LICENSE*
+
+# Docker files (don't include in build context to avoid recursion)
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Temporary and cache files
+*.tmp
+*.temp
+*.cache
+*.log
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS generated files
+.Trashes
+ehthumbs.db
+
+# Large binary files and datasets
+*.bag
+*.avi
+*.mp4
+*.rosbag
+*.db3
+
+# Test and benchmark artifacts
+test_results/
+benchmark_results/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Node modules (if any JS tooling)
+node_modules/
+
+# Python virtual environments
+venv/
+env/
+.venv/
+
+# CMake artifacts in pose_utils/build
+utils/pose_utils/build/
+
+# Compiled binaries
+*.o
+*.so
+*.a
+*.dylib
+*.exe
+*.out
