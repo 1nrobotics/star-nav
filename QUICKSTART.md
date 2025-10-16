@@ -1,5 +1,11 @@
 # Star Nav - Quick Start Guide
 
+> **Note**: The `main` branch is the default and stable branch. Clone the repository first:
+> ```bash
+> git clone https://github.com/1nrobotics/star-nav.git
+> cd star-nav
+> ```
+
 ## 🚀 Quick Start
 
 ### Option 1: Interactive Development (Recommended for first time)

@@ -1,11 +1,21 @@
 # Star Nav - Docker Setup
 
+> **Default Branch**: This repository uses `main` as the default branch.
+
 This repository contains a unified Docker setup for building and deploying all ROS packages in the Star Nav system, including:
 - **px4ctrl**: PX4 flight controller interface
 - **shiviz_px4_nav**: Waypoint navigation system
 - **utils**: Common utilities (quadrotor_msgs, uav_utils, DecompROS, etc.)
 
 ## Quick Start
+
+### Clone Repository
+
+First, clone the repository from the `main` branch:
+```bash
+git clone https://github.com/1nrobotics/star-nav.git
+cd star-nav
+```
 
 ### Local Development
 
