@@ -26,10 +26,10 @@ find_package(vk_sdk CONFIG REQUIRED)
 ## catkin specific configuration ##
 ###################################
 catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES vk180_ros
+  # INCLUDE_DIRS include  # No headers to export
+  # LIBRARIES vk180_ros   # No shared library built
   CATKIN_DEPENDS roscpp rospy std_msgs nav_msgs geometry_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs
-  DEPENDS system_lib
+  # DEPENDS               # External dependencies would go here (like vk_sdk, but it's found separately)
 )
 
 ###########
@@ -47,14 +47,27 @@ add_executable(receive AllTopicReceiver.cpp)
 add_executable(odom odom.cpp)
 add_executable(disparity disparity.cpp)
 
-target_link_libraries(receive PUBLIC CapnProto::capnp PRIVATE vilota::vk_sdk)
-target_link_libraries(odom PUBLIC CapnProto::capnp PRIVATE vilota::vk_sdk)
-target_link_libraries(disparity PUBLIC CapnProto::capnp PRIVATE vilota::vk_sdk)
+target_link_libraries(receive 
+  PRIVATE 
+    CapnProto::capnp 
+    vilota::vk_sdk
+)
+target_link_libraries(odom 
+  PRIVATE 
+    CapnProto::capnp 
+    vilota::vk_sdk
+)
+target_link_libraries(disparity 
+  PRIVATE 
+    CapnProto::capnp 
+    vilota::vk_sdk
+)
 
 ## ROS bridge node
 add_executable(ecal_ros_bridge src/ecal_ros_bridge_node.cpp)
 target_link_libraries(ecal_ros_bridge 
-  ${catkin_LIBRARIES}
-  PUBLIC CapnProto::capnp 
-  PRIVATE vilota::vk_sdk
+  PRIVATE
+    ${catkin_LIBRARIES}
+    CapnProto::capnp 
+    vilota::vk_sdk
 )
