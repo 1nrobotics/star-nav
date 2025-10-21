@@ -1,0 +1,128 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- VK180 Integration with EGO Planner -->
+  
+  <arg name="drone_id" default="0"/>
+  <arg name="map_size_x" default="20.0"/>
+  <arg name="map_size_y" default="20.0"/>
+  <arg name="map_size_z" default="3.0"/>
+  
+  <!-- VK180 eCAL ROS Bridge -->
+  <node name="ecal_ros_bridge" pkg="vk180_ros" type="ecal_ros_bridge" output="screen">
+    <!-- Frame IDs -->
+    <param name="odom_frame_id" value="odom" />
+    <param name="base_frame_id" value="base_link" />
+    <param name="camera_frame_id" value="camera_link" />
+    
+    <!-- eCAL topic names -->
+    <param name="ecal_odom_topic" value="S1/vio_odom" />
+    <param name="ecal_disparity_topic" value="S1/stereo1_l/disparity" />
+    
+    <!-- Enable planner integration -->
+    <param name="publish_tf" value="true" />
+    <param name="publish_to_planner" value="true" />
+  </node>
+  
+  <!-- Transform from base_link to camera_link -->
+  <!-- Adjust these values based on your VK180 camera mounting -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="camera_tf_publisher" 
+        args="0.05 0 0.02 0 0 0 base_link camera_link" />
+  
+  <!-- EGO Planner with VK180 configuration -->
+  <node pkg="ego_planner" name="drone_$(arg drone_id)_ego_planner_node" type="ego_planner_node" output="screen">
+    
+    <!-- Remap topics to use VK180 bridge data -->
+    <remap from="~odom_world" to="/vk180/odometry"/>
+    <remap from="~grid_map/odom" to="/grid_map/odom"/>  <!-- From VK180 bridge -->
+    <remap from="~grid_map/depth" to="/grid_map/depth"/> <!-- From VK180 bridge -->
+    <remap from="~planning/bspline" to="/drone_$(arg drone_id)_planning/bspline"/>
+    <remap from="~planning/data_display" to="/drone_$(arg drone_id)_planning/data_display"/>
+    
+    <!-- Flight State Machine -->
+    <param name="fsm/flight_type" value="1" type="int"/> <!-- 1: manual goal, 2: waypoints -->
+    <param name="fsm/thresh_replan_time" value="1.0" type="double"/>
+    <param name="fsm/thresh_no_replan_meter" value="1.0" type="double"/>
+    <param name="fsm/planning_horizon" value="7.5" type="double"/>
+    <param name="fsm/planning_horizen_time" value="3" type="double"/>
+    <param name="fsm/emergency_time" value="1.0" type="double"/>
+    <param name="fsm/realworld_experiment" value="true"/>
+    <param name="fsm/fail_safe" value="true"/>
+    
+    <!-- Grid Map Parameters -->
+    <param name="grid_map/resolution" value="0.1" />
+    <param name="grid_map/map_size_x" value="$(arg map_size_x)" />
+    <param name="grid_map/map_size_y" value="$(arg map_size_y)" />
+    <param name="grid_map/map_size_z" value="$(arg map_size_z)" />
+    <param name="grid_map/local_update_range_x" value="5.5" />
+    <param name="grid_map/local_update_range_y" value="5.5" />
+    <param name="grid_map/local_update_range_z" value="4.5" />
+    <param name="grid_map/obstacles_inflation" value="0.199" />
+    <param name="grid_map/local_map_margin" value="10"/>
+    <param name="grid_map/ground_height" value="-0.01"/>
+    
+    <!-- VK180 Camera Parameters (from your camera_info) -->
+    <param name="grid_map/cx" value="315.758"/>
+    <param name="grid_map/cy" value="189.992"/>
+    <param name="grid_map/fx" value="198.603"/>
+    <param name="grid_map/fy" value="198.603"/>
+    
+    <!-- Depth Processing -->
+    <param name="grid_map/use_depth_filter" value="true"/>
+    <param name="grid_map/depth_filter_tolerance" value="0.15"/>
+    <param name="grid_map/depth_filter_maxdist" value="5.0"/>
+    <param name="grid_map/depth_filter_mindist" value="0.2"/>
+    <param name="grid_map/depth_filter_margin" value="2"/>
+    <param name="grid_map/k_depth_scaling_factor" value="1000.0"/>
+    <param name="grid_map/skip_pixel" value="2"/>
+    
+    <!-- Occupancy Parameters -->
+    <param name="grid_map/p_hit" value="0.65"/>
+    <param name="grid_map/p_miss" value="0.35"/>
+    <param name="grid_map/p_min" value="0.12"/>
+    <param name="grid_map/p_max" value="0.90"/>
+    <param name="grid_map/p_occ" value="0.80"/>
+    <param name="grid_map/min_ray_length" value="0.5"/>
+    <param name="grid_map/max_ray_length" value="4.5"/>
+    
+    <!-- Visualization -->
+    <param name="grid_map/visualization_truncate_height" value="1.8"/>
+    <param name="grid_map/virtual_ceil_yp" value="2.5"/>
+    <param name="grid_map/virtual_ceil_yn" value="-0.5"/>
+    <param name="grid_map/show_occ_time" value="false"/>
+    <param name="grid_map/pose_type" value="2"/> <!-- 2: ODOMETRY -->
+    <param name="grid_map/frame_id" value="odom"/>
+    
+    <!-- Timeout -->
+    <param name="grid_map/odom_depth_timeout" value="1.0"/>
+    
+    <!-- Planning Parameters -->
+    <param name="manager/max_vel" value="1.5" type="double"/>
+    <param name="manager/max_acc" value="4.0" type="double"/>
+    <param name="manager/max_jerk" value="10" type="double"/>
+    <param name="manager/dynamic_environment" value="0" type="int"/>
+    <param name="manager/local_segment_length" value="6.0" type="double"/>
+    <param name="manager/clearance_threshold" value="0.2" type="double"/>
+    <param name="manager/control_points_distance" value="0.5" type="double"/>
+    
+    <!-- Optimization -->
+    <param name="optimization/lambda_smooth" value="1.0" type="double"/>
+    <param name="optimization/lambda_collision" value="0.5" type="double"/>
+    <param name="optimization/lambda_feasibility" value="0.1" type="double"/>
+    <param name="optimization/lambda_fitness" value="1.0" type="double"/>
+    <param name="optimization/dist0" value="0.5" type="double"/>
+    <param name="optimization/max_vel" value="1.5" type="double"/>
+    <param name="optimization/max_acc" value="4.0" type="double"/>
+    
+  </node>
+  
+  <!-- Trajectory Server -->
+  <node pkg="ego_planner" name="drone_$(arg drone_id)_traj_server" type="traj_server" output="screen">
+    <remap from="position_cmd" to="drone_$(arg drone_id)_planning/pos_cmd"/>
+    <remap from="~planning/bspline" to="drone_$(arg drone_id)_planning/bspline"/>
+    <param name="traj_server/time_forward" value="1.0" type="double"/>
+  </node>
+  
+  <!-- RViz for visualization -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find vk180_ros)/config/planner_integration.rviz" output="screen" />
+
+</launch>

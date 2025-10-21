@@ -15,6 +15,9 @@
     <!-- Transform publishing -->
     <param name="publish_tf" value="true" />
     
+    <!-- Planner integration -->
+    <param name="publish_to_planner" value="true" />
+    
   </node>
   
   <!-- Optional: Static transform from base_link to camera_link -->
