@@ -1,0 +1,17 @@
+# eCAL ROS Bridge Configuration
+
+# Frame IDs
+odom_frame_id: "odom"
+base_frame_id: "base_link"  
+camera_frame_id: "camera_link"
+
+# eCAL Topics
+ecal_odom_topic: "S1/vio_odom"
+ecal_disparity_topic: "S1/stereo1_l/disparity"
+
+# Transform Publishing
+publish_tf: true
+
+# Alternative eCAL topics (uncomment to use)
+# ecal_odom_topic: "S0/vio_odom"
+# ecal_disparity_topic: "S0/stereo1_l/disparity"

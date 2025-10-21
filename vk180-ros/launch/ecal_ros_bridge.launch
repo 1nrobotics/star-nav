@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- eCAL ROS Bridge Node -->
+  <node name="ecal_ros_bridge" pkg="vk180_ros" type="ecal_ros_bridge" output="screen">
+    
+    <!-- Frame IDs -->
+    <param name="odom_frame_id" value="odom" />
+    <param name="base_frame_id" value="base_link" />
+    <param name="camera_frame_id" value="camera_link" />
+    
+    <!-- eCAL topic names -->
+    <param name="ecal_odom_topic" value="S1/vio_odom" />
+    <param name="ecal_disparity_topic" value="S1/stereo1_l/disparity" />
+    
+    <!-- Transform publishing -->
+    <param name="publish_tf" value="true" />
+    
+  </node>
+  
+  <!-- Optional: Static transform from base_link to camera_link -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="camera_tf_publisher" 
+        args="0 0 0 0 0 0 base_link camera_link" />
+
+</launch>
