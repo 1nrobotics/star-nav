@@ -123,6 +123,16 @@ class MyReceiver_Odometry3d: public vkc::Receiver<vkc::Odometry3d> {
     }
 };
 
+class MyReceiver_Odometry3d_NED: public vkc::Receiver<vkc::Odometry3d> {
+    vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Odometry3d>>& message) override {
+        auto Odometry3d = message.payload.reader();
+        std::cout << "=== VIO ODOM NED ===" << std::endl;
+        printOdometry3d(Odometry3d);
+        std::cout << "===================" << std::endl;
+        return vkc::ReceiverStatus::Open;
+    }
+};
+
 int main(int argc, char* argv[]) {
     auto visualkit = vkc::VisualKit::create(std::nullopt);
     // auto visualkit = vkc::VisualKit::create();
@@ -133,12 +143,28 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     
-    // Create the receiver that was defined by us.
-    auto myReceiver = std::make_unique<MyReceiver_Odometry3d>();
-
-    // Install the receiver into the data source so that the receiver can receive messages.
-    visualkit->source().install("S1/vio_odom", std::move(myReceiver));
-    // visualkit->source().install("S0/stereo1_l",std::move(myReceiver));
+    // Check command line argument to decide which topic to listen to
+    bool use_ned = false;
+    std::string topic_name = "S1/vio_odom";
+    
+    if (argc > 1) {
+        std::string arg = argv[1];
+        if (arg == "ned" || arg == "NED") {
+            use_ned = true;
+            topic_name = "S1/vio_odom_ned";
+        }
+    }
+    
+    if (use_ned) {
+        std::cout << "Listening to S1/vio_odom_ned (NED frame)..." << std::endl;
+        auto myReceiverNED = std::make_unique<MyReceiver_Odometry3d_NED>();
+        visualkit->source().install("S1/vio_odom_ned", std::move(myReceiverNED));
+    } else {
+        std::cout << "Listening to S1/vio_odom (default frame)..." << std::endl;
+        std::cout << "Use 'odom ned' to listen to NED frame instead." << std::endl;
+        auto myReceiver = std::make_unique<MyReceiver_Odometry3d>();
+        visualkit->source().install("S1/vio_odom", std::move(myReceiver));
+    }
     
     // Start the data source so messages can be received by `myReceiver`.
     visualkit->source().start();

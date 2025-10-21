@@ -180,10 +180,27 @@ The package also builds the original eCAL test executables:
 - `receive` - All topic receiver
 - `odom` - Odometry-only receiver  
 - `disparity` - Disparity-only receiver
+- `sensor_extrinsics` - Extract and display sensor extrinsics from all streams
 
 ```bash
 # Run original test programs
 rosrun vk180_ros odom
 rosrun vk180_ros disparity
 rosrun vk180_ros receive
+
+# Extract sensor extrinsics information
+rosrun vk180_ros sensor_extrinsics
 ```
+
+### Sensor Extrinsics Utility
+
+The `sensor_extrinsics` utility automatically scans for available streams and extracts:
+- **Image Streams**: Body frame and IMU frame transforms from camera sensors
+- **Disparity Streams**: Stereo camera rotation matrices for frame alignment  
+- **Extrinsic Streams**: Dedicated sensor calibration data
+
+This is useful for:
+- Understanding camera mounting orientations
+- Debugging coordinate frame transformations
+- Validating stereo camera calibration
+- Setting up proper TF transforms for ROS integration

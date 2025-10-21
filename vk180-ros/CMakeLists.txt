@@ -46,6 +46,7 @@ include_directories(
 add_executable(receive AllTopicReceiver.cpp)
 add_executable(odom odom.cpp)
 add_executable(disparity disparity.cpp)
+add_executable(sensor_extrinsics sensor_extrinsics.cpp)
 
 target_link_libraries(receive 
   PRIVATE 
@@ -58,6 +59,11 @@ target_link_libraries(odom
     vilota::vk_sdk
 )
 target_link_libraries(disparity 
+  PRIVATE 
+    CapnProto::capnp 
+    vilota::vk_sdk
+)
+target_link_libraries(sensor_extrinsics 
   PRIVATE 
     CapnProto::capnp 
     vilota::vk_sdk
