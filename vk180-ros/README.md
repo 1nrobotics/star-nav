@@ -114,7 +114,50 @@ camera_frame_id: "stereo_camera"
 publish_tf: false  # Useful when using robot_localization or other tf publishers
 ```
 
-## Troubleshooting
+## Planner Integration
+
+### EGO Planner Integration
+
+The VK180 ROS bridge can directly integrate with EGO planner for real-time SLAM and path planning:
+
+```bash
+# Launch VK180 + EGO Planner integration
+roslaunch vk180_ros planner_integration.launch
+
+# Or launch bridge with planner support enabled
+roslaunch vk180_ros ecal_ros_bridge.launch publish_to_planner:=true
+```
+
+**Integration Features:**
+- ✅ **Direct odometry feed**: VK180 VIO → `grid_map/odom`
+- ✅ **Depth map conversion**: Disparity → depth in meters → `grid_map/depth`  
+- ✅ **Synchronized processing**: Message filters sync depth + odometry
+- ✅ **Camera calibration**: Uses VK180 intrinsics for raycasting
+- ✅ **Occupancy mapping**: Real-time 3D grid map for obstacle avoidance
+
+**Published Topics for Planner:**
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/grid_map/odom` | `nav_msgs/Odometry` | VK180 VIO odometry |
+| `/grid_map/depth` | `sensor_msgs/Image` | Depth image (32FC1, meters) |
+
+**Camera Parameters:**
+- fx, fy: 198.603 pixels
+- cx, cy: 315.758, 189.992 pixels  
+- Baseline: 7.77 cm
+- Resolution: 320×200 pixels
+
+### Integration Architecture
+
+```
+VK180 Hardware
+    ↓ eCAL
+eCAL ROS Bridge
+    ↓ ROS Topics
+EGO Planner (GridMap)
+    ↓ Occupancy Grid
+Path Planning & Control
+```
 
 ### eCAL Connection Issues
 1. Ensure eCAL daemon is running: `ecal_daemon`
@@ -137,10 +180,27 @@ The package also builds the original eCAL test executables:
 - `receive` - All topic receiver
 - `odom` - Odometry-only receiver  
 - `disparity` - Disparity-only receiver
+- `sensor_extrinsics` - Extract and display sensor extrinsics from all streams
 
 ```bash
 # Run original test programs
 rosrun vk180_ros odom
 rosrun vk180_ros disparity
 rosrun vk180_ros receive
+
+# Extract sensor extrinsics information
+rosrun vk180_ros sensor_extrinsics
 ```
+
+### Sensor Extrinsics Utility
+
+The `sensor_extrinsics` utility automatically scans for available streams and extracts:
+- **Image Streams**: Body frame and IMU frame transforms from camera sensors
+- **Disparity Streams**: Stereo camera rotation matrices for frame alignment  
+- **Extrinsic Streams**: Dedicated sensor calibration data
+
+This is useful for:
+- Understanding camera mounting orientations
+- Debugging coordinate frame transformations
+- Validating stereo camera calibration
+- Setting up proper TF transforms for ROS integration

@@ -20,16 +20,21 @@
 class EcalRosBridge {
 public:
     EcalRosBridge(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
-        // Initialize publishers
+        // Initialize publishers for VK180 topics
         odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odometry", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity/image", 10);
         disparity_info_pub_ = nh_.advertise<sensor_msgs::CameraInfo>("vk180/disparity/camera_info", 10);
+        
+        // Initialize publishers for planner integration
+        planner_odom_pub_ = nh_.advertise<nav_msgs::Odometry>("grid_map/odom", 10);
+        planner_depth_pub_ = nh_.advertise<sensor_msgs::Image>("grid_map/depth", 10);
         
         // Parameters
         pnh_.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
         pnh_.param<std::string>("base_frame_id", base_frame_id_, "base_link");
         pnh_.param<std::string>("camera_frame_id", camera_frame_id_, "camera_link");
         pnh_.param<bool>("publish_tf", publish_tf_, true);
+        pnh_.param<bool>("publish_to_planner", publish_to_planner_, true);
         pnh_.param<std::string>("ecal_odom_topic", ecal_odom_topic_, "S1/vio_odom");
         pnh_.param<std::string>("ecal_disparity_topic", ecal_disparity_topic_, "S1/stereo1_l/disparity");
         
@@ -48,6 +53,11 @@ private:
     ros::Publisher odom_pub_;
     ros::Publisher disparity_pub_;
     ros::Publisher disparity_info_pub_;
+    
+    // Publishers for planner integration
+    ros::Publisher planner_odom_pub_;
+    ros::Publisher planner_depth_pub_;
+    
     tf2_ros::TransformBroadcaster tf_broadcaster_;
     
     std::string odom_frame_id_;
@@ -56,6 +66,7 @@ private:
     std::string ecal_odom_topic_;
     std::string ecal_disparity_topic_;
     bool publish_tf_;
+    bool publish_to_planner_;
     
     std::unique_ptr<vkc::VisualKit> visualkit_;
 
@@ -162,6 +173,11 @@ private:
 
         // Publish odometry
         odom_pub_.publish(odom_msg);
+        
+        // Publish to planner if enabled
+        if (publish_to_planner_) {
+            planner_odom_pub_.publish(odom_msg);
+        }
 
         // Publish transform if enabled
         if (publish_tf_) {
@@ -231,6 +247,11 @@ private:
         std::memcpy(disparity_msg.data.data(), data.begin(), data.size());
 
         disparity_pub_.publish(disparity_msg);
+        
+        // Publish to planner if enabled (convert disparity to depth for planner)
+        if (publish_to_planner_) {
+            publishDepthForPlanner(disparity_data, disparity_msg.header);
+        }
 
         // Publish camera info
         publishCameraInfo(disparity_data, disparity_msg.header);
@@ -265,6 +286,94 @@ private:
         camera_info.D.resize(5, 0.0); // No distortion parameters available from eCAL
         
         disparity_info_pub_.publish(camera_info);
+    }
+    
+    void publishDepthForPlanner(const vkc::Disparity::Reader& disparity_data, const std_msgs::Header& header) {
+        // Convert disparity to depth image for planner (RealSense-compatible format)
+        sensor_msgs::Image depth_msg;
+        
+        depth_msg.header = header;
+        depth_msg.width = disparity_data.getWidth();
+        depth_msg.height = disparity_data.getHeight();
+        
+        auto encoding = disparity_data.getEncoding();
+        auto data = disparity_data.getData();
+        
+        // For planner compatibility: use 16UC1 format (millimeters) like RealSense
+        depth_msg.encoding = "16UC1";  // Same as RealSense
+        depth_msg.step = depth_msg.width * 2; // 2 bytes per uint16
+        depth_msg.data.resize(depth_msg.height * depth_msg.step);
+        
+        uint16_t* depth_ptr = reinterpret_cast<uint16_t*>(depth_msg.data.data());
+        
+        // Convert all formats to millimeters (uint16) for planner compatibility
+        if (encoding == vkc::Disparity::Encoding::DEPTH32) {
+            // Depth in meters (32-bit float) → millimeters (16-bit uint)
+            const float* src_ptr = reinterpret_cast<const float*>(data.begin());
+            for (size_t i = 0; i < depth_msg.width * depth_msg.height; ++i) {
+                float depth_meters = src_ptr[i];
+                if (depth_meters > 0 && depth_meters < 65.535) {  // Valid range for 16-bit mm
+                    depth_ptr[i] = static_cast<uint16_t>(depth_meters * 1000.0f); // meters → mm
+                } else {
+                    depth_ptr[i] = 0; // Invalid depth
+                }
+            }
+        }
+        else if (encoding == vkc::Disparity::Encoding::DEPTH16) {
+            // Already depth in millimeters (16-bit) - direct copy
+            std::memcpy(depth_ptr, data.begin(), data.size());
+        }
+        else if (encoding == vkc::Disparity::Encoding::DISPARITY16 || 
+                 encoding == vkc::Disparity::Encoding::DISPARITY8) {
+            // Raw disparity - convert to depth in millimeters
+            double fx = disparity_data.getFx();
+            double baseline = disparity_data.getBaseline();
+            
+            if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
+                const uint16_t* src_ptr = reinterpret_cast<const uint16_t*>(data.begin());
+                for (size_t i = 0; i < depth_msg.width * depth_msg.height; ++i) {
+                    if (src_ptr[i] > 0) {
+                        float depth_meters = static_cast<float>((fx * baseline) / src_ptr[i]);
+                        if (depth_meters < 65.535) {
+                            depth_ptr[i] = static_cast<uint16_t>(depth_meters * 1000.0f); // meters → mm
+                        } else {
+                            depth_ptr[i] = 0; // Too far
+                        }
+                    } else {
+                        depth_ptr[i] = 0; // Invalid depth
+                    }
+                }
+            } else { // DISPARITY8
+                const uint8_t* src_ptr = reinterpret_cast<const uint8_t*>(data.begin());
+                for (size_t i = 0; i < depth_msg.width * depth_msg.height; ++i) {
+                    if (src_ptr[i] > 0) {
+                        float depth_meters = static_cast<float>((fx * baseline) / src_ptr[i]);
+                        if (depth_meters < 65.535) {
+                            depth_ptr[i] = static_cast<uint16_t>(depth_meters * 1000.0f); // meters → mm
+                        } else {
+                            depth_ptr[i] = 0; // Too far
+                        }
+                    } else {
+                        depth_ptr[i] = 0; // Invalid depth
+                    }
+                }
+            }
+        }
+        else {
+            // Unknown format - assume depth in meters, convert to millimeters
+            ROS_WARN_THROTTLE(5.0, "Unknown disparity encoding for planner conversion, assuming depth in meters");
+            const float* src_ptr = reinterpret_cast<const float*>(data.begin());
+            for (size_t i = 0; i < depth_msg.width * depth_msg.height; ++i) {
+                float depth_meters = src_ptr[i];
+                if (depth_meters > 0 && depth_meters < 65.535) {
+                    depth_ptr[i] = static_cast<uint16_t>(depth_meters * 1000.0f); // meters → mm
+                } else {
+                    depth_ptr[i] = 0;
+                }
+            }
+        }
+        
+        planner_depth_pub_.publish(depth_msg);
     }
 };
 
