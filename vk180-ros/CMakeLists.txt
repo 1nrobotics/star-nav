@@ -51,12 +51,12 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
 )
 
-## Original eCAL test executables
-add_executable(receive AllTopicReceiver.cpp)
-add_executable(odom odom.cpp)
-add_executable(disparity disparity.cpp)
-add_executable(sensor_extrinsics sensor_extrinsics.cpp)
-add_executable(depth_conversion_test depth_conversion_test.cpp)
+## VK180 utility executables
+add_executable(receive src/nodes/AllTopicReceiver.cpp)
+add_executable(odom src/utils/odom.cpp)
+add_executable(disparity src/utils/disparity.cpp)
+add_executable(sensor_extrinsics src/utils/sensor_extrinsics.cpp)
+add_executable(depth_conversion_test src/utils/depth_conversion_test.cpp)
 
 target_link_libraries(receive 
   PRIVATE 
@@ -85,7 +85,7 @@ target_link_libraries(depth_conversion_test
 )
 
 ## ROS bridge node
-add_executable(ecal_ros_bridge src/ecal_ros_bridge_node.cpp)
+add_executable(ecal_ros_bridge src/nodes/ecal_ros_bridge_node.cpp)
 target_link_libraries(ecal_ros_bridge 
   PRIVATE
     ${catkin_LIBRARIES}
@@ -94,7 +94,7 @@ target_link_libraries(ecal_ros_bridge
 )
 
 ## Enhanced planner integration with body frame transformation
-add_executable(enhanced_planner_integration enhanced_planner_integration.cpp)
+add_executable(enhanced_planner_integration src/nodes/enhanced_planner_integration.cpp)
 target_link_libraries(enhanced_planner_integration 
   PRIVATE
     ${catkin_LIBRARIES}
