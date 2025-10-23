@@ -52,7 +52,7 @@ include_directories(
 )
 
 ## VK180 utility executables
-add_executable(receive src/nodes/AllTopicReceiver.cpp)
+add_executable(receive src/utils/AllTopicReceiver.cpp)
 add_executable(odom src/utils/odom.cpp)
 add_executable(disparity src/utils/disparity.cpp)
 add_executable(sensor_extrinsics src/utils/sensor_extrinsics.cpp)
