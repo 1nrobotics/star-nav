@@ -10,10 +10,10 @@
     <arg name="use_rviz" default="true"/>
     <arg name="use_body_frame_transform" default="true"/>
     
-    <!-- VK180 Enhanced Planner Integration -->
-    <node name="enhanced_planner_integration" 
+    <!-- VK180 Planner Bridge -->
+    <node name="vk180_planner_bridge" 
           pkg="vk180_ros" 
-          type="enhanced_planner_integration" 
+          type="vk180_planner_bridge" 
           output="screen">
         
         <!-- Frame IDs -->
@@ -22,6 +22,7 @@
         
         <!-- Depth Processing Parameters -->
         <param name="use_body_frame_transform" value="$(arg use_body_frame_transform)" />
+        <param name="subscribe_to_image_stream" value="true" />
         <param name="max_depth" value="8.0" />
         <param name="min_depth" value="0.3" />
         
@@ -93,8 +94,7 @@
     <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_camera"
           args="0.1 0 0.05 0 0 0 base_link camera_link" />
     
-    <node pkg="tf2_ros" type="static_transform_publisher" name="camera_optical_frame"
-          args="0 0 0 -1.5708 0 -1.5708 camera_link camera_optical_frame" />
+    <!-- Note: camera_optical_frame TF is published by vk180_planner_bridge node -->
     
     <!-- RViz Visualization -->
     <node name="rviz" pkg="rviz" type="rviz" 
