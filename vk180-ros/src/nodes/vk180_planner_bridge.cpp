@@ -35,9 +35,9 @@ struct CameraIntrinsics {
     bool is_valid = false;
 };
 
-class EnhancedPlannerIntegration {
+class VK180PlannerBridge {
 public:
-    EnhancedPlannerIntegration(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
+    VK180PlannerBridge(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
         // Publishers for planner
         planner_odom_pub_ = nh_.advertise<nav_msgs::Odometry>("grid_map/odom", 10);
         planner_depth_pub_ = nh_.advertise<sensor_msgs::Image>("grid_map/depth", 10);
@@ -59,7 +59,7 @@ public:
         initializeEcal();
     }
 
-    ~EnhancedPlannerIntegration() {
+    ~VK180PlannerBridge() {
         if (visualkit_) {
             visualkit_->source().stop(false);
         }
@@ -114,7 +114,7 @@ private:
 
         visualkit_->source().start();
         
-        ROS_INFO("Enhanced Planner Integration initialized");
+        ROS_INFO("VK180 Planner Bridge initialized");
         if (subscribe_to_image_stream_) {
             ROS_INFO("Waiting for stereo1_l extrinsics extraction...");
         }
@@ -123,7 +123,7 @@ private:
     // Extract extrinsics from stereo1_l image stream
     class ImageReceiver : public vkc::Receiver<vkc::Image> {
     public:
-        explicit ImageReceiver(EnhancedPlannerIntegration& integration) : integration_(integration), message_count_(0) {
+        explicit ImageReceiver(VK180PlannerBridge& integration) : integration_(integration), message_count_(0) {
             ROS_INFO("ImageReceiver constructor called");
         }
 
@@ -165,13 +165,13 @@ private:
         }
 
     private:
-        EnhancedPlannerIntegration& integration_;
+        VK180PlannerBridge& integration_;
         int message_count_;
     };
 
     class OdometryReceiver : public vkc::Receiver<vkc::Odometry3d> {
     public:
-        explicit OdometryReceiver(EnhancedPlannerIntegration& integration) : integration_(integration) {}
+        explicit OdometryReceiver(VK180PlannerBridge& integration) : integration_(integration) {}
 
         vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Odometry3d>>& message) override {
             auto odom_data = message.payload.reader();
@@ -180,12 +180,12 @@ private:
         }
 
     private:
-        EnhancedPlannerIntegration& integration_;
+        VK180PlannerBridge& integration_;
     };
 
     class DisparityReceiver : public vkc::Receiver<vkc::Disparity> {
     public:
-        explicit DisparityReceiver(EnhancedPlannerIntegration& integration) : integration_(integration), message_count_(0) {}
+        explicit DisparityReceiver(VK180PlannerBridge& integration) : integration_(integration), message_count_(0) {}
 
         vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Disparity>>& message) override {
             message_count_++;
@@ -235,7 +235,7 @@ private:
         }
 
     private:
-        EnhancedPlannerIntegration& integration_;
+        VK180PlannerBridge& integration_;
         int message_count_;
     };
 
@@ -656,13 +656,13 @@ private:
 };
 
 int main(int argc, char** argv) {
-    ros::init(argc, argv, "enhanced_planner_integration");
+    ros::init(argc, argv, "vk180_planner_bridge");
     ros::NodeHandle nh;
     ros::NodeHandle pnh("~");
     
-    ROS_INFO("Starting Enhanced Planner Integration with Body Frame Transformation");
+    ROS_INFO("Starting VK180 Planner Bridge with Body Frame Transformation");
     
-    EnhancedPlannerIntegration integration(nh, pnh);
+    VK180PlannerBridge integration(nh, pnh);
     
     ros::spin();
     

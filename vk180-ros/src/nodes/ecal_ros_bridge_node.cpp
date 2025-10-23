@@ -398,6 +398,42 @@ private:
         planner_depth_pub_.publish(depth_msg);
     }
 
+    // Helper functions for detailed image printing (from AllTopicReceiver.cpp)
+    void printVector3d(const vkc::Vector3d::Reader& vector3d) {
+        ROS_INFO("  Vector3d: x=%.3f, y=%.3f, z=%.3f", vector3d.getX(), vector3d.getY(), vector3d.getZ());
+    }
+
+    void printSo3(const vkc::So3::Reader& So3) {
+        ROS_INFO("  So3 (Quaternion): w=%.3f, x=%.3f, y=%.3f, z=%.3f", So3.getW(), So3.getX(), So3.getY(), So3.getZ());
+    }
+
+    void printSe3(const vkc::Se3::Reader& Se3) {
+        ROS_INFO("  Se3 Transform:");
+        ROS_INFO("    Position:");
+        printVector3d(Se3.getPosition());
+        ROS_INFO("    Orientation:");
+        printSo3(Se3.getOrientation());
+    }
+
+    void printSensorExtrinsic(const vkc::SensorExtrinsic::Reader& SensorExtrinsic) {
+        ROS_INFO("  Sensor Extrinsic:");
+        ROS_INFO("    Body Frame:");
+        printSe3(SensorExtrinsic.getBodyFrame());
+        ROS_INFO("    IMU Frame:");
+        printSe3(SensorExtrinsic.getImuFrame());
+        ROS_INFO("    Last Modified: %lu", SensorExtrinsic.getLastModified());
+    }
+
+    void printMotionMeta(const vkc::MotionMeta::Reader& motionMeta) {
+        ROS_INFO("  Motion Meta:");
+        ROS_INFO("    Instantaneous Angular Velocity:");
+        printVector3d(motionMeta.getInstantaneousAngularVelocity());
+        ROS_INFO("    Average Angular Velocity:");
+        printVector3d(motionMeta.getAverageAngularVelocity());
+        ROS_INFO("    Shock Likelihood: %.3f", motionMeta.getShockLikelihood());
+        ROS_INFO("    Delta Us: %lu", motionMeta.getDeltaUs());
+    }
+
     void printImage(const vkc::Image::Reader& image_data) {
         static int image_count = 0;
         image_count++;
@@ -407,45 +443,46 @@ private:
             return;
         }
         
+        ROS_INFO("========== Image Info [#%d] ==========", image_count);
+        
         auto header = image_data.getHeader();
-        int width = image_data.getWidth();
-        int height = image_data.getHeight();
-        auto data = image_data.getData();
+        ROS_INFO("Header:");
+        ROS_INFO("  Seq: %u", header.getSeq());
+        ROS_INFO("  Stamp Monotonic: %lu", header.getStampMonotonic());
+        ROS_INFO("  Frame ID: %s", header.getFrameId().cStr());
         
         std::string encoding_str = "unknown";
         switch (image_data.getEncoding()) {
-            case vkc::Image::Encoding::MONO8:
-                encoding_str = "mono8";
-                break;
-            case vkc::Image::Encoding::MONO16:
-                encoding_str = "mono16";
-                break;
-            case vkc::Image::Encoding::YUV420:
-                encoding_str = "yuv420";
-                break;
-            case vkc::Image::Encoding::BGR8:
-                encoding_str = "bgr8";
-                break;
-            case vkc::Image::Encoding::JPEG:
-                encoding_str = "jpeg";
-                break;
-            case vkc::Image::Encoding::PNG:
-                encoding_str = "png";
-                break;
-            case vkc::Image::Encoding::H264:
-                encoding_str = "h264";
-                break;
-            case vkc::Image::Encoding::H265:
-                encoding_str = "h265";
-                break;
-            default:
-                encoding_str = "unknown";
+            case vkc::Image::Encoding::MONO8: encoding_str = "mono8"; break;
+            case vkc::Image::Encoding::MONO16: encoding_str = "mono16"; break;
+            case vkc::Image::Encoding::YUV420: encoding_str = "yuv420"; break;
+            case vkc::Image::Encoding::BGR8: encoding_str = "bgr8"; break;
+            case vkc::Image::Encoding::JPEG: encoding_str = "jpeg"; break;
+            case vkc::Image::Encoding::PNG: encoding_str = "png"; break;
+            case vkc::Image::Encoding::H264: encoding_str = "h264"; break;
+            case vkc::Image::Encoding::H265: encoding_str = "h265"; break;
+            default: encoding_str = "unknown";
         }
         
-        ROS_INFO("Image [#%d] from %s: %dx%d, encoding=%s, data=%zu bytes, seq=%u, stream=%s", 
-                 image_count, ecal_image_topic_.c_str(), width, height,
-                 encoding_str.c_str(), data.size(), header.getSeq(),
-                 image_data.getStreamName().cStr());
+        ROS_INFO("Encoding: %s", encoding_str.c_str());
+        ROS_INFO("Dimensions: %dx%d", image_data.getWidth(), image_data.getHeight());
+        ROS_INFO("Step: %u", image_data.getStep());
+        ROS_INFO("Data size: %zu bytes", image_data.getData().size());
+        ROS_INFO("Exposure: %u usec", image_data.getExposureUSec());
+        ROS_INFO("Gain: %.2f", image_data.getGain());
+        ROS_INFO("Sensor Index: %d", static_cast<int>(image_data.getSensorIdx()));
+        ROS_INFO("Stream Name: %s", image_data.getStreamName().cStr());
+        ROS_INFO("MipMap Levels: %d", static_cast<int>(image_data.getMipMapLevels()));
+        ROS_INFO("MipMap Brightness: %d", static_cast<int>(image_data.getMipMapBrightness()));
+        ROS_INFO("MipMap Brightness Change: %.3f", image_data.getMipMapBrightnessChange());
+        
+        ROS_INFO("Extrinsic:");
+        printSensorExtrinsic(image_data.getExtrinsic());
+        
+        ROS_INFO("Motion Meta:");
+        printMotionMeta(image_data.getMotionMeta());
+        
+        ROS_INFO("=====================================");
     }
 };
 

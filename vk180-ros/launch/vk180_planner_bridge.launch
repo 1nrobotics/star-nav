@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-    <!-- Enhanced VK180 Planner Integration with Body Frame Transformation -->
+    <!-- VK180 Planner Bridge with Body Frame Transformation -->
     
     <!-- Parameters -->
     <arg name="use_body_frame_transform" default="true" />
@@ -10,10 +10,10 @@
     <arg name="odom_frame_id" default="odom" />
     <arg name="base_frame_id" default="base_link" />
     
-    <!-- Enhanced Planner Integration Node -->
-    <node name="enhanced_planner_integration" 
+    <!-- VK180 Planner Bridge Node -->
+    <node name="vk180_planner_bridge" 
           pkg="vk180_ros" 
-          type="enhanced_planner_integration" 
+          type="vk180_planner_bridge" 
           output="screen">
         
         <!-- Frame IDs -->

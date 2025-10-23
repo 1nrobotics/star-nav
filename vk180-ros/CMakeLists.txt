@@ -93,9 +93,9 @@ target_link_libraries(ecal_ros_bridge
     vilota::vk_sdk
 )
 
-## Enhanced planner integration with body frame transformation
-add_executable(enhanced_planner_integration src/nodes/enhanced_planner_integration.cpp)
-target_link_libraries(enhanced_planner_integration 
+## VK180 Planner Bridge with body frame transformation
+add_executable(vk180_planner_bridge src/nodes/vk180_planner_bridge.cpp)
+target_link_libraries(vk180_planner_bridge 
   PRIVATE
     ${catkin_LIBRARIES}
     ${OpenCV_LIBRARIES}
