@@ -24,7 +24,7 @@ public:
         odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odometry", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity/image", 10);
         disparity_info_pub_ = nh_.advertise<sensor_msgs::CameraInfo>("vk180/disparity/camera_info", 10);
-        stereo1_l_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/stereo1_l/image", 10);
+        // Note: S1/stereo1_l image stream monitored but not published (using printImage for info only)
         
         // Initialize publishers for planner integration
         planner_odom_pub_ = nh_.advertise<nav_msgs::Odometry>("grid_map/odom", 10);
@@ -55,7 +55,6 @@ private:
     ros::Publisher odom_pub_;
     ros::Publisher disparity_pub_;
     ros::Publisher disparity_info_pub_;
-    ros::Publisher stereo1_l_pub_;
     
     // Publishers for planner integration
     ros::Publisher planner_odom_pub_;
@@ -100,7 +99,7 @@ private:
         ROS_INFO("eCAL ROS Bridge initialized");
         ROS_INFO("Odometry topic: %s -> /vk180/odometry", ecal_odom_topic_.c_str());
         ROS_INFO("Disparity topic: %s -> /vk180/disparity/image", ecal_disparity_topic_.c_str());
-        ROS_INFO("Image topic: %s -> /vk180/stereo1_l/image", ecal_image_topic_.c_str());
+        ROS_INFO("Image topic: %s (monitoring only, not publishing)", ecal_image_topic_.c_str());
     }
 
     class OdometryReceiver : public vkc::Receiver<vkc::Odometry3d> {
@@ -137,7 +136,7 @@ private:
 
         vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Image>>& message) override {
             auto image_data = message.payload.reader();
-            bridge_.publishImage(image_data);
+            bridge_.printImage(image_data);
             return vkc::ReceiverStatus::Open;
         }
 
@@ -399,43 +398,54 @@ private:
         planner_depth_pub_.publish(depth_msg);
     }
 
-    void publishImage(const vkc::Image::Reader& image_data) {
-        sensor_msgs::Image image_msg;
+    void printImage(const vkc::Image::Reader& image_data) {
+        static int image_count = 0;
+        image_count++;
+        
+        // Only print every 30 messages to avoid spam
+        if (image_count % 30 != 1) {
+            return;
+        }
         
         auto header = image_data.getHeader();
-        image_msg.header.seq = header.getSeq();
-        image_msg.header.stamp = ros::Time::now();
-        image_msg.header.frame_id = camera_frame_id_;
-
-        image_msg.width = image_data.getWidth();
-        image_msg.height = image_data.getHeight();
-
-        // Determine encoding based on image data size
+        int width = image_data.getWidth();
+        int height = image_data.getHeight();
         auto data = image_data.getData();
-        size_t expected_mono8_size = image_msg.width * image_msg.height;
-        size_t expected_mono16_size = image_msg.width * image_msg.height * 2;
         
-        if (data.size() == expected_mono8_size) {
-            image_msg.encoding = "mono8";
-            image_msg.step = image_msg.width;
-        } else if (data.size() == expected_mono16_size) {
-            image_msg.encoding = "mono16";
-            image_msg.step = image_msg.width * 2;
-        } else {
-            // Default to mono8
-            ROS_WARN_THROTTLE(5.0, "Image data size %zu doesn't match expected sizes (mono8: %zu, mono16: %zu), using mono8", 
-                             data.size(), expected_mono8_size, expected_mono16_size);
-            image_msg.encoding = "mono8";
-            image_msg.step = image_msg.width;
+        std::string encoding_str = "unknown";
+        switch (image_data.getEncoding()) {
+            case vkc::Image::Encoding::MONO8:
+                encoding_str = "mono8";
+                break;
+            case vkc::Image::Encoding::MONO16:
+                encoding_str = "mono16";
+                break;
+            case vkc::Image::Encoding::YUV420:
+                encoding_str = "yuv420";
+                break;
+            case vkc::Image::Encoding::BGR8:
+                encoding_str = "bgr8";
+                break;
+            case vkc::Image::Encoding::JPEG:
+                encoding_str = "jpeg";
+                break;
+            case vkc::Image::Encoding::PNG:
+                encoding_str = "png";
+                break;
+            case vkc::Image::Encoding::H264:
+                encoding_str = "h264";
+                break;
+            case vkc::Image::Encoding::H265:
+                encoding_str = "h265";
+                break;
+            default:
+                encoding_str = "unknown";
         }
-
-        image_msg.is_bigendian = false;
-
-        // Copy image data
-        image_msg.data.resize(data.size());
-        std::memcpy(image_msg.data.data(), data.begin(), data.size());
-
-        stereo1_l_pub_.publish(image_msg);
+        
+        ROS_INFO("Image [#%d] from %s: %dx%d, encoding=%s, data=%zu bytes, seq=%u, stream=%s", 
+                 image_count, ecal_image_topic_.c_str(), width, height,
+                 encoding_str.c_str(), data.size(), header.getSeq(),
+                 image_data.getStreamName().cStr());
     }
 };
 
