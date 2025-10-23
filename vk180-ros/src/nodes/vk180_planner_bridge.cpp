@@ -341,7 +341,7 @@ private:
         static int publish_count = 0;
         publish_count++;
         
-        ROS_INFO_THROTTLE(2.0, "Processing disparity for depth conversion [%d]", publish_count);
+        ROS_INFO_THROTTLE(5.0, "Processing disparity for depth conversion [%d]", publish_count);
         
         // Extract intrinsics from disparity data if not done yet
         if (!stereo1_l_intrinsics_.is_valid) {
@@ -397,14 +397,14 @@ private:
             publishDepthImage(body_frame_depth, planner_depth_pub_, base_frame_id_);
         } else {
             if (use_body_frame_transform_ && !stereo1_l_extrinsics_.is_valid) {
-                ROS_INFO_THROTTLE(10.0, "Body frame transform requested but extrinsics unavailable - using camera frame");
+                ROS_INFO_THROTTLE(5.0, "Body frame transform requested but extrinsics unavailable - using camera frame");
             }
             ROS_INFO_THROTTLE(5.0, "Publishing camera frame depth for planner");
             // Use camera frame depth directly
             publishDepthImage(depth_image, planner_depth_pub_, "camera_optical_frame");
         }
         
-        ROS_INFO_THROTTLE(10.0, "Depth processing pipeline completed successfully [%d processed]", publish_count);
+        ROS_INFO_THROTTLE(5.0, "Depth processing pipeline completed successfully [%d processed]", publish_count);
     }
 
     cv::Mat convertDisparityToDepth(const vkc::Disparity::Reader& disparity_data) {
@@ -414,7 +414,7 @@ private:
         int width = disparity_data.getWidth();
         int height = disparity_data.getHeight();
         
-        ROS_INFO_THROTTLE(3.0, "Converting disparity to depth [%d] (size: %dx%d)", 
+        ROS_INFO_THROTTLE(5.0, "Converting disparity to depth [%d] (size: %dx%d)", 
                          conversion_count, width, height);
         
         // Get disparity values
@@ -438,7 +438,7 @@ private:
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
                 int idx = y * width + x;
-                float disparity = disparity_values[idx];
+                float disparity = disparity_values[idx] / 8;
                 
                 if (disparity > 0) {
                     valid_pixels++;
@@ -472,7 +472,7 @@ private:
             ROS_WARN("No valid disparity pixels found - depth image will be empty");
         }
         
-        ROS_INFO_THROTTLE(8.0, "Depth conversion completed: %dx%d, validity=%.1f%%", 
+        ROS_INFO_THROTTLE(5.0, "Depth conversion completed: %dx%d, validity=%.1f%%", 
                          width, height, depth_validity_ratio * 100.0f);
         
         return depth_image;
