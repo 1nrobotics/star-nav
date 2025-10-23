@@ -4,6 +4,7 @@
     
     <!-- Parameters -->
     <arg name="use_body_frame_transform" default="true" />
+    <arg name="subscribe_to_image_stream" default="true" />
     <arg name="max_depth" default="10.0" />
     <arg name="min_depth" default="0.1" />
     <arg name="odom_frame_id" default="odom" />
@@ -21,6 +22,7 @@
         
         <!-- Depth Processing Parameters -->
         <param name="use_body_frame_transform" value="$(arg use_body_frame_transform)" />
+        <param name="subscribe_to_image_stream" value="$(arg subscribe_to_image_stream)" />
         <param name="max_depth" value="$(arg max_depth)" />
         <param name="min_depth" value="$(arg min_depth)" />
         
@@ -34,11 +36,6 @@
           args="0 0 0 -1.5708 0 -1.5708 camera_link camera_optical_frame" />
     
     <!-- RViz Visualization -->
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find vk180_ros)/config/planner_integration.rviz" if="false" />
-    
-    <!-- Diagnostic Information -->
-    <node name="diagnostic_aggregator" pkg="diagnostic_aggregator" type="aggregator_node">
-        <rosparam command="load" file="$(find vk180_ros)/config/diagnostic_config.yaml" />
-    </node>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find vk180_ros)/config/vk180_planner_visualization.rviz" if="false" />
     
 </launch>

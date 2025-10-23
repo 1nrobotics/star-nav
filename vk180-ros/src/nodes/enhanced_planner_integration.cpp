@@ -46,11 +46,13 @@ public:
         raw_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/raw_depth", 10);
         transformed_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/body_frame_depth", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
+        stereo1_l_image_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/stereo1_l/image", 10);
         
         // Parameters
         pnh_.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
         pnh_.param<std::string>("base_frame_id", base_frame_id_, "base_link");
         pnh_.param<bool>("use_body_frame_transform", use_body_frame_transform_, true);
+        pnh_.param<bool>("subscribe_to_image_stream", subscribe_to_image_stream_, false);
         pnh_.param<double>("max_depth", max_depth_, 10.0);
         pnh_.param<double>("min_depth", min_depth_, 0.1);
         
@@ -70,10 +72,12 @@ private:
     ros::Publisher raw_depth_pub_;
     ros::Publisher transformed_depth_pub_;
     ros::Publisher disparity_pub_;
+    ros::Publisher stereo1_l_image_pub_;
     
     std::string odom_frame_id_;
     std::string base_frame_id_;
     bool use_body_frame_transform_;
+    bool subscribe_to_image_stream_;
     double max_depth_, min_depth_;
     
     std::unique_ptr<vkc::VisualKit> visualkit_;
@@ -94,8 +98,16 @@ private:
         auto odom_receiver = std::make_unique<OdometryReceiver>(*this);
         visualkit_->source().install("S1/vio_odom", std::move(odom_receiver));
 
-        auto image_receiver = std::make_unique<ImageReceiver>(*this);
-        visualkit_->source().install("S1/stereo1_l", std::move(image_receiver));
+        // Only subscribe to image stream if body frame transform is needed
+        if (subscribe_to_image_stream_) {
+            ROS_INFO("Creating ImageReceiver for S1/stereo1_l stream...");
+            auto image_receiver = std::make_unique<ImageReceiver>(*this);
+            ROS_INFO("Installing image receiver on stream: S1/stereo1_l");
+            visualkit_->source().install("S1/stereo1_l", std::move(image_receiver));
+            ROS_INFO("Successfully subscribed to S1/stereo1_l image stream for extrinsics");
+        } else {
+            ROS_INFO("Skipping S1/stereo1_l image stream subscription (subscribe_to_image_stream=false)");
+        }
 
         auto disparity_receiver = std::make_unique<DisparityReceiver>(*this);
         visualkit_->source().install("S1/stereo1_l/disparity", std::move(disparity_receiver));
@@ -103,22 +115,48 @@ private:
         visualkit_->source().start();
         
         ROS_INFO("Enhanced Planner Integration initialized");
-        ROS_INFO("Waiting for stereo1_l extrinsics extraction...");
+        if (subscribe_to_image_stream_) {
+            ROS_INFO("Waiting for stereo1_l extrinsics extraction...");
+        }
     }
 
     // Extract extrinsics from stereo1_l image stream
     class ImageReceiver : public vkc::Receiver<vkc::Image> {
     public:
-        explicit ImageReceiver(EnhancedPlannerIntegration& integration) : integration_(integration) {}
+        explicit ImageReceiver(EnhancedPlannerIntegration& integration) : integration_(integration), message_count_(0) {
+            ROS_INFO("ImageReceiver constructor called");
+        }
 
         vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Image>>& message) override {
-            auto image = message.payload.reader();
+            message_count_++;
             
-            // Only process stereo1_l for extrinsics
-            std::string stream_name = image.getStreamName().cStr();
-            if (stream_name == "S1/stereo1_l") {
+            try {
+                auto image = message.payload.reader();
+                
+                // Log first image reception
+                if (message_count_ == 1) {
+                    ROS_INFO("!!! RECEIVED FIRST IMAGE MESSAGE from stream: %s !!!", image.getStreamName().cStr());
+                    ROS_INFO("Image dimensions: %dx%d", image.getWidth(), image.getHeight());
+                }
+                
+                // Always log every 30 messages to prove we're receiving
+                if (message_count_ % 30 == 1) {
+                    ROS_INFO("IMAGE STREAM ALIVE: Received image #%d from %s", 
+                             message_count_, image.getStreamName().cStr());
+                }
+                
+                // Process all images from S1/stereo1_l subscription
+                // Note: getStreamName() may return "stereo1_l_encoded" or "S1/stereo1_l" 
+                // but we subscribed to the correct topic, so process all images
+                std::string stream_name = image.getStreamName().cStr();
+                ROS_INFO_THROTTLE(5.0, "Processing image (message #%d, stream: %s)", 
+                                 message_count_, stream_name.c_str());
                 integration_.extractExtrinsics(image);
                 integration_.extractIntrinsics(image);
+                integration_.publishStereo1LImage(image);
+                
+            } catch (const std::exception& e) {
+                ROS_ERROR("Exception in ImageReceiver::handle: %s", e.what());
             }
             
             return vkc::ReceiverStatus::Open;
@@ -126,6 +164,7 @@ private:
 
     private:
         EnhancedPlannerIntegration& integration_;
+        int message_count_;
     };
 
     class OdometryReceiver : public vkc::Receiver<vkc::Odometry3d> {
@@ -152,7 +191,7 @@ private:
             
             // Debug: Print disparity data info every 30 messages (roughly every second at 30Hz)
             if (message_count_ % 30 == 1) {
-                ROS_INFO("🔍 DISPARITY DEBUG [Message #%d]:", message_count_);
+                ROS_INFO("DISPARITY DEBUG [Message #%d]:", message_count_);
                 ROS_INFO("  Stream: %s", disparity_data.getStreamName().cStr());
                 ROS_INFO("  Dimensions: %dx%d", disparity_data.getWidth(), disparity_data.getHeight());
                 ROS_INFO("  Step: %d", disparity_data.getStep());
@@ -174,7 +213,7 @@ private:
                              min_val, max_val, valid_pixels, data.size(), 
                              100.0 * valid_pixels / data.size());
                 } else {
-                    ROS_WARN("  ⚠️  No disparity data received!");
+                    ROS_WARN("  No disparity data received!");
                 }
             }
             
@@ -184,10 +223,10 @@ private:
                 
                 // Success feedback (throttled)
                 if (message_count_ % 100 == 1) {
-                    ROS_INFO("✅ Successfully processed disparity message #%d", message_count_);
+                    ROS_INFO("Successfully processed disparity message #%d", message_count_);
                 }
             } catch (const std::exception& e) {
-                ROS_ERROR("❌ Error processing disparity data: %s", e.what());
+                ROS_ERROR("Error processing disparity data: %s", e.what());
             }
             
             return vkc::ReceiverStatus::Open;
@@ -221,7 +260,7 @@ private:
         stereo1_l_extrinsics_.updateTransform();
         stereo1_l_extrinsics_.is_valid = true;
         
-        ROS_INFO("✅ Extracted stereo1_l extrinsics for depth transformation");
+        ROS_INFO("Extracted stereo1_l extrinsics for depth transformation");
         ROS_INFO("Body position: [%.3f, %.3f, %.3f]", 
                  stereo1_l_extrinsics_.body_position.x(),
                  stereo1_l_extrinsics_.body_position.y(),
@@ -280,11 +319,11 @@ private:
         static int publish_count = 0;
         publish_count++;
         
-        ROS_INFO_THROTTLE(2.0, "🔄 Processing disparity for depth conversion [%d]", publish_count);
+        ROS_INFO_THROTTLE(2.0, "Processing disparity for depth conversion [%d]", publish_count);
         
         // Extract intrinsics from disparity data if not done yet
         if (!stereo1_l_intrinsics_.is_valid) {
-            ROS_INFO("📐 Extracting camera intrinsics from disparity data...");
+            ROS_INFO("Extracting camera intrinsics from disparity data...");
             stereo1_l_intrinsics_.fx = disparity_data.getFx();
             stereo1_l_intrinsics_.fy = disparity_data.getFy();
             stereo1_l_intrinsics_.cx = disparity_data.getCx();
@@ -292,55 +331,58 @@ private:
             stereo1_l_intrinsics_.baseline = disparity_data.getBaseline();
             stereo1_l_intrinsics_.is_valid = true;
             
-            ROS_INFO("✅ Extracted stereo1_l intrinsics from disparity");
+            ROS_INFO("Extracted stereo1_l intrinsics from disparity");
             ROS_INFO("fx=%.1f, fy=%.1f, cx=%.1f, cy=%.1f, baseline=%.3f", 
                      stereo1_l_intrinsics_.fx, stereo1_l_intrinsics_.fy,
                      stereo1_l_intrinsics_.cx, stereo1_l_intrinsics_.cy,
                      stereo1_l_intrinsics_.baseline);
         }
 
-        if (!stereo1_l_extrinsics_.is_valid) {
-            ROS_WARN_THROTTLE(5.0, "⏳ Extrinsics not yet available for depth conversion - waiting for S1/stereo1_l image stream");
-            return;
+        if (!stereo1_l_extrinsics_.is_valid && use_body_frame_transform_) {
+            ROS_WARN_THROTTLE(5.0, "Extrinsics not yet available - using camera frame instead of body frame");
+            // Continue processing without body frame transform
         }
 
-        ROS_INFO_THROTTLE(5.0, "🔧 Converting disparity to depth image...");
+        ROS_INFO_THROTTLE(5.0, "Converting disparity to depth image...");
         
         // Convert disparity to depth
         cv::Mat depth_image = convertDisparityToDepth(disparity_data);
         
         if (depth_image.empty()) {
-            ROS_ERROR("❌ Failed to convert disparity to depth - empty depth image");
+            ROS_ERROR("Failed to convert disparity to depth - empty depth image");
             return;
         }
         
-        ROS_INFO_THROTTLE(5.0, "📷 Publishing raw depth image (size: %dx%d)", depth_image.cols, depth_image.rows);
+        ROS_INFO_THROTTLE(5.0, "Publishing raw depth image (size: %dx%d)", depth_image.cols, depth_image.rows);
         
         // Publish raw depth for debugging
         publishDepthImage(depth_image, raw_depth_pub_, "camera_optical_frame");
         
-        if (use_body_frame_transform_) {
-            ROS_INFO_THROTTLE(5.0, "🔄 Transforming depth to body frame...");
+        if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
+            ROS_INFO_THROTTLE(5.0, "Transforming depth to body frame...");
             // Transform depth points to body frame
             cv::Mat body_frame_depth = transformDepthToBodyFrame(depth_image);
             
             if (body_frame_depth.empty()) {
-                ROS_ERROR("❌ Failed to transform depth to body frame");
+                ROS_ERROR("Failed to transform depth to body frame");
                 return;
             }
             
-            ROS_INFO_THROTTLE(5.0, "📡 Publishing body frame depth for planner");
+            ROS_INFO_THROTTLE(5.0, "Publishing body frame depth for planner");
             publishDepthImage(body_frame_depth, transformed_depth_pub_, base_frame_id_);
             
             // Use body frame depth for planner
             publishDepthImage(body_frame_depth, planner_depth_pub_, base_frame_id_);
         } else {
-            ROS_INFO_THROTTLE(5.0, "📡 Publishing camera frame depth for planner");
+            if (use_body_frame_transform_ && !stereo1_l_extrinsics_.is_valid) {
+                ROS_INFO_THROTTLE(10.0, "Body frame transform requested but extrinsics unavailable - using camera frame");
+            }
+            ROS_INFO_THROTTLE(5.0, "Publishing camera frame depth for planner");
             // Use camera frame depth directly
             publishDepthImage(depth_image, planner_depth_pub_, "camera_optical_frame");
         }
         
-        ROS_INFO_THROTTLE(10.0, "✅ Depth processing pipeline completed successfully [%d processed]", publish_count);
+        ROS_INFO_THROTTLE(10.0, "Depth processing pipeline completed successfully [%d processed]", publish_count);
     }
 
     cv::Mat convertDisparityToDepth(const vkc::Disparity::Reader& disparity_data) {
@@ -350,18 +392,18 @@ private:
         int width = disparity_data.getWidth();
         int height = disparity_data.getHeight();
         
-        ROS_INFO_THROTTLE(3.0, "🔧 Converting disparity to depth [%d] (size: %dx%d)", 
+        ROS_INFO_THROTTLE(3.0, "Converting disparity to depth [%d] (size: %dx%d)", 
                          conversion_count, width, height);
         
         // Get disparity values
         auto disparity_values = disparity_data.getData();
         
         if (!disparity_values.size()) {
-            ROS_ERROR("❌ Empty disparity data received");
+            ROS_ERROR("Empty disparity data received");
             return cv::Mat();
         }
         
-        ROS_INFO_THROTTLE(5.0, "📊 Disparity data size: %lu pixels, expected: %d", 
+        ROS_INFO_THROTTLE(5.0, "Disparity data size: %lu pixels, expected: %d", 
                          disparity_values.size(), width * height);
         
         // Create depth image (16UC1 format in millimeters for planner compatibility)
@@ -400,15 +442,15 @@ private:
         float avg_disparity = (valid_pixels > 0) ? sum_disparity / valid_pixels : 0.0f;
         float depth_validity_ratio = static_cast<float>(valid_pixels) / (width * height);
         
-        ROS_INFO_THROTTLE(5.0, "📈 Disparity stats: valid=%d/%d (%.1f%%), range=[%.2f,%.2f], avg=%.2f", 
+        ROS_INFO_THROTTLE(5.0, "Disparity stats: valid=%d/%d (%.1f%%), range=[%.2f,%.2f], avg=%.2f", 
                          valid_pixels, width * height, depth_validity_ratio * 100.0f,
                          min_disparity, max_disparity, avg_disparity);
         
         if (valid_pixels == 0) {
-            ROS_WARN("⚠️  No valid disparity pixels found - depth image will be empty");
+            ROS_WARN("No valid disparity pixels found - depth image will be empty");
         }
         
-        ROS_INFO_THROTTLE(8.0, "✅ Depth conversion completed: %dx%d, validity=%.1f%%", 
+        ROS_INFO_THROTTLE(8.0, "Depth conversion completed: %dx%d, validity=%.1f%%", 
                          width, height, depth_validity_ratio * 100.0f);
         
         return depth_image;
@@ -457,19 +499,19 @@ private:
         pub_counts[frame_id]++;
         
         if (depth_image.empty()) {
-            ROS_ERROR("📷 Cannot publish empty depth image for frame: %s", frame_id.c_str());
+            ROS_ERROR("Cannot publish empty depth image for frame: %s", frame_id.c_str());
             return;
         }
 
-        ROS_INFO_THROTTLE(3.0, "📡 Publishing depth image to %s [count: %d] (size: %dx%d, type: %d)", 
+        ROS_INFO_THROTTLE(3.0, "Publishing depth image to %s [count: %d] (size: %dx%d, type: %d)", 
                          frame_id.c_str(), pub_counts[frame_id], 
                          depth_image.cols, depth_image.rows, depth_image.type());
         
         // Check if publisher has subscribers
         if (pub.getNumSubscribers() == 0) {
-            ROS_INFO_THROTTLE(10.0, "⚠️  No subscribers for depth topic on frame: %s", frame_id.c_str());
+            ROS_INFO_THROTTLE(10.0, "No subscribers for depth topic on frame: %s", frame_id.c_str());
         } else {
-            ROS_INFO_THROTTLE(5.0, "👥 %d subscriber(s) for depth topic on frame: %s", 
+            ROS_INFO_THROTTLE(5.0, "%d subscriber(s) for depth topic on frame: %s", 
                              pub.getNumSubscribers(), frame_id.c_str());
         }
         
@@ -491,14 +533,75 @@ private:
         double min_val, max_val;
         cv::minMaxLoc(depth_image, &min_val, &max_val);
         
-        ROS_INFO_THROTTLE(8.0, "📊 Depth stats for %s: mean=%.2f, std=%.2f, min=%.2f, max=%.2f", 
+        ROS_INFO_THROTTLE(8.0, "Depth stats for %s: mean=%.2f, std=%.2f, min=%.2f, max=%.2f", 
                          frame_id.c_str(), mean_val[0], std_val[0], min_val, max_val);
         
         try {
             pub.publish(depth_msg);
-            ROS_INFO_THROTTLE(8.0, "✅ Successfully published depth image to %s", frame_id.c_str());
+            ROS_INFO_THROTTLE(8.0, "Successfully published depth image to %s", frame_id.c_str());
         } catch (const std::exception& e) {
-            ROS_ERROR("❌ Exception publishing depth image to %s: %s", frame_id.c_str(), e.what());
+            ROS_ERROR("Exception publishing depth image to %s: %s", frame_id.c_str(), e.what());
+        }
+    }
+
+    void publishStereo1LImage(const vkc::Image::Reader& image) {
+        static int image_pub_count = 0;
+        image_pub_count++;
+        
+        if (stereo1_l_image_pub_.getNumSubscribers() == 0) {
+            ROS_INFO_THROTTLE(10.0, "No subscribers for stereo1_l image topic");
+            return;
+        }
+        
+        int width = image.getWidth();
+        int height = image.getHeight();
+        
+        ROS_INFO_THROTTLE(5.0, "Publishing stereo1_l image [%d] (size: %dx%d)", 
+                         image_pub_count, width, height);
+        
+        auto image_data = image.getData();
+        
+        if (!image_data.size()) {
+            ROS_ERROR("Empty stereo1_l image data");
+            return;
+        }
+        
+        sensor_msgs::Image image_msg;
+        image_msg.header.stamp = ros::Time::now();
+        image_msg.header.frame_id = "camera_optical_frame";
+        image_msg.height = height;
+        image_msg.width = width;
+        
+        // Assume mono8 encoding for stereo camera (8-bit grayscale)
+        // Based on typical stereo camera output and data size
+        size_t expected_mono8_size = width * height;
+        size_t expected_mono16_size = width * height * 2;
+        
+        if (image_data.size() == expected_mono8_size) {
+            image_msg.encoding = "mono8";
+            image_msg.step = width;
+        } else if (image_data.size() == expected_mono16_size) {
+            image_msg.encoding = "mono16";
+            image_msg.step = width * 2;
+        } else {
+            // Default to mono8 and let ROS figure it out
+            ROS_WARN_ONCE("Image data size %zu doesn't match expected sizes (mono8: %zu, mono16: %zu), using mono8", 
+                         image_data.size(), expected_mono8_size, expected_mono16_size);
+            image_msg.encoding = "mono8";
+            image_msg.step = width;
+        }
+        
+        image_msg.is_bigendian = false;
+        
+        // Copy image data
+        image_msg.data.resize(image_data.size());
+        std::memcpy(image_msg.data.data(), image_data.begin(), image_data.size());
+        
+        try {
+            stereo1_l_image_pub_.publish(image_msg);
+            ROS_INFO_THROTTLE(8.0, "Successfully published stereo1_l image");
+        } catch (const std::exception& e) {
+            ROS_ERROR("Exception publishing stereo1_l image: %s", e.what());
         }
     }
 
@@ -509,23 +612,23 @@ private:
         int width = disparity_data.getWidth();
         int height = disparity_data.getHeight();
         
-        ROS_INFO_THROTTLE(3.0, "📡 Publishing disparity image [%d] (size: %dx%d)", 
+        ROS_INFO_THROTTLE(3.0, "Publishing disparity image [%d] (size: %dx%d)", 
                          disparity_pub_count, width, height);
         
         // Check if publisher has subscribers
         if (disparity_pub_.getNumSubscribers() == 0) {
-            ROS_INFO_THROTTLE(10.0, "⚠️  No subscribers for disparity topic");
+            ROS_INFO_THROTTLE(10.0, "No subscribers for disparity topic");
             return; // Skip processing if no one is listening
         }
         
-        ROS_INFO_THROTTLE(5.0, "👥 %d subscriber(s) for disparity topic", 
+        ROS_INFO_THROTTLE(5.0, "%d subscriber(s) for disparity topic", 
                          disparity_pub_.getNumSubscribers());
         
         // Get disparity values
         auto disparity_values = disparity_data.getData();
         
         if (!disparity_values.size()) {
-            ROS_ERROR("❌ Empty disparity data - cannot publish");
+            ROS_ERROR("Empty disparity data - cannot publish");
             return;
         }
         
@@ -534,34 +637,39 @@ private:
         disparity_msg.header.frame_id = "camera_optical_frame";
         disparity_msg.height = height;
         disparity_msg.width = width;
-        disparity_msg.encoding = "32FC1";  // 32-bit float, 1 channel
+        
+        // Handle different disparity encodings like the working version
+        auto encoding = disparity_data.getEncoding();
+        if (encoding == vkc::Disparity::Encoding::DEPTH32) {
+            disparity_msg.encoding = "32FC1";
+            disparity_msg.step = width * sizeof(float);
+        } else if (encoding == vkc::Disparity::Encoding::DEPTH16) {
+            disparity_msg.encoding = "16UC1";
+            disparity_msg.step = width * sizeof(uint16_t);
+        } else if (encoding == vkc::Disparity::Encoding::DISPARITY16 || 
+                   encoding == vkc::Disparity::Encoding::DISPARITY8) {
+            disparity_msg.encoding = "32FC1";  // Convert to float for ROS
+            disparity_msg.step = width * sizeof(float);
+        } else {
+            ROS_WARN("Unknown disparity encoding: %d, using 32FC1", static_cast<int>(encoding));
+            disparity_msg.encoding = "32FC1";
+            disparity_msg.step = width * sizeof(float);
+        }
+        
         disparity_msg.is_bigendian = false;
-        disparity_msg.step = width * sizeof(float);
         
-        size_t data_size = width * height * sizeof(float);
-        disparity_msg.data.resize(data_size);
+        // Copy image data - getData() returns raw bytes, not float elements
+        // So disparity_values.size() is already the byte count, not element count
+        disparity_msg.data.resize(disparity_values.size());
+        std::memcpy(disparity_msg.data.data(), disparity_values.begin(), disparity_values.size());
         
-        // Copy disparity data - iterate through the Cap'n Proto data safely
-        float* disparity_data_ptr = reinterpret_cast<float*>(disparity_msg.data.data());
-        size_t expected_size = width * height;
-        size_t actual_size = disparity_values.size();
-        
-        if (actual_size != expected_size) {
-            ROS_WARN("Disparity data size mismatch: expected %lu, got %lu", expected_size, actual_size);
-            return;
-        }
-        
-        for (size_t i = 0; i < actual_size; ++i) {
-            disparity_data_ptr[i] = disparity_values[i];
-        }
-        
-        // Analyze disparity data for debugging
+        // Analyze disparity data for debugging (convert to float for consistent comparison)
         float min_disp = FLT_MAX, max_disp = -FLT_MAX;
         float sum_disp = 0.0f;
         int valid_pixels = 0;
         
-        for (size_t i = 0; i < disparity_values.size(); ++i) {
-            float disp = disparity_values[i];
+        for (auto disp_val : disparity_values) {
+            float disp = static_cast<float>(disp_val); // Cast to float for consistent comparison
             if (disp > 0) {
                 valid_pixels++;
                 sum_disp += disp;
@@ -573,15 +681,15 @@ private:
         float avg_disp = (valid_pixels > 0) ? sum_disp / valid_pixels : 0.0f;
         float validity_ratio = static_cast<float>(valid_pixels) / (width * height);
         
-        ROS_INFO_THROTTLE(8.0, "📊 Disparity stats: valid=%d/%d (%.1f%%), range=[%.2f,%.2f], avg=%.2f", 
+        ROS_INFO_THROTTLE(8.0, "Disparity stats: valid=%d/%d (%.1f%%), range=[%.2f,%.2f], avg=%.2f", 
                          valid_pixels, width * height, validity_ratio * 100.0f,
                          min_disp, max_disp, avg_disp);
         
         try {
             disparity_pub_.publish(disparity_msg);
-            ROS_INFO_THROTTLE(8.0, "✅ Successfully published disparity image");
+            ROS_INFO_THROTTLE(8.0, "Successfully published disparity image");
         } catch (const std::exception& e) {
-            ROS_ERROR("❌ Exception publishing disparity image: %s", e.what());
+            ROS_ERROR("Exception publishing disparity image: %s", e.what());
         }
     }
 };
@@ -591,7 +699,7 @@ int main(int argc, char** argv) {
     ros::NodeHandle nh;
     ros::NodeHandle pnh("~");
     
-    ROS_INFO("🚀 Starting Enhanced Planner Integration with Body Frame Transformation");
+    ROS_INFO("Starting Enhanced Planner Integration with Body Frame Transformation");
     
     EnhancedPlannerIntegration integration(nh, pnh);
     
