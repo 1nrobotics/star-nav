@@ -46,7 +46,7 @@ public:
         raw_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/raw_depth", 10);
         transformed_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/body_frame_depth", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
-        stereo1_l_image_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/stereo1_l/image", 10);
+        // Note: S1/stereo1_l image stream monitored but not published (only extracting extrinsics)
         
         // Parameters
         pnh_.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
@@ -72,7 +72,7 @@ private:
     ros::Publisher raw_depth_pub_;
     ros::Publisher transformed_depth_pub_;
     ros::Publisher disparity_pub_;
-    ros::Publisher stereo1_l_image_pub_;
+    // Note: Not publishing stereo1_l image - only extracting extrinsics
     
     std::string odom_frame_id_;
     std::string base_frame_id_;
@@ -151,9 +151,11 @@ private:
                 std::string stream_name = image.getStreamName().cStr();
                 ROS_INFO_THROTTLE(5.0, "Processing image (message #%d, stream: %s)", 
                                  message_count_, stream_name.c_str());
+                
+                // Extract extrinsics for body frame transformation (same way as ecal_ros_bridge_node)
                 integration_.extractExtrinsics(image);
                 integration_.extractIntrinsics(image);
-                integration_.publishStereo1LImage(image);
+                // Not publishing image at the moment - only extracting extrinsics
                 
             } catch (const std::exception& e) {
                 ROS_ERROR("Exception in ImageReceiver::handle: %s", e.what());
@@ -242,6 +244,7 @@ private:
             return;  // Already extracted
         }
         
+        // Extract extrinsics the same way as ecal_ros_bridge_node
         auto extrinsic = image.getExtrinsic();
         auto body_frame = extrinsic.getBodyFrame();
         
@@ -260,11 +263,30 @@ private:
         stereo1_l_extrinsics_.updateTransform();
         stereo1_l_extrinsics_.is_valid = true;
         
-        ROS_INFO("Extracted stereo1_l extrinsics for depth transformation");
-        ROS_INFO("Body position: [%.3f, %.3f, %.3f]", 
+        ROS_INFO("========== Extracted Stereo1_L Extrinsics ==========");
+        ROS_INFO("Body Frame Transform:");
+        ROS_INFO("  Position: [%.3f, %.3f, %.3f]", 
                  stereo1_l_extrinsics_.body_position.x(),
                  stereo1_l_extrinsics_.body_position.y(),
                  stereo1_l_extrinsics_.body_position.z());
+        ROS_INFO("  Orientation (quaternion): w=%.3f, x=%.3f, y=%.3f, z=%.3f", 
+                 stereo1_l_extrinsics_.body_rotation.w(),
+                 stereo1_l_extrinsics_.body_rotation.x(),
+                 stereo1_l_extrinsics_.body_rotation.y(),
+                 stereo1_l_extrinsics_.body_rotation.z());
+        
+        // Also print IMU frame for reference (not used in current implementation)
+        auto imu_frame = extrinsic.getImuFrame();
+        auto imu_position = imu_frame.getPosition();
+        auto imu_orientation = imu_frame.getOrientation();
+        ROS_INFO("IMU Frame Transform (reference only):");
+        ROS_INFO("  Position: [%.3f, %.3f, %.3f]", 
+                 imu_position.getX(), imu_position.getY(), imu_position.getZ());
+        ROS_INFO("  Orientation (quaternion): w=%.3f, x=%.3f, y=%.3f, z=%.3f", 
+                 imu_orientation.getW(), imu_orientation.getX(), 
+                 imu_orientation.getY(), imu_orientation.getZ());
+        ROS_INFO("Last Modified: %lu", extrinsic.getLastModified());
+        ROS_INFO("===================================================");
     }
 
     void extractIntrinsics(const vkc::Image::Reader& image) {
@@ -541,67 +563,6 @@ private:
             ROS_INFO_THROTTLE(8.0, "Successfully published depth image to %s", frame_id.c_str());
         } catch (const std::exception& e) {
             ROS_ERROR("Exception publishing depth image to %s: %s", frame_id.c_str(), e.what());
-        }
-    }
-
-    void publishStereo1LImage(const vkc::Image::Reader& image) {
-        static int image_pub_count = 0;
-        image_pub_count++;
-        
-        if (stereo1_l_image_pub_.getNumSubscribers() == 0) {
-            ROS_INFO_THROTTLE(10.0, "No subscribers for stereo1_l image topic");
-            return;
-        }
-        
-        int width = image.getWidth();
-        int height = image.getHeight();
-        
-        ROS_INFO_THROTTLE(5.0, "Publishing stereo1_l image [%d] (size: %dx%d)", 
-                         image_pub_count, width, height);
-        
-        auto image_data = image.getData();
-        
-        if (!image_data.size()) {
-            ROS_ERROR("Empty stereo1_l image data");
-            return;
-        }
-        
-        sensor_msgs::Image image_msg;
-        image_msg.header.stamp = ros::Time::now();
-        image_msg.header.frame_id = "camera_optical_frame";
-        image_msg.height = height;
-        image_msg.width = width;
-        
-        // Assume mono8 encoding for stereo camera (8-bit grayscale)
-        // Based on typical stereo camera output and data size
-        size_t expected_mono8_size = width * height;
-        size_t expected_mono16_size = width * height * 2;
-        
-        if (image_data.size() == expected_mono8_size) {
-            image_msg.encoding = "mono8";
-            image_msg.step = width;
-        } else if (image_data.size() == expected_mono16_size) {
-            image_msg.encoding = "mono16";
-            image_msg.step = width * 2;
-        } else {
-            // Default to mono8 and let ROS figure it out
-            ROS_WARN_ONCE("Image data size %zu doesn't match expected sizes (mono8: %zu, mono16: %zu), using mono8", 
-                         image_data.size(), expected_mono8_size, expected_mono16_size);
-            image_msg.encoding = "mono8";
-            image_msg.step = width;
-        }
-        
-        image_msg.is_bigendian = false;
-        
-        // Copy image data
-        image_msg.data.resize(image_data.size());
-        std::memcpy(image_msg.data.data(), image_data.begin(), image_data.size());
-        
-        try {
-            stereo1_l_image_pub_.publish(image_msg);
-            ROS_INFO_THROTTLE(8.0, "Successfully published stereo1_l image");
-        } catch (const std::exception& e) {
-            ROS_ERROR("Exception publishing stereo1_l image: %s", e.what());
         }
     }
 
