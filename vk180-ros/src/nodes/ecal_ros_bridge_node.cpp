@@ -24,6 +24,7 @@ public:
         odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odometry", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity/image", 10);
         disparity_info_pub_ = nh_.advertise<sensor_msgs::CameraInfo>("vk180/disparity/camera_info", 10);
+        // Note: S1/stereo1_l image stream monitored but not published (using printImage for info only)
         
         // Initialize publishers for planner integration
         planner_odom_pub_ = nh_.advertise<nav_msgs::Odometry>("grid_map/odom", 10);
@@ -37,6 +38,7 @@ public:
         pnh_.param<bool>("publish_to_planner", publish_to_planner_, true);
         pnh_.param<std::string>("ecal_odom_topic", ecal_odom_topic_, "S1/vio_odom");
         pnh_.param<std::string>("ecal_disparity_topic", ecal_disparity_topic_, "S1/stereo1_l/disparity");
+        pnh_.param<std::string>("ecal_image_topic", ecal_image_topic_, "S1/stereo1_l");
         
         // Initialize eCAL
         initializeEcal();
@@ -65,6 +67,7 @@ private:
     std::string camera_frame_id_;
     std::string ecal_odom_topic_;
     std::string ecal_disparity_topic_;
+    std::string ecal_image_topic_;
     bool publish_tf_;
     bool publish_to_planner_;
     
@@ -86,12 +89,17 @@ private:
         auto disparity_receiver = std::make_unique<DisparityReceiver>(*this);
         visualkit_->source().install(ecal_disparity_topic_, std::move(disparity_receiver));
 
+        // Create and install image receiver
+        auto image_receiver = std::make_unique<ImageReceiver>(*this);
+        visualkit_->source().install(ecal_image_topic_, std::move(image_receiver));
+
         // Start the data source
         visualkit_->source().start();
         
         ROS_INFO("eCAL ROS Bridge initialized");
         ROS_INFO("Odometry topic: %s -> /vk180/odometry", ecal_odom_topic_.c_str());
         ROS_INFO("Disparity topic: %s -> /vk180/disparity/image", ecal_disparity_topic_.c_str());
+        ROS_INFO("Image topic: %s (monitoring only, not publishing)", ecal_image_topic_.c_str());
     }
 
     class OdometryReceiver : public vkc::Receiver<vkc::Odometry3d> {
@@ -115,6 +123,20 @@ private:
         vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Disparity>>& message) override {
             auto disparity_data = message.payload.reader();
             bridge_.publishDisparity(disparity_data);
+            return vkc::ReceiverStatus::Open;
+        }
+
+    private:
+        EcalRosBridge& bridge_;
+    };
+
+    class ImageReceiver : public vkc::Receiver<vkc::Image> {
+    public:
+        explicit ImageReceiver(EcalRosBridge& bridge) : bridge_(bridge) {}
+
+        vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Image>>& message) override {
+            auto image_data = message.payload.reader();
+            bridge_.printImage(image_data);
             return vkc::ReceiverStatus::Open;
         }
 
@@ -374,6 +396,93 @@ private:
         }
         
         planner_depth_pub_.publish(depth_msg);
+    }
+
+    // Helper functions for detailed image printing (from AllTopicReceiver.cpp)
+    void printVector3d(const vkc::Vector3d::Reader& vector3d) {
+        ROS_INFO("  Vector3d: x=%.3f, y=%.3f, z=%.3f", vector3d.getX(), vector3d.getY(), vector3d.getZ());
+    }
+
+    void printSo3(const vkc::So3::Reader& So3) {
+        ROS_INFO("  So3 (Quaternion): w=%.3f, x=%.3f, y=%.3f, z=%.3f", So3.getW(), So3.getX(), So3.getY(), So3.getZ());
+    }
+
+    void printSe3(const vkc::Se3::Reader& Se3) {
+        ROS_INFO("  Se3 Transform:");
+        ROS_INFO("    Position:");
+        printVector3d(Se3.getPosition());
+        ROS_INFO("    Orientation:");
+        printSo3(Se3.getOrientation());
+    }
+
+    void printSensorExtrinsic(const vkc::SensorExtrinsic::Reader& SensorExtrinsic) {
+        ROS_INFO("  Sensor Extrinsic:");
+        ROS_INFO("    Body Frame:");
+        printSe3(SensorExtrinsic.getBodyFrame());
+        ROS_INFO("    IMU Frame:");
+        printSe3(SensorExtrinsic.getImuFrame());
+        ROS_INFO("    Last Modified: %lu", SensorExtrinsic.getLastModified());
+    }
+
+    void printMotionMeta(const vkc::MotionMeta::Reader& motionMeta) {
+        ROS_INFO("  Motion Meta:");
+        ROS_INFO("    Instantaneous Angular Velocity:");
+        printVector3d(motionMeta.getInstantaneousAngularVelocity());
+        ROS_INFO("    Average Angular Velocity:");
+        printVector3d(motionMeta.getAverageAngularVelocity());
+        ROS_INFO("    Shock Likelihood: %.3f", motionMeta.getShockLikelihood());
+        ROS_INFO("    Delta Us: %lu", motionMeta.getDeltaUs());
+    }
+
+    void printImage(const vkc::Image::Reader& image_data) {
+        static int image_count = 0;
+        image_count++;
+        
+        // Only print every 30 messages to avoid spam
+        if (image_count % 30 != 1) {
+            return;
+        }
+        
+        ROS_INFO("========== Image Info [#%d] ==========", image_count);
+        
+        auto header = image_data.getHeader();
+        ROS_INFO("Header:");
+        ROS_INFO("  Seq: %u", header.getSeq());
+        ROS_INFO("  Stamp Monotonic: %lu", header.getStampMonotonic());
+        ROS_INFO("  Frame ID: %s", header.getFrameId().cStr());
+        
+        std::string encoding_str = "unknown";
+        switch (image_data.getEncoding()) {
+            case vkc::Image::Encoding::MONO8: encoding_str = "mono8"; break;
+            case vkc::Image::Encoding::MONO16: encoding_str = "mono16"; break;
+            case vkc::Image::Encoding::YUV420: encoding_str = "yuv420"; break;
+            case vkc::Image::Encoding::BGR8: encoding_str = "bgr8"; break;
+            case vkc::Image::Encoding::JPEG: encoding_str = "jpeg"; break;
+            case vkc::Image::Encoding::PNG: encoding_str = "png"; break;
+            case vkc::Image::Encoding::H264: encoding_str = "h264"; break;
+            case vkc::Image::Encoding::H265: encoding_str = "h265"; break;
+            default: encoding_str = "unknown";
+        }
+        
+        ROS_INFO("Encoding: %s", encoding_str.c_str());
+        ROS_INFO("Dimensions: %dx%d", image_data.getWidth(), image_data.getHeight());
+        ROS_INFO("Step: %u", image_data.getStep());
+        ROS_INFO("Data size: %zu bytes", image_data.getData().size());
+        ROS_INFO("Exposure: %u usec", image_data.getExposureUSec());
+        ROS_INFO("Gain: %.2f", image_data.getGain());
+        ROS_INFO("Sensor Index: %d", static_cast<int>(image_data.getSensorIdx()));
+        ROS_INFO("Stream Name: %s", image_data.getStreamName().cStr());
+        ROS_INFO("MipMap Levels: %d", static_cast<int>(image_data.getMipMapLevels()));
+        ROS_INFO("MipMap Brightness: %d", static_cast<int>(image_data.getMipMapBrightness()));
+        ROS_INFO("MipMap Brightness Change: %.3f", image_data.getMipMapBrightnessChange());
+        
+        ROS_INFO("Extrinsic:");
+        printSensorExtrinsic(image_data.getExtrinsic());
+        
+        ROS_INFO("Motion Meta:");
+        printMotionMeta(image_data.getMotionMeta());
+        
+        ROS_INFO("=====================================");
     }
 };
 
