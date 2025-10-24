@@ -37,7 +37,7 @@
         
         <!-- VK180 Topics -->
         <arg name="odometry_topic" value="/grid_map/odom"/>
-        <arg name="depth_topic" value="/grid_map/depth"/>
+        <arg name="depth_topic" value="/camera/depth/image_rect_raw"/>
         <arg name="camera_pose_topic" value="nouse1"/>
         <arg name="cloud_topic" value="nouse2"/>
         
