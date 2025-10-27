@@ -2,12 +2,16 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 #include <memory>
 #include <iostream>
@@ -46,6 +50,7 @@ public:
         raw_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/raw_depth", 10);
         transformed_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/body_frame_depth", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
+        pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("vk180/pointcloud", 10);
         // Note: S1/stereo1_l image stream monitored but not published (only extracting extrinsics)
         
         // Parameters
@@ -72,6 +77,7 @@ private:
     ros::Publisher raw_depth_pub_;
     ros::Publisher transformed_depth_pub_;
     ros::Publisher disparity_pub_;
+    ros::Publisher pointcloud_pub_;
     // Note: Not publishing stereo1_l image - only extracting extrinsics
     
     std::string odom_frame_id_;
@@ -222,6 +228,7 @@ private:
             try {
                 integration_.publishDepthForPlanner(disparity_data);
                 integration_.publishDisparityImage(disparity_data);
+                integration_.convertDisparityToPointCloud(disparity_data);
                 
                 // Success feedback (throttled)
                 if (message_count_ % 100 == 1) {
@@ -514,6 +521,105 @@ private:
         }
         
         return body_depth;
+    }
+
+    void convertDisparityToPointCloud(const vkc::Disparity::Reader& disparity_data) {
+        static int pointcloud_count = 0;
+        pointcloud_count++;
+        
+        ROS_INFO_THROTTLE(5.0, "Converting disparity to point cloud [%d]", pointcloud_count);
+        
+        // Check if publisher has subscribers
+        if (pointcloud_pub_.getNumSubscribers() == 0) {
+            ROS_INFO_THROTTLE(10.0, "No subscribers for point cloud topic");
+            return; // Skip processing if no one is listening
+        }
+        
+        int width = disparity_data.getWidth();
+        int height = disparity_data.getHeight();
+        
+        // Get disparity values
+        auto disparity_values = disparity_data.getData();
+        
+        if (!disparity_values.size()) {
+            ROS_ERROR("Empty disparity data - cannot create point cloud");
+            return;
+        }
+        
+        // Ensure we have valid intrinsics
+        if (!stereo1_l_intrinsics_.is_valid) {
+            ROS_WARN_THROTTLE(5.0, "Camera intrinsics not available - cannot create point cloud");
+            return;
+        }
+        
+        // Create PCL point cloud
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        cloud->width = width;
+        cloud->height = height;
+        cloud->is_dense = false; // There may be invalid points
+        cloud->points.resize(width * height);
+        
+        int valid_points = 0;
+        
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int idx = y * width + x;
+                float disparity = disparity_values[idx] / 8;
+                
+                pcl::PointXYZ& point = cloud->points[idx];
+                
+                if (disparity > 0) {
+                    // Convert disparity to depth: depth = (baseline * fx) / disparity
+                    double depth_m = (stereo1_l_intrinsics_.baseline * stereo1_l_intrinsics_.fx) / disparity;
+                    
+                    // Clamp depth to valid range
+                    depth_m = std::max(min_depth_, std::min(max_depth_, depth_m));
+                    
+                    // Convert pixel to 3D point in camera frame
+                    point.x = (x - stereo1_l_intrinsics_.cx) * depth_m / stereo1_l_intrinsics_.fx;
+                    point.y = (y - stereo1_l_intrinsics_.cy) * depth_m / stereo1_l_intrinsics_.fy;
+                    point.z = depth_m;
+                    
+                    // If body frame transform is available and enabled, transform the point
+                    if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
+                        Eigen::Vector4d camera_point_h(point.x, point.y, point.z, 1.0);
+                        Eigen::Vector4d body_point_h = stereo1_l_extrinsics_.cam_to_body_transform * camera_point_h;
+                        
+                        point.x = body_point_h.x();
+                        point.y = body_point_h.y();
+                        point.z = body_point_h.z();
+                    }
+                    
+                    valid_points++;
+                } else {
+                    // Invalid disparity - set NaN coordinates
+                    point.x = point.y = point.z = std::numeric_limits<float>::quiet_NaN();
+                }
+            }
+        }
+        
+        float validity_ratio = static_cast<float>(valid_points) / (width * height);
+        ROS_INFO_THROTTLE(8.0, "Point cloud stats: %d/%d valid points (%.1f%%)", 
+                         valid_points, width * height, validity_ratio * 100.0f);
+        
+        // Convert to ROS message and publish
+        sensor_msgs::PointCloud2 cloud_msg;
+        pcl::toROSMsg(*cloud, cloud_msg);
+        
+        cloud_msg.header.stamp = ros::Time::now();
+        if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
+            cloud_msg.header.frame_id = base_frame_id_; // Body frame
+        } else {
+            cloud_msg.header.frame_id = "camera_optical_frame"; // Camera frame
+        }
+        
+        try {
+            pointcloud_pub_.publish(cloud_msg);
+            ROS_INFO_THROTTLE(8.0, "Successfully published point cloud with %d points in frame: %s", 
+                             valid_points, cloud_msg.header.frame_id.c_str());
+        } catch (const std::exception& e) {
+            ROS_ERROR("Exception publishing point cloud: %s", e.what());
+        }
     }
 
     void publishDepthImage(const cv::Mat& depth_image, ros::Publisher& pub, const std::string& frame_id) {
