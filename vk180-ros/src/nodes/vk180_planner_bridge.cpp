@@ -17,6 +17,7 @@
 #include <iostream>
 #include <vk_sdk/Sdk.hpp>
 #include <vk_sdk/capnp/image.capnp.h>
+#include <vk_sdk/DisparityToPointCloud.hpp>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
@@ -57,10 +58,11 @@ public:
         pnh_.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
         pnh_.param<std::string>("base_frame_id", base_frame_id_, "base_link");
         pnh_.param<bool>("use_body_frame_transform", use_body_frame_transform_, true);
-        pnh_.param<bool>("subscribe_to_image_stream", subscribe_to_image_stream_, false);
+        pnh_.param<bool>("subscribe_to_image_stream", subscribe_to_image_stream_, true);  // Enable for RGB data
         pnh_.param<double>("max_depth", max_depth_, 10.0);
         pnh_.param<double>("min_depth", min_depth_, 0.1);
         
+        initializePointCloudParams();
         initializeEcal();
     }
 
@@ -91,6 +93,13 @@ private:
     // Camera calibration data
     CameraExtrinsics stereo1_l_extrinsics_;
     CameraIntrinsics stereo1_l_intrinsics_;
+    
+    // Point cloud generation parameters
+    vkc::PointCloudParams pc_params_;
+    
+    // Latest image data for point cloud generation
+    std::mutex image_mutex_;
+    cv::Mat latest_image_;
     
     void initializeEcal() {
         visualkit_ = vkc::VisualKit::create(std::nullopt);
@@ -161,7 +170,8 @@ private:
                 // Extract extrinsics for body frame transformation (same way as ecal_ros_bridge_node)
                 integration_.extractExtrinsics(image);
                 integration_.extractIntrinsics(image);
-                // Not publishing image at the moment - only extracting extrinsics
+                // Store latest image for point cloud generation (RGB data)
+                integration_.storeLatestImage(image);
                 
             } catch (const std::exception& e) {
                 ROS_ERROR("Exception in ImageReceiver::handle: %s", e.what());
@@ -236,7 +246,8 @@ private:
             try {
                 integration_.publishDepthForPlanner(disparity_data);
                 integration_.publishDisparityImage(disparity_data);
-                integration_.convertDisparityToPointCloud(disparity_data);
+                // Pass the Shared<Disparity> to convertToPointCloud for VK SDK usage
+                integration_.convertDisparityToPointCloud(message.payload);
                 
                 // Success feedback (throttled)
                 if (message_count_ % 100 == 1) {
@@ -314,6 +325,63 @@ private:
         // stereo1_l_intrinsics_.is_valid = true;
         
         ROS_INFO("Image stream available, waiting for disparity data for intrinsics");
+    }
+
+    void storeLatestImage(const vkc::Image::Reader& image) {
+        uint32_t image_height = image.getHeight();
+        uint32_t image_width = image.getWidth();
+        auto image_encoding = image.getEncoding();
+        
+        cv::Mat image_mat;
+        
+        // Convert image to RGB format (same logic as PointCloudGenerator.cpp)
+        switch (image_encoding) {
+        case vkc::Image::Encoding::MONO8:
+            image_mat = cv::Mat(image_height, image_width, CV_8UC1,
+                               const_cast<unsigned char*>(image.getData().asBytes().begin()));
+            cv::cvtColor(image_mat, image_mat, cv::COLOR_GRAY2RGB);
+            break;
+            
+        case vkc::Image::Encoding::YUV420:
+            image_mat = cv::Mat(image_height * 3 / 2, image_width, CV_8UC1,
+                               const_cast<unsigned char*>(image.getData().asBytes().begin()));
+            cv::cvtColor(image_mat, image_mat, cv::COLOR_YUV2BGR_IYUV);
+            break;
+            
+        case vkc::Image::Encoding::BGR8:
+            image_mat = cv::Mat(image_height, image_width, CV_8UC3,
+                               const_cast<unsigned char*>(image.getData().asBytes().begin()));
+            image_mat = image_mat.reshape(1, image_height);
+            cv::cvtColor(image_mat, image_mat, cv::COLOR_BGR2RGB);
+            break;
+            
+        case vkc::Image::Encoding::JPEG:
+            {
+                cv::Mat mat_jpeg(1, image.getData().size(), CV_8UC1,
+                                const_cast<unsigned char*>(image.getData().asBytes().begin()));
+                image_mat = cv::imdecode(mat_jpeg, cv::IMREAD_COLOR);
+            }
+            break;
+            
+        default:
+            ROS_WARN_THROTTLE(5.0, "Unsupported image encoding: %d", static_cast<int>(image_encoding));
+            return;
+        }
+        
+        if (!image_mat.empty()) {
+            std::lock_guard<std::mutex> lock(image_mutex_);
+            latest_image_ = image_mat.clone();
+            ROS_INFO_THROTTLE(10.0, "Stored latest image: %dx%d, encoding=%d", 
+                             image_width, image_height, static_cast<int>(image_encoding));
+        }
+    }
+
+    void initializePointCloudParams() {
+        // Initialize point cloud conversion parameters (similar to PointCloudGenerator.cpp)
+        pc_params_.disparityOffset = 0;  // Can be made configurable via ROS params
+        pc_params_.maxDepth = max_depth_;
+        ROS_INFO("Initialized point cloud parameters: disparityOffset=%d, maxDepth=%.2f", 
+                 pc_params_.disparityOffset, pc_params_.maxDepth);
     }
 
     void publishOdometry(const vkc::Odometry3d::Reader& odom_data) {
@@ -549,7 +617,7 @@ private:
         return body_depth;
     }
 
-    void convertDisparityToPointCloud(const vkc::Disparity::Reader& disparity_data) {
+    void convertDisparityToPointCloud(const vkc::Shared<vkc::Disparity>& disparity_shared) {
         static int pointcloud_count = 0;
         pointcloud_count++;
         
@@ -561,90 +629,93 @@ private:
             return; // Skip processing if no one is listening
         }
         
-        int width = disparity_data.getWidth();
-        int height = disparity_data.getHeight();
-        
-        // Get disparity values
-        auto disparity_values = disparity_data.getData();
-        auto encoding = disparity_data.getEncoding();
-        
-        if (!disparity_values.size()) {
-            ROS_ERROR("Empty disparity data - cannot create point cloud");
-            return;
-        }
-        
-        // Interpret raw bytes based on encoding
-        const uint16_t* disp_data = nullptr;
-        int num_pixels = 0;
-        
-        if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
-            disp_data = reinterpret_cast<const uint16_t*>(disparity_values.begin());
-            num_pixels = disparity_values.size() / sizeof(uint16_t);
-        } else {
-            ROS_ERROR("Unsupported disparity encoding: %d (expected DISPARITY16)", static_cast<int>(encoding));
-            return;
-        }
-        
-        if (num_pixels != width * height) {
-            ROS_WARN("Pixel count mismatch: got %d, expected %d", num_pixels, width * height);
-        }
-        
-        // Ensure we have valid intrinsics
-        if (!stereo1_l_intrinsics_.is_valid) {
-            ROS_WARN_THROTTLE(5.0, "Camera intrinsics not available - cannot create point cloud");
-            return;
-        }
-        
-        // Create PCL point cloud
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        cloud->width = width;
-        cloud->height = height;
-        cloud->is_dense = false; // There may be invalid points
-        cloud->points.resize(width * height);
-        
-        int valid_points = 0;
-        
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                int idx = y * width + x;
-                // For DISPARITY16: disparity value is stored as disparity*8
-                float disparity = static_cast<float>(disp_data[idx]) / 8.0f;
-                
-                pcl::PointXYZ& point = cloud->points[idx];
-                
-                if (disparity > 0) {
-                    // Convert disparity to depth: depth = (baseline * fx) / disparity
-                    double depth_m = (stereo1_l_intrinsics_.baseline * stereo1_l_intrinsics_.fx) / disparity;
-                    
-                    // Clamp depth to valid range
-                    depth_m = std::max(min_depth_, std::min(max_depth_, depth_m));
-                    
-                    // Convert pixel to 3D point in camera frame
-                    point.x = (x - stereo1_l_intrinsics_.cx) * depth_m / stereo1_l_intrinsics_.fx;
-                    point.y = (y - stereo1_l_intrinsics_.cy) * depth_m / stereo1_l_intrinsics_.fy;
-                    point.z = depth_m;
-                    
-                    // If body frame transform is available and enabled, transform the point
-                    if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
-                        Eigen::Vector4d camera_point_h(point.x, point.y, point.z, 1.0);
-                        Eigen::Vector4d body_point_h = stereo1_l_extrinsics_.cam_to_body_transform * camera_point_h;
-                        
-                        point.x = body_point_h.x();
-                        point.y = body_point_h.y();
-                        point.z = body_point_h.z();
-                    }
-                    
-                    valid_points++;
-                } else {
-                    // Invalid disparity - set NaN coordinates
-                    point.x = point.y = point.z = std::numeric_limits<float>::quiet_NaN();
-                }
+        // Get image data for VK SDK conversion (RGB data used internally by SDK)
+        unsigned char* image_data = nullptr;
+        cv::Mat image_copy;
+        {
+            std::lock_guard<std::mutex> lock(image_mutex_);
+            if (!latest_image_.empty()) {
+                image_copy = latest_image_.clone();
+                image_data = image_copy.data;
+                ROS_INFO_THROTTLE(10.0, "Using image data: %dx%d for point cloud generation", 
+                                 image_copy.cols, image_copy.rows);
+            } else {
+                ROS_WARN_THROTTLE(10.0, "No image data available, generating point cloud without RGB");
             }
         }
         
-        float validity_ratio = static_cast<float>(valid_points) / (width * height);
+        // Use VK SDK's convertToPointCloud function
+        // Pass image data (SDK uses it for RGB, but we won't export RGB to final cloud)
+        vkc::Shared<vkc::PointCloud> vk_pointcloud = vkc::convertToPointCloud(disparity_shared, image_data, pc_params_);
+        
+        if (!vk_pointcloud) {
+            ROS_ERROR("VK SDK convertToPointCloud returned null");
+            return;
+        }
+        
+        auto pc_reader = vk_pointcloud.reader();
+        auto points_data = pc_reader.getPoints().asBytes();
+        int point_stride = static_cast<int>(pc_reader.getPointStride());
+        int points_count = points_data.size() / point_stride;
+        
+        ROS_INFO_THROTTLE(8.0, "VK SDK point cloud: %d points, stride=%d bytes", 
+                         points_count, point_stride);
+        
+        // Extract field offsets for X, Y, Z (ignore RGB fields)
+        std::vector<int> field_offsets;
+        for (const auto& field : pc_reader.getFields()) {
+            field_offsets.push_back(static_cast<int>(field.getOffset()));
+        }
+        
+        if (field_offsets.size() < 3) {
+            ROS_ERROR("VK point cloud has insufficient fields (need at least X,Y,Z)");
+            return;
+        }
+        
+        // Create PCL point cloud (PointXYZ - no RGB colors)
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        cloud->points.reserve(points_count);
+        
+        unsigned char* pc_data = const_cast<unsigned char*>(points_data.begin());
+        int valid_points = 0;
+        
+        for (int i = 0; i < points_count; ++i) {
+            unsigned char* point_ptr = pc_data + i * point_stride;
+            
+            float x = *reinterpret_cast<float*>(point_ptr + field_offsets[0]);
+            float y = *reinterpret_cast<float*>(point_ptr + field_offsets[1]);
+            float z = *reinterpret_cast<float*>(point_ptr + field_offsets[2]);
+            // Note: RGB fields (field_offsets[3,4,5]) exist if image_data was provided, but we ignore them
+            
+            // Skip invalid points (NaN or zero depth)
+            if (std::isfinite(x) && std::isfinite(y) && std::isfinite(z) && z > 0) {
+                pcl::PointXYZ point;
+                point.x = x;
+                point.y = y;
+                point.z = z;
+                
+                // Transform to body frame if enabled
+                if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
+                    Eigen::Vector4d camera_point_h(x, y, z, 1.0);
+                    Eigen::Vector4d body_point_h = stereo1_l_extrinsics_.cam_to_body_transform * camera_point_h;
+                    
+                    point.x = body_point_h.x();
+                    point.y = body_point_h.y();
+                    point.z = body_point_h.z();
+                }
+                
+                cloud->points.push_back(point);
+                valid_points++;
+            }
+        }
+        
+        cloud->width = valid_points;
+        cloud->height = 1;
+        cloud->is_dense = false;
+        
+        float validity_ratio = static_cast<float>(valid_points) / points_count;
         ROS_INFO_THROTTLE(8.0, "Point cloud stats: %d/%d valid points (%.1f%%)", 
-                         valid_points, width * height, validity_ratio * 100.0f);
+                         valid_points, points_count, validity_ratio * 100.0f);
         
         // Convert to ROS message and publish
         sensor_msgs::PointCloud2 cloud_msg;
