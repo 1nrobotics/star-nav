@@ -16,6 +16,8 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   tf2_geometry_msgs
   cv_bridge
+  pcl_ros
+  pcl_conversions
 )
 
 ## OpenCV
@@ -23,6 +25,9 @@ find_package(OpenCV REQUIRED)
 
 ## Eigen
 find_package(Eigen3 REQUIRED)
+
+## PCL
+find_package(PCL REQUIRED)
 
 ## VK180 eCAL SDK
 set(CapnProto_DIR "/opt/vilota/lib/cmake/CapnProto")
@@ -35,8 +40,8 @@ find_package(vk_sdk CONFIG REQUIRED)
 catkin_package(
   # INCLUDE_DIRS include  # No headers to export
   # LIBRARIES vk180_ros   # No shared library built
-  CATKIN_DEPENDS roscpp rospy std_msgs nav_msgs geometry_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs cv_bridge
-  DEPENDS OpenCV
+  CATKIN_DEPENDS roscpp rospy std_msgs nav_msgs geometry_msgs sensor_msgs tf2 tf2_ros tf2_geometry_msgs cv_bridge pcl_ros pcl_conversions
+  DEPENDS OpenCV PCL
 )
 
 ###########
@@ -49,6 +54,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
+  ${PCL_INCLUDE_DIRS}
 )
 
 ## VK180 utility executables
@@ -99,6 +105,7 @@ target_link_libraries(vk180_planner_bridge
   PRIVATE
     ${catkin_LIBRARIES}
     ${OpenCV_LIBRARIES}
+    ${PCL_LIBRARIES}
     CapnProto::capnp 
     vilota::vk_sdk
 )

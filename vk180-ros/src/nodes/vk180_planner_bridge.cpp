@@ -2,12 +2,16 @@
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CameraInfo.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 #include <memory>
 #include <iostream>
@@ -46,6 +50,7 @@ public:
         raw_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/raw_depth", 10);
         transformed_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/body_frame_depth", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
+        pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("vk180/pointcloud", 10);
         // Note: S1/stereo1_l image stream monitored but not published (only extracting extrinsics)
         
         // Parameters
@@ -72,6 +77,7 @@ private:
     ros::Publisher raw_depth_pub_;
     ros::Publisher transformed_depth_pub_;
     ros::Publisher disparity_pub_;
+    ros::Publisher pointcloud_pub_;
     // Note: Not publishing stereo1_l image - only extracting extrinsics
     
     std::string odom_frame_id_;
@@ -205,15 +211,23 @@ private:
                          disparity_data.getFx(), disparity_data.getFy(),
                          disparity_data.getCx(), disparity_data.getCy());
                 
-                // Check data validity
+                // Check data validity - interpret based on encoding
                 auto data = disparity_data.getData();
+                auto encoding = disparity_data.getEncoding();
                 if (data.size() > 0) {
-                    float min_val = *std::min_element(data.begin(), data.end());
-                    float max_val = *std::max_element(data.begin(), data.end());
-                    int valid_pixels = std::count_if(data.begin(), data.end(), [](float d) { return d > 0; });
-                    ROS_INFO("  Data range: [%.2f - %.2f], Valid pixels: %d/%zu (%.1f%%)", 
-                             min_val, max_val, valid_pixels, data.size(), 
-                             100.0 * valid_pixels / data.size());
+                    if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
+                        const uint16_t* disp_data = reinterpret_cast<const uint16_t*>(data.begin());
+                        int num_pixels = data.size() / sizeof(uint16_t);
+                        uint16_t min_val = *std::min_element(disp_data, disp_data + num_pixels);
+                        uint16_t max_val = *std::max_element(disp_data, disp_data + num_pixels);
+                        int valid_pixels = std::count_if(disp_data, disp_data + num_pixels, [](uint16_t d) { return d > 0; });
+                        ROS_INFO("  Data range: [%u - %u], Valid pixels: %d/%d (%.1f%%)", 
+                                 min_val, max_val, valid_pixels, num_pixels, 
+                                 100.0 * valid_pixels / num_pixels);
+                    } else {
+                        ROS_INFO("  Data size: %zu bytes (encoding %d not DISPARITY16, skipping stats)", 
+                                 data.size(), static_cast<int>(encoding));
+                    }
                 } else {
                     ROS_WARN("  No disparity data received!");
                 }
@@ -222,6 +236,7 @@ private:
             try {
                 integration_.publishDepthForPlanner(disparity_data);
                 integration_.publishDisparityImage(disparity_data);
+                integration_.convertDisparityToPointCloud(disparity_data);
                 
                 // Success feedback (throttled)
                 if (message_count_ % 100 == 1) {
@@ -419,14 +434,31 @@ private:
         
         // Get disparity values
         auto disparity_values = disparity_data.getData();
+        auto encoding = disparity_data.getEncoding();
         
         if (!disparity_values.size()) {
             ROS_ERROR("Empty disparity data received");
             return cv::Mat();
         }
         
-        ROS_INFO_THROTTLE(5.0, "Disparity data size: %lu pixels, expected: %d", 
-                         disparity_values.size(), width * height);
+        ROS_INFO_THROTTLE(5.0, "Disparity data size: %lu bytes, encoding: %d", 
+                         disparity_values.size(), static_cast<int>(encoding));
+        
+        // Interpret raw bytes based on encoding
+        const uint16_t* disp_data = nullptr;
+        int num_pixels = 0;
+        
+        if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
+            disp_data = reinterpret_cast<const uint16_t*>(disparity_values.begin());
+            num_pixels = disparity_values.size() / sizeof(uint16_t);
+        } else {
+            ROS_ERROR("Unsupported disparity encoding: %d (expected DISPARITY16)", static_cast<int>(encoding));
+            return cv::Mat();
+        }
+        
+        if (num_pixels != width * height) {
+            ROS_WARN("Pixel count mismatch: got %d, expected %d", num_pixels, width * height);
+        }
         
         // Create depth image (16UC1 format in millimeters for planner compatibility)
         cv::Mat depth_image(height, width, CV_16UC1);
@@ -438,7 +470,8 @@ private:
         for (int y = 0; y < height; ++y) {
             for (int x = 0; x < width; ++x) {
                 int idx = y * width + x;
-                float disparity = disparity_values[idx] / 8;
+                // For DISPARITY16: disparity value is stored as disparity*8
+                float disparity = static_cast<float>(disp_data[idx]) / 8.0f;
                 
                 if (disparity > 0) {
                     valid_pixels++;
@@ -514,6 +547,123 @@ private:
         }
         
         return body_depth;
+    }
+
+    void convertDisparityToPointCloud(const vkc::Disparity::Reader& disparity_data) {
+        static int pointcloud_count = 0;
+        pointcloud_count++;
+        
+        ROS_INFO_THROTTLE(5.0, "Converting disparity to point cloud [%d]", pointcloud_count);
+        
+        // Check if publisher has subscribers
+        if (pointcloud_pub_.getNumSubscribers() == 0) {
+            ROS_INFO_THROTTLE(10.0, "No subscribers for point cloud topic");
+            return; // Skip processing if no one is listening
+        }
+        
+        int width = disparity_data.getWidth();
+        int height = disparity_data.getHeight();
+        
+        // Get disparity values
+        auto disparity_values = disparity_data.getData();
+        auto encoding = disparity_data.getEncoding();
+        
+        if (!disparity_values.size()) {
+            ROS_ERROR("Empty disparity data - cannot create point cloud");
+            return;
+        }
+        
+        // Interpret raw bytes based on encoding
+        const uint16_t* disp_data = nullptr;
+        int num_pixels = 0;
+        
+        if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
+            disp_data = reinterpret_cast<const uint16_t*>(disparity_values.begin());
+            num_pixels = disparity_values.size() / sizeof(uint16_t);
+        } else {
+            ROS_ERROR("Unsupported disparity encoding: %d (expected DISPARITY16)", static_cast<int>(encoding));
+            return;
+        }
+        
+        if (num_pixels != width * height) {
+            ROS_WARN("Pixel count mismatch: got %d, expected %d", num_pixels, width * height);
+        }
+        
+        // Ensure we have valid intrinsics
+        if (!stereo1_l_intrinsics_.is_valid) {
+            ROS_WARN_THROTTLE(5.0, "Camera intrinsics not available - cannot create point cloud");
+            return;
+        }
+        
+        // Create PCL point cloud
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        cloud->width = width;
+        cloud->height = height;
+        cloud->is_dense = false; // There may be invalid points
+        cloud->points.resize(width * height);
+        
+        int valid_points = 0;
+        
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int idx = y * width + x;
+                // For DISPARITY16: disparity value is stored as disparity*8
+                float disparity = static_cast<float>(disp_data[idx]) / 8.0f;
+                
+                pcl::PointXYZ& point = cloud->points[idx];
+                
+                if (disparity > 0) {
+                    // Convert disparity to depth: depth = (baseline * fx) / disparity
+                    double depth_m = (stereo1_l_intrinsics_.baseline * stereo1_l_intrinsics_.fx) / disparity;
+                    
+                    // Clamp depth to valid range
+                    depth_m = std::max(min_depth_, std::min(max_depth_, depth_m));
+                    
+                    // Convert pixel to 3D point in camera frame
+                    point.x = (x - stereo1_l_intrinsics_.cx) * depth_m / stereo1_l_intrinsics_.fx;
+                    point.y = (y - stereo1_l_intrinsics_.cy) * depth_m / stereo1_l_intrinsics_.fy;
+                    point.z = depth_m;
+                    
+                    // If body frame transform is available and enabled, transform the point
+                    if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
+                        Eigen::Vector4d camera_point_h(point.x, point.y, point.z, 1.0);
+                        Eigen::Vector4d body_point_h = stereo1_l_extrinsics_.cam_to_body_transform * camera_point_h;
+                        
+                        point.x = body_point_h.x();
+                        point.y = body_point_h.y();
+                        point.z = body_point_h.z();
+                    }
+                    
+                    valid_points++;
+                } else {
+                    // Invalid disparity - set NaN coordinates
+                    point.x = point.y = point.z = std::numeric_limits<float>::quiet_NaN();
+                }
+            }
+        }
+        
+        float validity_ratio = static_cast<float>(valid_points) / (width * height);
+        ROS_INFO_THROTTLE(8.0, "Point cloud stats: %d/%d valid points (%.1f%%)", 
+                         valid_points, width * height, validity_ratio * 100.0f);
+        
+        // Convert to ROS message and publish
+        sensor_msgs::PointCloud2 cloud_msg;
+        pcl::toROSMsg(*cloud, cloud_msg);
+        
+        cloud_msg.header.stamp = ros::Time::now();
+        if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
+            cloud_msg.header.frame_id = base_frame_id_; // Body frame
+        } else {
+            cloud_msg.header.frame_id = "camera_optical_frame"; // Camera frame
+        }
+        
+        try {
+            pointcloud_pub_.publish(cloud_msg);
+            ROS_INFO_THROTTLE(8.0, "Successfully published point cloud with %d points in frame: %s", 
+                             valid_points, cloud_msg.header.frame_id.c_str());
+        } catch (const std::exception& e) {
+            ROS_ERROR("Exception publishing point cloud: %s", e.what());
+        }
     }
 
     void publishDepthImage(const cv::Mat& depth_image, ros::Publisher& pub, const std::string& frame_id) {
@@ -598,53 +748,42 @@ private:
         disparity_msg.header.frame_id = "camera_optical_frame";
         disparity_msg.height = height;
         disparity_msg.width = width;
+        disparity_msg.step = disparity_data.getStep();
         
-        // Handle different disparity encodings like the working version
+        // Set encoding based on eCAL disparity encoding (same as ecal_ros_bridge_node.cpp)
         auto encoding = disparity_data.getEncoding();
-        if (encoding == vkc::Disparity::Encoding::DEPTH32) {
-            disparity_msg.encoding = "32FC1";
-            disparity_msg.step = width * sizeof(float);
-        } else if (encoding == vkc::Disparity::Encoding::DEPTH16) {
-            disparity_msg.encoding = "16UC1";
-            disparity_msg.step = width * sizeof(uint16_t);
-        } else if (encoding == vkc::Disparity::Encoding::DISPARITY16 || 
-                   encoding == vkc::Disparity::Encoding::DISPARITY8) {
-            disparity_msg.encoding = "32FC1";  // Convert to float for ROS
-            disparity_msg.step = width * sizeof(float);
-        } else {
-            ROS_WARN("Unknown disparity encoding: %d, using 32FC1", static_cast<int>(encoding));
-            disparity_msg.encoding = "32FC1";
-            disparity_msg.step = width * sizeof(float);
+        switch (encoding) {
+            case vkc::Disparity::Encoding::DISPARITY8:
+                disparity_msg.encoding = "mono8";
+                break;
+            case vkc::Disparity::Encoding::DISPARITY16:
+                disparity_msg.encoding = "mono16";
+                break;
+            case vkc::Disparity::Encoding::DEPTH16:
+                disparity_msg.encoding = "16UC1";
+                break;
+            case vkc::Disparity::Encoding::DEPTH32:
+                disparity_msg.encoding = "32FC1";
+                break;
+            case vkc::Disparity::Encoding::DISTANCE16:
+                disparity_msg.encoding = "16UC1";
+                break;
+            case vkc::Disparity::Encoding::DISTANCE32:
+                disparity_msg.encoding = "32FC1";
+                break;
+            case vkc::Disparity::Encoding::CONFIDENCE8:
+                disparity_msg.encoding = "mono8";
+                break;
+            default:
+                disparity_msg.encoding = "mono8";
         }
         
         disparity_msg.is_bigendian = false;
         
-        // Copy image data - getData() returns raw bytes, not float elements
-        // So disparity_values.size() is already the byte count, not element count
-        disparity_msg.data.resize(disparity_values.size());
-        std::memcpy(disparity_msg.data.data(), disparity_values.begin(), disparity_values.size());
-        
-        // Analyze disparity data for debugging (convert to float for consistent comparison)
-        float min_disp = FLT_MAX, max_disp = -FLT_MAX;
-        float sum_disp = 0.0f;
-        int valid_pixels = 0;
-        
-        for (auto disp_val : disparity_values) {
-            float disp = static_cast<float>(disp_val); // Cast to float for consistent comparison
-            if (disp > 0) {
-                valid_pixels++;
-                sum_disp += disp;
-                min_disp = std::min(min_disp, disp);
-                max_disp = std::max(max_disp, disp);
-            }
-        }
-        
-        float avg_disp = (valid_pixels > 0) ? sum_disp / valid_pixels : 0.0f;
-        float validity_ratio = static_cast<float>(valid_pixels) / (width * height);
-        
-        ROS_INFO_THROTTLE(8.0, "Disparity stats: valid=%d/%d (%.1f%%), range=[%.2f,%.2f], avg=%.2f", 
-                         valid_pixels, width * height, validity_ratio * 100.0f,
-                         min_disp, max_disp, avg_disp);
+        // Copy image data - same as ecal_ros_bridge_node.cpp
+        auto data = disparity_data.getData();
+        disparity_msg.data.resize(data.size());
+        std::memcpy(disparity_msg.data.data(), data.begin(), data.size());
         
         try {
             disparity_pub_.publish(disparity_msg);
