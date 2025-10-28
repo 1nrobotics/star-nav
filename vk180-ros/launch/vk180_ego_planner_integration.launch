@@ -8,7 +8,7 @@
     <arg name="map_size_y" default="25"/>
     <arg name="map_size_z" default="3.0"/>
     <arg name="use_rviz" default="true"/>
-    <arg name="use_body_frame_transform" default="true"/>
+    <arg name="use_body_frame_transform" default="false"/>
     
     <!-- VK180 Planner Bridge -->
     <node name="vk180_planner_bridge" 
@@ -94,7 +94,9 @@
     <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_camera"
           args="0.1 0 0.05 0 0 0 base_link camera_link" />
     
-    <!-- Note: camera_optical_frame TF is published by vk180_planner_bridge node -->
+    <!-- Optional: Static transform for camera optical frame -->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="camera_to_camera_optical"
+          args="0 0 0 -1.5708 0 -1.5708 camera_link camera_optical_frame" />
     
     <!-- RViz Visualization -->
     <node name="rviz" pkg="rviz" type="rviz" 
