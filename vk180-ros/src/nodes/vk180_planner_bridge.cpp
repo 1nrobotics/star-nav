@@ -52,7 +52,7 @@ public:
         transformed_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/body_frame_depth", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
         pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("vk180/pointcloud", 10);
-        // Note: S1/stereo1_l image stream monitored but not published (only extracting extrinsics)
+        image_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image", 10);
         
         // Parameters
         pnh_.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
@@ -80,7 +80,7 @@ private:
     ros::Publisher transformed_depth_pub_;
     ros::Publisher disparity_pub_;
     ros::Publisher pointcloud_pub_;
-    // Note: Not publishing stereo1_l image - only extracting extrinsics
+    ros::Publisher image_pub_;
     
     std::string odom_frame_id_;
     std::string base_frame_id_;
@@ -374,6 +374,11 @@ private:
             ROS_INFO_THROTTLE(10.0, "Stored latest image: %dx%d, encoding=%d", 
                              image_width, image_height, static_cast<int>(image_encoding));
         }
+        
+        // Publish the image
+        if (!image_mat.empty() && image_pub_.getNumSubscribers() > 0) {
+            publishImage(image_mat);
+        }
     }
 
     void initializePointCloudParams() {
@@ -648,11 +653,6 @@ private:
         // Pass image data (SDK uses it for RGB, but we won't export RGB to final cloud)
         vkc::Shared<vkc::PointCloud> vk_pointcloud = vkc::convertToPointCloud(disparity_shared, image_data, pc_params_);
         
-        if (!vk_pointcloud) {
-            ROS_ERROR("VK SDK convertToPointCloud returned null");
-            return;
-        }
-        
         auto pc_reader = vk_pointcloud.reader();
         auto points_data = pc_reader.getPoints().asBytes();
         int point_stride = static_cast<int>(pc_reader.getPointStride());
@@ -861,6 +861,38 @@ private:
             ROS_INFO_THROTTLE(8.0, "Successfully published disparity image");
         } catch (const std::exception& e) {
             ROS_ERROR("Exception publishing disparity image: %s", e.what());
+        }
+    }
+    
+    void publishImage(const cv::Mat& image) {
+        static int image_pub_count = 0;
+        image_pub_count++;
+        
+        if (image.empty()) {
+            ROS_ERROR("Cannot publish empty image");
+            return;
+        }
+        
+        ROS_INFO_THROTTLE(5.0, "Publishing RGB image [%d] (size: %dx%d)", 
+                         image_pub_count, image.cols, image.rows);
+        
+        sensor_msgs::Image image_msg;
+        image_msg.header.stamp = ros::Time::now();
+        image_msg.header.frame_id = "camera_optical_frame";
+        image_msg.height = image.rows;
+        image_msg.width = image.cols;
+        image_msg.encoding = "rgb8";
+        image_msg.is_bigendian = false;
+        image_msg.step = image.cols * 3;  // 3 bytes per pixel for RGB
+        
+        image_msg.data.resize(image_msg.step * image_msg.height);
+        std::memcpy(image_msg.data.data(), image.data, image_msg.data.size());
+        
+        try {
+            image_pub_.publish(image_msg);
+            ROS_INFO_THROTTLE(10.0, "Successfully published RGB image");
+        } catch (const std::exception& e) {
+            ROS_ERROR("Exception publishing RGB image: %s", e.what());
         }
     }
 };
