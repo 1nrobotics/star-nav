@@ -8,7 +8,7 @@
     <arg name="map_size_y" default="25"/>
     <arg name="map_size_z" default="3.0"/>
     <arg name="use_rviz" default="true"/>
-    <arg name="use_body_frame_transform" default="false"/>
+    <arg name="use_body_frame_transform" default="true"/>
     
     <!-- VK180 Planner Bridge -->
     <node name="vk180_planner_bridge" 
