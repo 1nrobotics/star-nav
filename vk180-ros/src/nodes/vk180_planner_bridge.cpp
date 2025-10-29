@@ -103,6 +103,11 @@ private:
     std::mutex image_mutex_;
     cv::Mat latest_image_;
     
+    // Latest odometry for transforming point cloud to world frame
+    std::mutex odom_mutex_;
+    Eigen::Matrix4d body_to_world_transform_;
+    bool has_odom_ = false;
+    
     void initializeEcal() {
         visualkit_ = vkc::VisualKit::create(std::nullopt);
         
@@ -429,6 +434,25 @@ private:
         // Publish to planner
         planner_odom_pub_.publish(odom_msg);
         
+        // Store body_to_world transform for point cloud transformation
+        {
+            std::lock_guard<std::mutex> lock(odom_mutex_);
+            
+            Eigen::Quaterniond body_q(odom_msg.pose.pose.orientation.w,
+                                     odom_msg.pose.pose.orientation.x,
+                                     odom_msg.pose.pose.orientation.y,
+                                     odom_msg.pose.pose.orientation.z);
+            Eigen::Matrix3d body_r_m = body_q.toRotationMatrix();
+            
+            body_to_world_transform_ = Eigen::Matrix4d::Identity();
+            body_to_world_transform_.block<3,3>(0,0) = body_r_m;
+            body_to_world_transform_(0,3) = odom_msg.pose.pose.position.x;
+            body_to_world_transform_(1,3) = odom_msg.pose.pose.position.y;
+            body_to_world_transform_(2,3) = odom_msg.pose.pose.position.z;
+            
+            has_odom_ = true;
+        }
+        
         // Publish TF: odom -> base_link
         try {
             geometry_msgs::TransformStamped odom_transform;
@@ -662,6 +686,12 @@ private:
             return; // Skip processing if no one is listening
         }
         
+        // Need current odometry pose to transform points to world frame
+        if (!has_odom_) {
+            ROS_WARN_THROTTLE(10.0, "No odometry available yet, skipping point cloud generation");
+            return;
+        }
+        
         // Get image data for VK SDK conversion (RGB data used internally by SDK)
         // IMPORTANT: Keep image_copy alive for the entire function to avoid dangling pointer
         cv::Mat image_copy;
@@ -711,6 +741,13 @@ private:
         unsigned char* pc_data = const_cast<unsigned char*>(points_data.begin());
         int valid_points = 0;
         
+        // Get body_to_world transform
+        Eigen::Matrix4d body_to_world;
+        {
+            std::lock_guard<std::mutex> lock(odom_mutex_);
+            body_to_world = body_to_world_transform_;
+        }
+        
         for (int i = 0; i < points_count; ++i) {
             unsigned char* point_ptr = pc_data + i * point_stride;
             
@@ -721,15 +758,24 @@ private:
             
             // Skip invalid points (NaN or zero depth)
             if (std::isfinite(x) && std::isfinite(y) && std::isfinite(z) && z > 0) {
-                pcl::PointXYZ point;
-                point.x = x;
-                point.y = y;
-                point.z = z;
+                // Transform point from stereo1_l camera frame to base_link, then to world frame
+                Eigen::Vector4d camera_point(x, y, z, 1.0);
+                Eigen::Vector4d world_point;
                 
-                // NOTE: Do NOT transform to body frame for grid_map usage
-                // grid_map's cloudCallback expects points in world frame
-                // Since we don't have world transform here, keep in camera frame
-                // and grid_map will use TF tree to transform via camera_optical_frame -> world
+                if (stereo1_l_extrinsics_.is_valid) {
+                    // First transform from stereo1_l camera to base_link
+                    Eigen::Vector4d body_point = stereo1_l_extrinsics_.cam_to_body_transform * camera_point;
+                    // Then transform from base_link to world frame
+                    world_point = body_to_world * body_point;
+                } else {
+                    // Fallback: assume camera_link == base_link, transform directly to world
+                    world_point = body_to_world * camera_point;
+                }
+                
+                pcl::PointXYZ point;
+                point.x = world_point.x();
+                point.y = world_point.y();
+                point.z = world_point.z();
                 
                 cloud->points.push_back(point);
                 valid_points++;
@@ -749,8 +795,8 @@ private:
         pcl::toROSMsg(*cloud, cloud_msg);
         
         cloud_msg.header.stamp = ros::Time::now();
-        // VK SDK generates point cloud in camera_link frame (FLU coordinate system)
-        cloud_msg.header.frame_id = "camera_link";
+        // Point cloud transformed to world frame for grid_map compatibility
+        cloud_msg.header.frame_id = "world";
         
         try {
             pointcloud_pub_.publish(cloud_msg);
