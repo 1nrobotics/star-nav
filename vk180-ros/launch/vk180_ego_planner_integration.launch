@@ -37,11 +37,11 @@
         
         <!-- VK180 Topics -->
         <arg name="odometry_topic" value="/grid_map/odom"/>
-        <arg name="depth_topic" value="/camera/depth/image_rect_raw"/>
-        <arg name="camera_pose_topic" value="nouse1"/>
-        <arg name="cloud_topic" value="nouse2"/>
+        <arg name="depth_topic" value="nouse1"/>
+        <arg name="camera_pose_topic" value="nouse2"/>
+        <arg name="cloud_topic" value="/vk180/pointcloud"/>
         
-        <!-- VK180 Camera Intrinsics (will be auto-extracted but provide defaults) -->
+        <!-- Camera Intrinsics (not used for point cloud mapping, only needed for depth image mode) -->
         <arg name="cx" value="320.0"/>
         <arg name="cy" value="240.0"/>
         <arg name="fx" value="400.0"/>

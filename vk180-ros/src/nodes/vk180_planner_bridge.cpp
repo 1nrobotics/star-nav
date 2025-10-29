@@ -635,18 +635,23 @@ private:
         }
         
         // Get image data for VK SDK conversion (RGB data used internally by SDK)
-        unsigned char* image_data = nullptr;
+        // IMPORTANT: Keep image_copy alive for the entire function to avoid dangling pointer
         cv::Mat image_copy;
+        unsigned char* image_data = nullptr;
         {
             std::lock_guard<std::mutex> lock(image_mutex_);
             if (!latest_image_.empty()) {
                 image_copy = latest_image_.clone();
-                image_data = image_copy.data;
                 ROS_INFO_THROTTLE(10.0, "Using image data: %dx%d for point cloud generation", 
                                  image_copy.cols, image_copy.rows);
             } else {
                 ROS_WARN_THROTTLE(10.0, "No image data available, generating point cloud without RGB");
             }
+        }
+        
+        // Set image_data pointer only if we have a valid image
+        if (!image_copy.empty()) {
+            image_data = image_copy.data;
         }
         
         // Use VK SDK's convertToPointCloud function
