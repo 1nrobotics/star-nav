@@ -88,11 +88,13 @@
     <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_odom"
           args="0 0 0 0 0 0 world odom" />
     
-    <node pkg="tf2_ros" type="static_transform_publisher" name="odom_to_base_link"
-          args="0 0 0 0 0 0 odom base_link" />
+    <!-- Odometry TF (odom -> base_link) published dynamically by vk180_planner_bridge from VIO -->
+    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="odom_to_base_link"
+          args="0 0 0 0 0 0 odom base_link" /> -->
     
-    <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_camera"
-          args="0.1 0 0.05 0 0 0 base_link camera_link" />
+    <!-- Camera transform published dynamically by vk180_planner_bridge from VK180 extrinsics -->
+    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="base_link_to_camera"
+          args="0.1 0 0.05 0 0 0 base_link camera_link" /> -->
     
     <!-- Optional: Static transform for camera optical frame -->
     <node pkg="tf2_ros" type="static_transform_publisher" name="camera_to_camera_optical"

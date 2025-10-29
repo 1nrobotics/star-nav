@@ -82,6 +82,8 @@ private:
     ros::Publisher pointcloud_pub_;
     ros::Publisher image_pub_;
     
+    tf2_ros::TransformBroadcaster tf_broadcaster_;
+    
     std::string odom_frame_id_;
     std::string base_frame_id_;
     bool use_body_frame_transform_;
@@ -313,6 +315,9 @@ private:
                  imu_orientation.getY(), imu_orientation.getZ());
         ROS_INFO("Last Modified: %lu", extrinsic.getLastModified());
         ROS_INFO("===================================================");
+        
+        // Publish TF transform from base_link to camera_link
+        publishCameraTransform();
     }
 
     void extractIntrinsics(const vkc::Image::Reader& image) {
@@ -423,6 +428,29 @@ private:
 
         // Publish to planner
         planner_odom_pub_.publish(odom_msg);
+        
+        // Publish TF: odom -> base_link
+        try {
+            geometry_msgs::TransformStamped odom_transform;
+            odom_transform.header.stamp = odom_msg.header.stamp;
+            odom_transform.header.frame_id = odom_frame_id_;
+            odom_transform.child_frame_id = base_frame_id_;
+            
+            odom_transform.transform.translation.x = odom_msg.pose.pose.position.x;
+            odom_transform.transform.translation.y = odom_msg.pose.pose.position.y;
+            odom_transform.transform.translation.z = odom_msg.pose.pose.position.z;
+            
+            odom_transform.transform.rotation = odom_msg.pose.pose.orientation;
+            
+            tf_broadcaster_.sendTransform(odom_transform);
+            
+            // Also publish camera transform if available (needs to be republished since base_link is moving)
+            if (stereo1_l_extrinsics_.is_valid) {
+                publishCameraTransform();
+            }
+        } catch (const std::exception& e) {
+            ROS_ERROR("Exception publishing odometry TF: %s", e.what());
+        }
     }
 
     void publishDepthForPlanner(const vkc::Disparity::Reader& disparity_data) {
@@ -645,14 +673,13 @@ private:
                 ROS_INFO_THROTTLE(10.0, "Using image data: %dx%d for point cloud generation", 
                                  image_copy.cols, image_copy.rows);
             } else {
-                ROS_WARN_THROTTLE(10.0, "No image data available, generating point cloud without RGB");
+                ROS_WARN_THROTTLE(10.0, "No image data available yet, skipping point cloud generation");
+                return; // VK SDK requires valid image data, skip until we have it
             }
         }
         
-        // Set image_data pointer only if we have a valid image
-        if (!image_copy.empty()) {
-            image_data = image_copy.data;
-        }
+        // Set image_data pointer
+        image_data = image_copy.data;
         
         // Use VK SDK's convertToPointCloud function
         // Pass image data (SDK uses it for RGB, but we won't export RGB to final cloud)
@@ -699,15 +726,10 @@ private:
                 point.y = y;
                 point.z = z;
                 
-                // Transform to body frame if enabled
-                if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
-                    Eigen::Vector4d camera_point_h(x, y, z, 1.0);
-                    Eigen::Vector4d body_point_h = stereo1_l_extrinsics_.cam_to_body_transform * camera_point_h;
-                    
-                    point.x = body_point_h.x();
-                    point.y = body_point_h.y();
-                    point.z = body_point_h.z();
-                }
+                // NOTE: Do NOT transform to body frame for grid_map usage
+                // grid_map's cloudCallback expects points in world frame
+                // Since we don't have world transform here, keep in camera frame
+                // and grid_map will use TF tree to transform via camera_optical_frame -> world
                 
                 cloud->points.push_back(point);
                 valid_points++;
@@ -727,11 +749,8 @@ private:
         pcl::toROSMsg(*cloud, cloud_msg);
         
         cloud_msg.header.stamp = ros::Time::now();
-        if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
-            cloud_msg.header.frame_id = base_frame_id_; // Body frame
-        } else {
-            cloud_msg.header.frame_id = "camera_optical_frame"; // Camera frame
-        }
+        // VK SDK generates point cloud in camera_link frame (FLU coordinate system)
+        cloud_msg.header.frame_id = "camera_link";
         
         try {
             pointcloud_pub_.publish(cloud_msg);
@@ -898,6 +917,37 @@ private:
             ROS_INFO_THROTTLE(10.0, "Successfully published RGB image");
         } catch (const std::exception& e) {
             ROS_ERROR("Exception publishing RGB image: %s", e.what());
+        }
+    }
+    
+    void publishCameraTransform() {
+        if (!stereo1_l_extrinsics_.is_valid) {
+            return;
+        }
+        
+        try {
+            geometry_msgs::TransformStamped transform_stamped;
+            
+            transform_stamped.header.stamp = ros::Time::now();
+            transform_stamped.header.frame_id = base_frame_id_;
+            transform_stamped.child_frame_id = "camera_link";
+            
+            // Set translation from extrinsics
+            transform_stamped.transform.translation.x = stereo1_l_extrinsics_.body_position.x();
+            transform_stamped.transform.translation.y = stereo1_l_extrinsics_.body_position.y();
+            transform_stamped.transform.translation.z = stereo1_l_extrinsics_.body_position.z();
+            
+            // Set rotation from extrinsics
+            transform_stamped.transform.rotation.w = stereo1_l_extrinsics_.body_rotation.w();
+            transform_stamped.transform.rotation.x = stereo1_l_extrinsics_.body_rotation.x();
+            transform_stamped.transform.rotation.y = stereo1_l_extrinsics_.body_rotation.y();
+            transform_stamped.transform.rotation.z = stereo1_l_extrinsics_.body_rotation.z();
+            
+            tf_broadcaster_.sendTransform(transform_stamped);
+            
+            ROS_INFO_ONCE("Publishing TF: %s -> camera_link from VK180 extrinsics", base_frame_id_.c_str());
+        } catch (const std::exception& e) {
+            ROS_ERROR("Exception publishing camera TF: %s", e.what());
         }
     }
 };
