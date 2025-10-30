@@ -89,8 +89,8 @@ print_status "Starting additional debugging tools..."
 create_ros_window "sensor_monitor" "echo 'Sensor monitoring tools ready. Commands:
 - ./devel/lib/vk180_ros/sensor_extrinsics
 - ./devel/lib/vk180_ros/depth_conversion_test  
-- rostopic echo /grid_map/odom
-- rostopic echo /vk180/raw_depth'"
+- rostopic echo /vk180/odom
+- rostopic echo /vk180/depth'"
 
 # Create window for planner monitoring
 create_ros_window "planner_monitor" "echo 'Planner monitoring ready. Commands:
@@ -100,8 +100,8 @@ create_ros_window "planner_monitor" "echo 'Planner monitoring ready. Commands:
 
 # Create window for topic monitoring
 create_ros_window "topic_monitor" "echo 'Topic monitoring ready. Commands:
-- rostopic hz /grid_map/depth
-- rostopic hz /grid_map/odom
+- rostopic hz /vk180/depth
+- rostopic hz /vk180/odom
 - rqt_graph
 - rqt_tf_tree'"
 

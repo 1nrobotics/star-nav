@@ -44,8 +44,8 @@ class VK180PlannerBridge {
 public:
     VK180PlannerBridge(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
         // Publishers for planner
-        planner_odom_pub_ = nh_.advertise<nav_msgs::Odometry>("grid_map/odom", 10);
-        planner_depth_pub_ = nh_.advertise<sensor_msgs::Image>("grid_map/depth", 10);
+        planner_odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odom", 10);
+        planner_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/depth", 10);
         
         // Debug publishers
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);

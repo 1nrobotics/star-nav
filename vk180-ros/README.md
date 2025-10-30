@@ -148,18 +148,13 @@ rostopic echo /vk180/odometry
 
 ### Published Topics
 
-```bash# Monitor disparity image info
-
-/grid_map/odom              # Odometry for EGO plannerrostopic echo /vk180/disparity/camera_info
-
-/grid_map/depth             # Depth images for obstacle mapping
-
-/vk180/raw_depth            # Raw VK180 depth (debug)# View disparity image in RViz or image_view
-
-/vk180/body_frame_depth     # Body-frame transformed depth (debug)rosrun image_view image_view image:=/vk180/disparity/image
-
-/vk180/disparity            # Raw disparity data (32FC1)```
-
+```bash
+/vk180/odom              # Odometry for EGO planner
+/vk180/depth             # Depth images for obstacle mapping
+/vk180/disparity         # Disparity image
+/vk180/pointcloud        # Combined point cloud from both cameras
+/vk180/image_left        # Left camera RGB image
+/vk180/image_right       # Right camera RGB image
 ```
 
 ## Dependencies
@@ -212,10 +207,9 @@ S1/stereo1_l/disparity      # Stereo disparity data- CapnProto
 
 <!-- VK180 data topics -->odom_frame_id: "map"
 
-<arg name="odometry_topic" value="/grid_map/odom"/>base_frame_id: "drone_base"
-
-<arg name="depth_topic" value="/grid_map/depth"/>camera_frame_id: "stereo_camera"
-
+```xml
+<arg name="odometry_topic" value="/vk180/odom"/>
+<arg name="depth_topic" value="/vk180/depth"/>
 ```
 
 <!-- Camera intrinsics (auto-extracted from VK180) -->
@@ -258,29 +252,20 @@ catkin build vk180_rosroslaunch vk180_ros planner_integration.launch
 
 # Run individual components
 
-rosrun vk180_ros enhanced_planner_integration**Integration Features:**
+**Integration Features:**
 
-- ✅ **Direct odometry feed**: VK180 VIO → `grid_map/odom`
-
-# Monitor data flow- ✅ **Depth map conversion**: Disparity → depth in meters → `grid_map/depth`  
-
-rostopic hz /grid_map/depth- ✅ **Synchronized processing**: Message filters sync depth + odometry
-
-rostopic echo /vk180/disparity- ✅ **Camera calibration**: Uses VK180 intrinsics for raycasting
-
+- ✅ **Direct odometry feed**: VK180 VIO → `vk180/odom`
+- ✅ **Depth map conversion**: Disparity → depth in meters → `vk180/depth`  
+- ✅ **Synchronized processing**: Message filters sync depth + odometry
+- ✅ **Camera calibration**: Uses VK180 intrinsics for raycasting
 - ✅ **Occupancy mapping**: Real-time 3D grid map for obstacle avoidance
 
-# Debug tools
+**Published Topics for Planner:**
 
-rqt_graph**Published Topics for Planner:**
-
-rqt_tf_tree| Topic | Type | Description |
-
-```|-------|------|-------------|
-
-| `/grid_map/odom` | `nav_msgs/Odometry` | VK180 VIO odometry |
-
-### Adding New Functionality| `/grid_map/depth` | `sensor_msgs/Image` | Depth image (32FC1, meters) |
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/vk180/odom` | `nav_msgs/Odometry` | VK180 VIO odometry |
+| `/vk180/depth` | `sensor_msgs/Image` | Depth image (16UC1, millimeters) |
 
 1. **New ROS Nodes**: Add to `src/nodes/`
 
