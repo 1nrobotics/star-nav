@@ -44,10 +44,8 @@ class VK180PlannerBridge {
 public:
     VK180PlannerBridge(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
         // Publishers for planner
-        planner_odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odom", 10);
-        planner_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/depth", 10);
-        
-        // Debug publishers
+        odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odom", 10);
+        depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/depth", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
         pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("vk180/pointcloud", 10);
         image_left_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image_left", 10);
@@ -73,8 +71,8 @@ public:
 
 private:
     ros::NodeHandle nh_, pnh_;
-    ros::Publisher planner_odom_pub_;
-    ros::Publisher planner_depth_pub_;
+    ros::Publisher odom_pub_;
+    ros::Publisher depth_pub_;
     ros::Publisher disparity_pub_;
     ros::Publisher pointcloud_pub_;
     ros::Publisher image_left_pub_;
@@ -665,7 +663,7 @@ private:
         odom_msg.twist.twist.angular.z = 0.0;
 
         // Publish to planner
-        planner_odom_pub_.publish(odom_msg);
+        odom_pub_.publish(odom_msg);
         
         // Store body_to_world transform for point cloud transformation
         {
@@ -761,14 +759,14 @@ private:
             }
             
             // Use body frame depth for planner
-            publishDepthImage(body_frame_depth, planner_depth_pub_, base_frame_id_);
+            publishDepthImage(body_frame_depth, depth_pub_, base_frame_id_);
         } else {
             if (use_body_frame_transform_ && !stereo1_l_extrinsics_.is_valid) {
                 ROS_INFO_THROTTLE(5.0, "Body frame transform requested but extrinsics unavailable - using camera frame");
             }
             ROS_INFO_THROTTLE(5.0, "Publishing camera frame depth for planner");
             // Use camera frame depth directly
-            publishDepthImage(depth_image, planner_depth_pub_, "camera_optical_frame");
+            publishDepthImage(depth_image, depth_pub_, "camera_optical_frame");
         }
         
         ROS_INFO_THROTTLE(5.0, "Depth processing pipeline completed successfully [%d processed]", publish_count);
