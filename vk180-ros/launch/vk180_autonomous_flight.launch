@@ -79,13 +79,22 @@
         <arg name="flight_type" value="$(arg flight_type)" />
         
         <!-- Test Waypoints -->
-        <arg name="point_num" value="2" />
+        <arg name="point_num" value="5" />
         <arg name="point0_x" value="5.0" />
         <arg name="point0_y" value="0.0" />
         <arg name="point0_z" value="1.5" />
         <arg name="point1_x" value="0.0" />
         <arg name="point1_y" value="5.0" />
         <arg name="point1_z" value="1.5" />
+        <arg name="point2_x" value="-5.0" />
+        <arg name="point2_y" value="0.0" />
+        <arg name="point2_z" value="1.5" />
+        <arg name="point3_x" value="0.0" />
+        <arg name="point3_y" value="-5.0" />
+        <arg name="point3_z" value="1.5" />
+        <arg name="point4_x" value="0.0" />
+        <arg name="point4_y" value="0.0" />
+        <arg name="point4_z" value="1.5" />
         
         <!-- Moving Objects -->
         <arg name="obj_num_set" value="0" />
