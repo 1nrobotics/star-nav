@@ -48,11 +48,10 @@ public:
         planner_depth_pub_ = nh_.advertise<sensor_msgs::Image>("grid_map/depth", 10);
         
         // Debug publishers
-        raw_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/raw_depth", 10);
-        transformed_depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/body_frame_depth", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
         pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("vk180/pointcloud", 10);
-        image_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image", 10);
+        image_left_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image_left", 10);
+        image_right_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image_right", 10);
         
         // Parameters
         pnh_.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
@@ -76,11 +75,10 @@ private:
     ros::NodeHandle nh_, pnh_;
     ros::Publisher planner_odom_pub_;
     ros::Publisher planner_depth_pub_;
-    ros::Publisher raw_depth_pub_;
-    ros::Publisher transformed_depth_pub_;
     ros::Publisher disparity_pub_;
     ros::Publisher pointcloud_pub_;
-    ros::Publisher image_pub_;
+    ros::Publisher image_left_pub_;
+    ros::Publisher image_right_pub_;
     
     tf2_ros::TransformBroadcaster tf_broadcaster_;
     
@@ -544,9 +542,9 @@ private:
                              image_width, image_height, static_cast<int>(image_encoding));
         }
         
-        // Publish the image
-        if (!image_mat.empty() && image_pub_.getNumSubscribers() > 0) {
-            publishImage(image_mat);
+        // Publish the left image
+        if (!image_mat.empty() && image_left_pub_.getNumSubscribers() > 0) {
+            publishImageLeft(image_mat);
         }
     }
 
@@ -596,6 +594,11 @@ private:
             latest_image_right_ = image_mat.clone();
             ROS_INFO_THROTTLE(10.0, "Stored latest RIGHT image: %dx%d, encoding=%d", 
                              image_width, image_height, static_cast<int>(image_encoding));
+        }
+        
+        // Publish the right image
+        if (!image_mat.empty() && image_right_pub_.getNumSubscribers() > 0) {
+            publishImageRight(image_mat);
         }
     }
 
@@ -747,9 +750,6 @@ private:
         
         ROS_INFO_THROTTLE(5.0, "Publishing raw depth image (size: %dx%d)", depth_image.cols, depth_image.rows);
         
-        // Publish raw depth for debugging
-        publishDepthImage(depth_image, raw_depth_pub_, "camera_optical_frame");
-        
         if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
             ROS_INFO_THROTTLE(5.0, "Transforming depth to body frame...");
             // Transform depth points to body frame
@@ -759,9 +759,6 @@ private:
                 ROS_ERROR("Failed to transform depth to body frame");
                 return;
             }
-            
-            ROS_INFO_THROTTLE(5.0, "Publishing body frame depth for planner");
-            publishDepthImage(body_frame_depth, transformed_depth_pub_, base_frame_id_);
             
             // Use body frame depth for planner
             publishDepthImage(body_frame_depth, planner_depth_pub_, base_frame_id_);
@@ -1206,21 +1203,21 @@ private:
         }
     }
     
-    void publishImage(const cv::Mat& image) {
+    void publishImageLeft(const cv::Mat& image) {
         static int image_pub_count = 0;
         image_pub_count++;
         
         if (image.empty()) {
-            ROS_ERROR("Cannot publish empty image");
+            ROS_ERROR("Cannot publish empty left image");
             return;
         }
         
-        ROS_INFO_THROTTLE(5.0, "Publishing RGB image [%d] (size: %dx%d)", 
+        ROS_INFO_THROTTLE(5.0, "Publishing LEFT RGB image [%d] (size: %dx%d)", 
                          image_pub_count, image.cols, image.rows);
         
         sensor_msgs::Image image_msg;
         image_msg.header.stamp = ros::Time::now();
-        image_msg.header.frame_id = "camera_optical_frame";
+        image_msg.header.frame_id = "camera_left_optical_frame";
         image_msg.height = image.rows;
         image_msg.width = image.cols;
         image_msg.encoding = "rgb8";
@@ -1231,10 +1228,42 @@ private:
         std::memcpy(image_msg.data.data(), image.data, image_msg.data.size());
         
         try {
-            image_pub_.publish(image_msg);
-            ROS_INFO_THROTTLE(10.0, "Successfully published RGB image");
+            image_left_pub_.publish(image_msg);
+            ROS_INFO_THROTTLE(10.0, "Successfully published LEFT RGB image");
         } catch (const std::exception& e) {
-            ROS_ERROR("Exception publishing RGB image: %s", e.what());
+            ROS_ERROR("Exception publishing LEFT RGB image: %s", e.what());
+        }
+    }
+    
+    void publishImageRight(const cv::Mat& image) {
+        static int image_pub_count = 0;
+        image_pub_count++;
+        
+        if (image.empty()) {
+            ROS_ERROR("Cannot publish empty right image");
+            return;
+        }
+        
+        ROS_INFO_THROTTLE(5.0, "Publishing RIGHT RGB image [%d] (size: %dx%d)", 
+                         image_pub_count, image.cols, image.rows);
+        
+        sensor_msgs::Image image_msg;
+        image_msg.header.stamp = ros::Time::now();
+        image_msg.header.frame_id = "camera_right_optical_frame";
+        image_msg.height = image.rows;
+        image_msg.width = image.cols;
+        image_msg.encoding = "rgb8";
+        image_msg.is_bigendian = false;
+        image_msg.step = image.cols * 3;  // 3 bytes per pixel for RGB
+        
+        image_msg.data.resize(image_msg.step * image_msg.height);
+        std::memcpy(image_msg.data.data(), image.data, image_msg.data.size());
+        
+        try {
+            image_right_pub_.publish(image_msg);
+            ROS_INFO_THROTTLE(10.0, "Successfully published RIGHT RGB image");
+        } catch (const std::exception& e) {
+            ROS_ERROR("Exception publishing RIGHT RGB image: %s", e.what());
         }
     }
     
