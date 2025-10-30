@@ -54,6 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-image-transport \
     ros-${ROS_DISTRO}-roslint \
     ros-${ROS_DISTRO}-xacro \
+    ros-${ROS_DISTRO}-ddynamic-reconfigure \
     && rm -rf /var/lib/apt/lists/*
 
 # Install system dependencies
