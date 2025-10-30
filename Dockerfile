@@ -50,6 +50,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-eigen-conversions \
     ros-${ROS_DISTRO}-cmake-modules \
     ros-${ROS_DISTRO}-rviz \
+    ros-${ROS_DISTRO}-cv-bridge \
+    ros-${ROS_DISTRO}-image-transport \
+    ros-${ROS_DISTRO}-roslint \
+    ros-${ROS_DISTRO}-xacro \
     && rm -rf /var/lib/apt/lists/*
 
 # Install system dependencies
