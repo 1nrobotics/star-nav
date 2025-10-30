@@ -95,13 +95,23 @@ private:
     // Camera calibration data
     CameraExtrinsics stereo1_l_extrinsics_;
     CameraIntrinsics stereo1_l_intrinsics_;
+    CameraExtrinsics stereo1_r_extrinsics_;
+    CameraIntrinsics stereo1_r_intrinsics_;
     
     // Point cloud generation parameters
     vkc::PointCloudParams pc_params_;
     
-    // Latest image data for point cloud generation
+    // Latest image data for point cloud generation (left and right cameras)
     std::mutex image_mutex_;
-    cv::Mat latest_image_;
+    cv::Mat latest_image_left_;
+    cv::Mat latest_image_right_;
+    
+    // Latest disparity data for combined point cloud generation
+    std::mutex disparity_mutex_;
+    vkc::Shared<vkc::Disparity> latest_disparity_left_;
+    vkc::Shared<vkc::Disparity> latest_disparity_right_;
+    bool has_left_disparity_ = false;
+    bool has_right_disparity_ = false;
     
     // Latest odometry for transforming point cloud to world frame
     std::mutex odom_mutex_;
@@ -120,33 +130,41 @@ private:
         auto odom_receiver = std::make_unique<OdometryReceiver>(*this);
         visualkit_->source().install("S1/vio_odom", std::move(odom_receiver));
 
-        // Only subscribe to image stream if body frame transform is needed
+        // Subscribe to both left and right image streams if enabled
         if (subscribe_to_image_stream_) {
-            ROS_INFO("Creating ImageReceiver for S1/stereo1_l stream...");
-            auto image_receiver = std::make_unique<ImageReceiver>(*this);
-            ROS_INFO("Installing image receiver on stream: S1/stereo1_l");
-            visualkit_->source().install("S1/stereo1_l", std::move(image_receiver));
-            ROS_INFO("Successfully subscribed to S1/stereo1_l image stream for extrinsics");
+            ROS_INFO("Creating ImageReceivers for stereo cameras...");
+            
+            auto image_receiver_left = std::make_unique<ImageReceiverLeft>(*this);
+            visualkit_->source().install("S1/stereo1_l", std::move(image_receiver_left));
+            ROS_INFO("Successfully subscribed to S1/stereo1_l image stream");
+            
+            auto image_receiver_right = std::make_unique<ImageReceiverRight>(*this);
+            visualkit_->source().install("S1/stereo2_r", std::move(image_receiver_right));
+            ROS_INFO("Successfully subscribed to S1/stereo2_r image stream");
         } else {
-            ROS_INFO("Skipping S1/stereo1_l image stream subscription (subscribe_to_image_stream=false)");
+            ROS_INFO("Skipping stereo image stream subscriptions (subscribe_to_image_stream=false)");
         }
 
-        auto disparity_receiver = std::make_unique<DisparityReceiver>(*this);
-        visualkit_->source().install("S1/stereo1_l/disparity", std::move(disparity_receiver));
+        // Subscribe to both left and right disparity streams
+        auto disparity_receiver_left = std::make_unique<DisparityReceiverLeft>(*this);
+        visualkit_->source().install("S1/stereo1_l/disparity", std::move(disparity_receiver_left));
+        
+        auto disparity_receiver_right = std::make_unique<DisparityReceiverRight>(*this);
+        visualkit_->source().install("S1/stereo2_r/disparity", std::move(disparity_receiver_right));
 
         visualkit_->source().start();
         
         ROS_INFO("VK180 Planner Bridge initialized");
         if (subscribe_to_image_stream_) {
-            ROS_INFO("Waiting for stereo1_l extrinsics extraction...");
+            ROS_INFO("Waiting for stereo camera extrinsics extraction...");
         }
     }
 
-    // Extract extrinsics from stereo1_l image stream
-    class ImageReceiver : public vkc::Receiver<vkc::Image> {
+    // Left camera image receiver
+    class ImageReceiverLeft : public vkc::Receiver<vkc::Image> {
     public:
-        explicit ImageReceiver(VK180PlannerBridge& integration) : integration_(integration), message_count_(0) {
-            ROS_INFO("ImageReceiver constructor called");
+        explicit ImageReceiverLeft(VK180PlannerBridge& integration) : integration_(integration), message_count_(0) {
+            ROS_INFO("ImageReceiverLeft constructor called");
         }
 
         vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Image>>& message) override {
@@ -155,33 +173,69 @@ private:
             try {
                 auto image = message.payload.reader();
                 
-                // Log first image reception
                 if (message_count_ == 1) {
-                    ROS_INFO("!!! RECEIVED FIRST IMAGE MESSAGE from stream: %s !!!", image.getStreamName().cStr());
-                    ROS_INFO("Image dimensions: %dx%d", image.getWidth(), image.getHeight());
+                    ROS_INFO("!!! RECEIVED FIRST LEFT IMAGE from stream: %s !!!", image.getStreamName().cStr());
+                    ROS_INFO("Left image dimensions: %dx%d", image.getWidth(), image.getHeight());
                 }
                 
-                // Always log every 30 messages to prove we're receiving
                 if (message_count_ % 30 == 1) {
-                    ROS_INFO("IMAGE STREAM ALIVE: Received image #%d from %s", 
+                    ROS_INFO("LEFT IMAGE STREAM ALIVE: Received image #%d from %s", 
                              message_count_, image.getStreamName().cStr());
                 }
                 
-                // Process all images from S1/stereo1_l subscription
-                // Note: getStreamName() may return "stereo1_l_encoded" or "S1/stereo1_l" 
-                // but we subscribed to the correct topic, so process all images
                 std::string stream_name = image.getStreamName().cStr();
-                ROS_INFO_THROTTLE(5.0, "Processing image (message #%d, stream: %s)", 
+                ROS_INFO_THROTTLE(5.0, "Processing left image (message #%d, stream: %s)", 
                                  message_count_, stream_name.c_str());
                 
-                // Extract extrinsics for body frame transformation (same way as ecal_ros_bridge_node)
-                integration_.extractExtrinsics(image);
-                integration_.extractIntrinsics(image);
-                // Store latest image for point cloud generation (RGB data)
-                integration_.storeLatestImage(image);
+                integration_.extractExtrinsicsLeft(image);
+                integration_.extractIntrinsicsLeft(image);
+                integration_.storeLatestImageLeft(image);
                 
             } catch (const std::exception& e) {
-                ROS_ERROR("Exception in ImageReceiver::handle: %s", e.what());
+                ROS_ERROR("Exception in ImageReceiverLeft::handle: %s", e.what());
+            }
+            
+            return vkc::ReceiverStatus::Open;
+        }
+
+    private:
+        VK180PlannerBridge& integration_;
+        int message_count_;
+    };
+
+    // Right camera image receiver
+    class ImageReceiverRight : public vkc::Receiver<vkc::Image> {
+    public:
+        explicit ImageReceiverRight(VK180PlannerBridge& integration) : integration_(integration), message_count_(0) {
+            ROS_INFO("ImageReceiverRight constructor called");
+        }
+
+        vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Image>>& message) override {
+            message_count_++;
+            
+            try {
+                auto image = message.payload.reader();
+                
+                if (message_count_ == 1) {
+                    ROS_INFO("!!! RECEIVED FIRST RIGHT IMAGE from stream: %s !!!", image.getStreamName().cStr());
+                    ROS_INFO("Right image dimensions: %dx%d", image.getWidth(), image.getHeight());
+                }
+                
+                if (message_count_ % 30 == 1) {
+                    ROS_INFO("RIGHT IMAGE STREAM ALIVE: Received image #%d from %s", 
+                             message_count_, image.getStreamName().cStr());
+                }
+                
+                std::string stream_name = image.getStreamName().cStr();
+                ROS_INFO_THROTTLE(5.0, "Processing right image (message #%d, stream: %s)", 
+                                 message_count_, stream_name.c_str());
+                
+                integration_.extractExtrinsicsRight(image);
+                integration_.extractIntrinsicsRight(image);
+                integration_.storeLatestImageRight(image);
+                
+            } catch (const std::exception& e) {
+                ROS_ERROR("Exception in ImageReceiverRight::handle: %s", e.what());
             }
             
             return vkc::ReceiverStatus::Open;
@@ -206,9 +260,9 @@ private:
         VK180PlannerBridge& integration_;
     };
 
-    class DisparityReceiver : public vkc::Receiver<vkc::Disparity> {
+    class DisparityReceiverLeft : public vkc::Receiver<vkc::Disparity> {
     public:
-        explicit DisparityReceiver(VK180PlannerBridge& integration) : integration_(integration), message_count_(0) {}
+        explicit DisparityReceiverLeft(VK180PlannerBridge& integration) : integration_(integration), message_count_(0) {}
 
         vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Disparity>>& message) override {
             message_count_++;
@@ -216,7 +270,7 @@ private:
             
             // Debug: Print disparity data info every 30 messages (roughly every second at 30Hz)
             if (message_count_ % 30 == 1) {
-                ROS_INFO("DISPARITY DEBUG [Message #%d]:", message_count_);
+                ROS_INFO("LEFT DISPARITY DEBUG [Message #%d]:", message_count_);
                 ROS_INFO("  Stream: %s", disparity_data.getStreamName().cStr());
                 ROS_INFO("  Dimensions: %dx%d", disparity_data.getWidth(), disparity_data.getHeight());
                 ROS_INFO("  Step: %d", disparity_data.getStep());
@@ -246,22 +300,22 @@ private:
                                  data.size(), static_cast<int>(encoding));
                     }
                 } else {
-                    ROS_WARN("  No disparity data received!");
+                    ROS_WARN("  No left disparity data received!");
                 }
             }
             
             try {
                 integration_.publishDepthForPlanner(disparity_data);
                 integration_.publishDisparityImage(disparity_data);
-                // Pass the Shared<Disparity> to convertToPointCloud for VK SDK usage
-                integration_.convertDisparityToPointCloud(message.payload);
+                // Store left disparity for combined point cloud generation
+                integration_.storeLeftDisparity(message.payload);
                 
                 // Success feedback (throttled)
                 if (message_count_ % 100 == 1) {
-                    ROS_INFO("Successfully processed disparity message #%d", message_count_);
+                    ROS_INFO("Successfully processed left disparity message #%d", message_count_);
                 }
             } catch (const std::exception& e) {
-                ROS_ERROR("Error processing disparity data: %s", e.what());
+                ROS_ERROR("Error processing left disparity data: %s", e.what());
             }
             
             return vkc::ReceiverStatus::Open;
@@ -272,7 +326,71 @@ private:
         int message_count_;
     };
 
-    void extractExtrinsics(const vkc::Image::Reader& image) {
+    class DisparityReceiverRight : public vkc::Receiver<vkc::Disparity> {
+    public:
+        explicit DisparityReceiverRight(VK180PlannerBridge& integration) : integration_(integration), message_count_(0) {}
+
+        vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Disparity>>& message) override {
+            message_count_++;
+            auto disparity_data = message.payload.reader();
+            
+            // Debug: Print disparity data info every 30 messages
+            if (message_count_ % 30 == 1) {
+                ROS_INFO("RIGHT DISPARITY DEBUG [Message #%d]:", message_count_);
+                ROS_INFO("  Stream: %s", disparity_data.getStreamName().cStr());
+                ROS_INFO("  Dimensions: %dx%d", disparity_data.getWidth(), disparity_data.getHeight());
+                ROS_INFO("  Step: %d", disparity_data.getStep());
+                ROS_INFO("  Data size: %zu bytes", disparity_data.getData().size());
+                ROS_INFO("  Encoding: %d", static_cast<int>(disparity_data.getEncoding()));
+                ROS_INFO("  Max disparity: %u", disparity_data.getMaxDisparity());
+                ROS_INFO("  Baseline: %.4f m", disparity_data.getBaseline());
+                ROS_INFO("  Intrinsics: fx=%.1f, fy=%.1f, cx=%.1f, cy=%.1f", 
+                         disparity_data.getFx(), disparity_data.getFy(),
+                         disparity_data.getCx(), disparity_data.getCy());
+                
+                // Check data validity
+                auto data = disparity_data.getData();
+                auto encoding = disparity_data.getEncoding();
+                if (data.size() > 0) {
+                    if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
+                        const uint16_t* disp_data = reinterpret_cast<const uint16_t*>(data.begin());
+                        int num_pixels = data.size() / sizeof(uint16_t);
+                        uint16_t min_val = *std::min_element(disp_data, disp_data + num_pixels);
+                        uint16_t max_val = *std::max_element(disp_data, disp_data + num_pixels);
+                        int valid_pixels = std::count_if(disp_data, disp_data + num_pixels, [](uint16_t d) { return d > 0; });
+                        ROS_INFO("  Data range: [%u - %u], Valid pixels: %d/%d (%.1f%%)", 
+                                 min_val, max_val, valid_pixels, num_pixels, 
+                                 100.0 * valid_pixels / num_pixels);
+                    } else {
+                        ROS_INFO("  Data size: %zu bytes (encoding %d not DISPARITY16, skipping stats)", 
+                                 data.size(), static_cast<int>(encoding));
+                    }
+                } else {
+                    ROS_WARN("  No right disparity data received!");
+                }
+            }
+            
+            try {
+                // Store right disparity for combined point cloud generation
+                integration_.storeRightDisparity(message.payload);
+                
+                // Success feedback (throttled)
+                if (message_count_ % 100 == 1) {
+                    ROS_INFO("Successfully processed right disparity message #%d", message_count_);
+                }
+            } catch (const std::exception& e) {
+                ROS_ERROR("Error processing right disparity data: %s", e.what());
+            }
+            
+            return vkc::ReceiverStatus::Open;
+        }
+
+    private:
+        VK180PlannerBridge& integration_;
+        int message_count_;
+    };
+
+    void extractExtrinsicsLeft(const vkc::Image::Reader& image) {
         if (stereo1_l_extrinsics_.is_valid) {
             return;  // Already extracted
         }
@@ -325,26 +443,67 @@ private:
         publishCameraTransform();
     }
 
-    void extractIntrinsics(const vkc::Image::Reader& image) {
+    void extractExtrinsicsRight(const vkc::Image::Reader& image) {
+        if (stereo1_r_extrinsics_.is_valid) {
+            return;  // Already extracted
+        }
+        
+        auto extrinsic = image.getExtrinsic();
+        auto body_frame = extrinsic.getBodyFrame();
+        
+        auto position = body_frame.getPosition();
+        stereo1_r_extrinsics_.body_position = Eigen::Vector3d(
+            position.getX(), position.getY(), position.getZ()
+        );
+        
+        auto orientation = body_frame.getOrientation();
+        stereo1_r_extrinsics_.body_rotation = Eigen::Quaterniond(
+            orientation.getW(), orientation.getX(), orientation.getY(), orientation.getZ()
+        );
+        
+        stereo1_r_extrinsics_.updateTransform();
+        stereo1_r_extrinsics_.is_valid = true;
+        
+        ROS_INFO("========== Extracted Stereo1_R Extrinsics ==========");
+        ROS_INFO("Body Frame Transform:");
+        ROS_INFO("  Position: [%.3f, %.3f, %.3f]", 
+                 stereo1_r_extrinsics_.body_position.x(),
+                 stereo1_r_extrinsics_.body_position.y(),
+                 stereo1_r_extrinsics_.body_position.z());
+        ROS_INFO("  Orientation (quaternion): w=%.3f, x=%.3f, y=%.3f, z=%.3f", 
+                 stereo1_r_extrinsics_.body_rotation.w(),
+                 stereo1_r_extrinsics_.body_rotation.x(),
+                 stereo1_r_extrinsics_.body_rotation.y(),
+                 stereo1_r_extrinsics_.body_rotation.z());
+        ROS_INFO("===================================================");
+    }
+
+    void extractIntrinsicsLeft(const vkc::Image::Reader& image) {
         if (stereo1_l_intrinsics_.is_valid) {
             return;  // Already extracted
         }
         
         // Camera intrinsics will be extracted from disparity data
-        // Mark as placeholder for now - actual extraction in disparity handler
-        // stereo1_l_intrinsics_.is_valid = true;
-        
-        ROS_INFO("Image stream available, waiting for disparity data for intrinsics");
+        ROS_INFO("Left image stream available, waiting for disparity data for intrinsics");
     }
 
-    void storeLatestImage(const vkc::Image::Reader& image) {
+    void extractIntrinsicsRight(const vkc::Image::Reader& image) {
+        if (stereo1_r_intrinsics_.is_valid) {
+            return;  // Already extracted
+        }
+        
+        // Camera intrinsics will be extracted from disparity data
+        ROS_INFO("Right image stream available, waiting for disparity data for intrinsics");
+    }
+
+    void storeLatestImageLeft(const vkc::Image::Reader& image) {
         uint32_t image_height = image.getHeight();
         uint32_t image_width = image.getWidth();
         auto image_encoding = image.getEncoding();
         
         cv::Mat image_mat;
         
-        // Convert image to RGB format (same logic as PointCloudGenerator.cpp)
+        // Convert image to RGB format
         switch (image_encoding) {
         case vkc::Image::Encoding::MONO8:
             image_mat = cv::Mat(image_height, image_width, CV_8UC1,
@@ -374,14 +533,14 @@ private:
             break;
             
         default:
-            ROS_WARN_THROTTLE(5.0, "Unsupported image encoding: %d", static_cast<int>(image_encoding));
+            ROS_WARN_THROTTLE(5.0, "Unsupported left image encoding: %d", static_cast<int>(image_encoding));
             return;
         }
         
         if (!image_mat.empty()) {
             std::lock_guard<std::mutex> lock(image_mutex_);
-            latest_image_ = image_mat.clone();
-            ROS_INFO_THROTTLE(10.0, "Stored latest image: %dx%d, encoding=%d", 
+            latest_image_left_ = image_mat.clone();
+            ROS_INFO_THROTTLE(10.0, "Stored latest LEFT image: %dx%d, encoding=%d", 
                              image_width, image_height, static_cast<int>(image_encoding));
         }
         
@@ -391,12 +550,83 @@ private:
         }
     }
 
+    void storeLatestImageRight(const vkc::Image::Reader& image) {
+        uint32_t image_height = image.getHeight();
+        uint32_t image_width = image.getWidth();
+        auto image_encoding = image.getEncoding();
+        
+        cv::Mat image_mat;
+        
+        // Convert image to RGB format
+        switch (image_encoding) {
+        case vkc::Image::Encoding::MONO8:
+            image_mat = cv::Mat(image_height, image_width, CV_8UC1,
+                               const_cast<unsigned char*>(image.getData().asBytes().begin()));
+            cv::cvtColor(image_mat, image_mat, cv::COLOR_GRAY2RGB);
+            break;
+            
+        case vkc::Image::Encoding::YUV420:
+            image_mat = cv::Mat(image_height * 3 / 2, image_width, CV_8UC1,
+                               const_cast<unsigned char*>(image.getData().asBytes().begin()));
+            cv::cvtColor(image_mat, image_mat, cv::COLOR_YUV2BGR_IYUV);
+            break;
+            
+        case vkc::Image::Encoding::BGR8:
+            image_mat = cv::Mat(image_height, image_width, CV_8UC3,
+                               const_cast<unsigned char*>(image.getData().asBytes().begin()));
+            image_mat = image_mat.reshape(1, image_height);
+            cv::cvtColor(image_mat, image_mat, cv::COLOR_BGR2RGB);
+            break;
+            
+        case vkc::Image::Encoding::JPEG:
+            {
+                cv::Mat mat_jpeg(1, image.getData().size(), CV_8UC1,
+                                const_cast<unsigned char*>(image.getData().asBytes().begin()));
+                image_mat = cv::imdecode(mat_jpeg, cv::IMREAD_COLOR);
+            }
+            break;
+            
+        default:
+            ROS_WARN_THROTTLE(5.0, "Unsupported right image encoding: %d", static_cast<int>(image_encoding));
+            return;
+        }
+        
+        if (!image_mat.empty()) {
+            std::lock_guard<std::mutex> lock(image_mutex_);
+            latest_image_right_ = image_mat.clone();
+            ROS_INFO_THROTTLE(10.0, "Stored latest RIGHT image: %dx%d, encoding=%d", 
+                             image_width, image_height, static_cast<int>(image_encoding));
+        }
+    }
+
     void initializePointCloudParams() {
         // Initialize point cloud conversion parameters (similar to PointCloudGenerator.cpp)
         pc_params_.disparityOffset = 0;  // Can be made configurable via ROS params
         pc_params_.maxDepth = max_depth_;
         ROS_INFO("Initialized point cloud parameters: disparityOffset=%d, maxDepth=%.2f", 
                  pc_params_.disparityOffset, pc_params_.maxDepth);
+    }
+
+    void storeLeftDisparity(const vkc::Shared<vkc::Disparity>& disparity) {
+        {
+            std::lock_guard<std::mutex> lock(disparity_mutex_);
+            latest_disparity_left_ = disparity;
+            has_left_disparity_ = true;
+        }
+        
+        // Try to generate combined point cloud when both disparities available
+        generateCombinedPointCloud();
+    }
+
+    void storeRightDisparity(const vkc::Shared<vkc::Disparity>& disparity) {
+        {
+            std::lock_guard<std::mutex> lock(disparity_mutex_);
+            latest_disparity_right_ = disparity;
+            has_right_disparity_ = true;
+        }
+        
+        // Try to generate combined point cloud when both disparities available
+        generateCombinedPointCloud();
     }
 
     void publishOdometry(const vkc::Odometry3d::Reader& odom_data) {
@@ -674,16 +904,14 @@ private:
         return body_depth;
     }
 
-    void convertDisparityToPointCloud(const vkc::Shared<vkc::Disparity>& disparity_shared) {
+    void generateCombinedPointCloud() {
         static int pointcloud_count = 0;
         pointcloud_count++;
-        
-        ROS_INFO_THROTTLE(5.0, "Converting disparity to point cloud [%d]", pointcloud_count);
         
         // Check if publisher has subscribers
         if (pointcloud_pub_.getNumSubscribers() == 0) {
             ROS_INFO_THROTTLE(10.0, "No subscribers for point cloud topic");
-            return; // Skip processing if no one is listening
+            return;
         }
         
         // Need current odometry pose to transform points to world frame
@@ -692,54 +920,52 @@ private:
             return;
         }
         
-        // Get image data for VK SDK conversion (RGB data used internally by SDK)
-        // IMPORTANT: Keep image_copy alive for the entire function to avoid dangling pointer
-        cv::Mat image_copy;
-        unsigned char* image_data = nullptr;
+        // Check if we have both disparities
+        vkc::Shared<vkc::Disparity> left_disparity, right_disparity;
+        bool has_left, has_right;
         {
-            std::lock_guard<std::mutex> lock(image_mutex_);
-            if (!latest_image_.empty()) {
-                image_copy = latest_image_.clone();
-                ROS_INFO_THROTTLE(10.0, "Using image data: %dx%d for point cloud generation", 
-                                 image_copy.cols, image_copy.rows);
-            } else {
-                ROS_WARN_THROTTLE(10.0, "No image data available yet, skipping point cloud generation");
-                return; // VK SDK requires valid image data, skip until we have it
-            }
+            std::lock_guard<std::mutex> lock(disparity_mutex_);
+            has_left = has_left_disparity_;
+            has_right = has_right_disparity_;
+            if (has_left) left_disparity = latest_disparity_left_;
+            if (has_right) right_disparity = latest_disparity_right_;
         }
         
-        // Set image_data pointer
-        image_data = image_copy.data;
-        
-        // Use VK SDK's convertToPointCloud function
-        // Pass image data (SDK uses it for RGB, but we won't export RGB to final cloud)
-        vkc::Shared<vkc::PointCloud> vk_pointcloud = vkc::convertToPointCloud(disparity_shared, image_data, pc_params_);
-        
-        auto pc_reader = vk_pointcloud.reader();
-        auto points_data = pc_reader.getPoints().asBytes();
-        int point_stride = static_cast<int>(pc_reader.getPointStride());
-        int points_count = points_data.size() / point_stride;
-        
-        ROS_INFO_THROTTLE(8.0, "VK SDK point cloud: %d points, stride=%d bytes", 
-                         points_count, point_stride);
-        
-        // Extract field offsets for X, Y, Z (ignore RGB fields)
-        std::vector<int> field_offsets;
-        for (const auto& field : pc_reader.getFields()) {
-            field_offsets.push_back(static_cast<int>(field.getOffset()));
-        }
-        
-        if (field_offsets.size() < 3) {
-            ROS_ERROR("VK point cloud has insufficient fields (need at least X,Y,Z)");
+        if (!has_left && !has_right) {
+            ROS_WARN_THROTTLE(10.0, "No disparity data available yet, skipping point cloud generation");
             return;
         }
         
-        // Create PCL point cloud (PointXYZ - no RGB colors)
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        cloud->points.reserve(points_count);
+        ROS_INFO_THROTTLE(5.0, "Generating combined point cloud [%d] (left=%s, right=%s)", 
+                         pointcloud_count, has_left ? "yes" : "no", has_right ? "yes" : "no");
         
-        unsigned char* pc_data = const_cast<unsigned char*>(points_data.begin());
-        int valid_points = 0;
+        // Get image data for both cameras
+        cv::Mat left_image_copy, right_image_copy;
+        unsigned char* left_image_data = nullptr;
+        unsigned char* right_image_data = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(image_mutex_);
+            if (!latest_image_left_.empty()) {
+                left_image_copy = latest_image_left_.clone();
+                left_image_data = left_image_copy.data;
+            }
+            if (!latest_image_right_.empty()) {
+                right_image_copy = latest_image_right_.clone();
+                right_image_data = right_image_copy.data;
+            }
+        }
+        
+        if (has_left && !left_image_data) {
+            ROS_WARN_THROTTLE(10.0, "No left image data available, skipping left point cloud");
+            has_left = false;
+        }
+        if (has_right && !right_image_data) {
+            ROS_WARN_THROTTLE(10.0, "No right image data available, skipping right point cloud");
+            has_right = false;
+        }
+        
+        // Create combined PCL point cloud
+        pcl::PointCloud<pcl::PointXYZ>::Ptr combined_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         
         // Get body_to_world transform
         Eigen::Matrix4d body_to_world;
@@ -748,23 +974,87 @@ private:
             body_to_world = body_to_world_transform_;
         }
         
+        int total_valid_points = 0;
+        
+        // Process left camera point cloud
+        if (has_left) {
+            vkc::Shared<vkc::PointCloud> left_vk_pc = vkc::convertToPointCloud(left_disparity, left_image_data, pc_params_);
+            int left_valid_points = processPointCloud(left_vk_pc, stereo1_l_extrinsics_, body_to_world, combined_cloud, "LEFT");
+            total_valid_points += left_valid_points;
+        }
+        
+        // Process right camera point cloud
+        if (has_right) {
+            vkc::Shared<vkc::PointCloud> right_vk_pc = vkc::convertToPointCloud(right_disparity, right_image_data, pc_params_);
+            int right_valid_points = processPointCloud(right_vk_pc, stereo1_r_extrinsics_, body_to_world, combined_cloud, "RIGHT");
+            total_valid_points += right_valid_points;
+        }
+        
+        combined_cloud->width = total_valid_points;
+        combined_cloud->height = 1;
+        combined_cloud->is_dense = false;
+        
+        ROS_INFO_THROTTLE(8.0, "Combined point cloud stats: %d total valid points", total_valid_points);
+        
+        // Convert to ROS message and publish
+        sensor_msgs::PointCloud2 cloud_msg;
+        pcl::toROSMsg(*combined_cloud, cloud_msg);
+        
+        cloud_msg.header.stamp = ros::Time::now();
+        cloud_msg.header.frame_id = "world";  // Points transformed to world frame
+        
+        try {
+            pointcloud_pub_.publish(cloud_msg);
+            ROS_INFO_THROTTLE(8.0, "Successfully published combined point cloud with %d points in frame: %s", 
+                             total_valid_points, cloud_msg.header.frame_id.c_str());
+        } catch (const std::exception& e) {
+            ROS_ERROR("Exception publishing combined point cloud: %s", e.what());
+        }
+    }
+
+    int processPointCloud(const vkc::Shared<vkc::PointCloud>& vk_pointcloud, 
+                          const CameraExtrinsics& extrinsics,
+                          const Eigen::Matrix4d& body_to_world,
+                          pcl::PointCloud<pcl::PointXYZ>::Ptr& output_cloud,
+                          const std::string& camera_name) {
+        auto pc_reader = vk_pointcloud.reader();
+        auto points_data = pc_reader.getPoints().asBytes();
+        int point_stride = static_cast<int>(pc_reader.getPointStride());
+        int points_count = points_data.size() / point_stride;
+        
+        ROS_INFO_THROTTLE(8.0, "%s camera VK SDK point cloud: %d points, stride=%d bytes", 
+                         camera_name.c_str(), points_count, point_stride);
+        
+        // Extract field offsets for X, Y, Z
+        std::vector<int> field_offsets;
+        for (const auto& field : pc_reader.getFields()) {
+            field_offsets.push_back(static_cast<int>(field.getOffset()));
+        }
+        
+        if (field_offsets.size() < 3) {
+            ROS_ERROR("%s camera: VK point cloud has insufficient fields (need at least X,Y,Z)", camera_name.c_str());
+            return 0;
+        }
+        
+        unsigned char* pc_data = const_cast<unsigned char*>(points_data.begin());
+        int valid_points = 0;
+        
         for (int i = 0; i < points_count; ++i) {
             unsigned char* point_ptr = pc_data + i * point_stride;
             
             float x = *reinterpret_cast<float*>(point_ptr + field_offsets[0]);
             float y = *reinterpret_cast<float*>(point_ptr + field_offsets[1]);
             float z = *reinterpret_cast<float*>(point_ptr + field_offsets[2]);
-            // Note: RGB fields (field_offsets[3,4,5]) exist if image_data was provided, but we ignore them
             
             // Skip invalid points (NaN or zero depth)
             if (std::isfinite(x) && std::isfinite(y) && std::isfinite(z) && z > 0) {
-                // Transform point from stereo1_l camera frame to base_link, then to world frame
+                // Transform point from camera frame to world frame
                 Eigen::Vector4d camera_point(x, y, z, 1.0);
                 Eigen::Vector4d world_point;
                 
-                if (stereo1_l_extrinsics_.is_valid) {
-                    // First transform from stereo1_l camera to base_link
-                    Eigen::Vector4d body_point = stereo1_l_extrinsics_.cam_to_body_transform * camera_point;
+                if (extrinsics.is_valid) {
+                    // First transform from camera to base_link
+                    Eigen::Vector4d body_point = extrinsics.cam_to_body_transform * camera_point;
                     // Then transform from base_link to world frame
                     world_point = body_to_world * body_point;
                 } else {
@@ -777,34 +1067,16 @@ private:
                 point.y = world_point.y();
                 point.z = world_point.z();
                 
-                cloud->points.push_back(point);
+                output_cloud->points.push_back(point);
                 valid_points++;
             }
         }
         
-        cloud->width = valid_points;
-        cloud->height = 1;
-        cloud->is_dense = false;
-        
         float validity_ratio = static_cast<float>(valid_points) / points_count;
-        ROS_INFO_THROTTLE(8.0, "Point cloud stats: %d/%d valid points (%.1f%%)", 
-                         valid_points, points_count, validity_ratio * 100.0f);
+        ROS_INFO_THROTTLE(8.0, "%s camera: %d/%d valid points (%.1f%%)", 
+                         camera_name.c_str(), valid_points, points_count, validity_ratio * 100.0f);
         
-        // Convert to ROS message and publish
-        sensor_msgs::PointCloud2 cloud_msg;
-        pcl::toROSMsg(*cloud, cloud_msg);
-        
-        cloud_msg.header.stamp = ros::Time::now();
-        // Point cloud transformed to world frame for grid_map compatibility
-        cloud_msg.header.frame_id = "world";
-        
-        try {
-            pointcloud_pub_.publish(cloud_msg);
-            ROS_INFO_THROTTLE(8.0, "Successfully published point cloud with %d points in frame: %s", 
-                             valid_points, cloud_msg.header.frame_id.c_str());
-        } catch (const std::exception& e) {
-            ROS_ERROR("Exception publishing point cloud: %s", e.what());
-        }
+        return valid_points;
     }
 
     void publishDepthImage(const cv::Mat& depth_image, ros::Publisher& pub, const std::string& frame_id) {
