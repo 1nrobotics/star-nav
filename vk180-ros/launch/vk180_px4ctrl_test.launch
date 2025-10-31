@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- VK180 + PX4ctrl Test Integration (without MAVROS) -->
+    <!-- Use this for testing odometry connection before flying -->
+    
+    <!-- Arguments -->
+    <arg name="use_body_frame_transform" default="true" />
+    
+    <!-- VK180 Planner Bridge - Provides odometry -->
+    <node name="vk180_planner_bridge" 
+          pkg="vk180_ros" 
+          type="vk180_planner_bridge" 
+          output="screen">
+        
+        <!-- Frame IDs -->
+        <param name="odom_frame_id" value="odom" />
+        <param name="base_frame_id" value="base_link" />
+        
+        <!-- Depth Processing Parameters -->
+        <param name="use_body_frame_transform" value="$(arg use_body_frame_transform)" />
+        <param name="subscribe_to_image_stream" value="true" />
+        <param name="max_depth" value="8.0" />
+        <param name="min_depth" value="0.3" />
+        
+    </node>
+    
+    <!-- PX4 Controller - Subscribes to VK180 odom -->
+    <node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl" output="screen">
+        <!-- Remap to VK180 odometry topic -->
+        <remap from="~odom" to="/vk180/odom" />
+        
+        <!-- Command input -->
+        <remap from="~cmd" to="/position_cmd" />
+        
+        <!-- Load PX4 controller parameters -->
+        <rosparam command="load" file="$(find px4ctrl)/config/ctrl_param_fpv.yaml" />
+    </node>
+    
+    <!-- Static TF Publishers -->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_odom"
+          args="0 0 0 0 0 0 world odom" />
+    
+    <!-- Simple position command publisher for testing -->
+    <!-- This publishes a hover command at 1.5m height -->
+    <node pkg="rostopic" type="rostopic" name="test_position_cmd"
+          args="pub -r 10 /position_cmd quadrotor_msgs/PositionCommand 
+          '{header: {frame_id: world}, 
+            position: {x: 0.0, y: 0.0, z: 1.5}, 
+            velocity: {x: 0.0, y: 0.0, z: 0.0}, 
+            acceleration: {x: 0.0, y: 0.0, z: 0.0}, 
+            yaw: 0.0, yaw_dot: 0.0}'" 
+          output="screen" />
+    
+    <!-- RViz for visualization -->
+    <node name="rviz" pkg="rviz" type="rviz" 
+          args="-d $(find vk180_ros)/config/vk180_planner_visualization.rviz" />
+    
+</launch>
