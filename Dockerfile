@@ -1,4 +1,7 @@
-FROM ros:noetic-ros-core-focal
+# Multi-architecture support: works for x86_64 and ARM64 (Jetson)
+ARG BASE_IMAGE=ros:noetic-ros-core-focal
+FROM ${BASE_IMAGE}
+
 LABEL maintainer="1nrobotics@github"
 LABEL description="Docker image for Star Nav - Multi-package ROS Navigation System (px4ctrl, shiviz_px4_nav, utils)"
 
