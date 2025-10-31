@@ -40,10 +40,12 @@ catkin_make
 - Dual publishing: raw camera frame and transformed body frame
 
 **Topics Published**:
-- `/grid_map/odom` - Odometry for planner (nav_msgs/Odometry)
-- `/grid_map/depth` - Body frame depth for planner (sensor_msgs/Image, 16UC1)
-- `/vk180/raw_depth` - Raw camera frame depth (sensor_msgs/Image, 16UC1)
-- `/vk180/body_frame_depth` - Transformed body frame depth (sensor_msgs/Image, 16UC1)
+- `/vk180/odom` - Odometry for planner (nav_msgs/Odometry)
+- `/vk180/depth` - Body frame depth for planner (sensor_msgs/Image, 16UC1)
+- `/vk180/disparity` - Disparity image
+- `/vk180/pointcloud` - Combined point cloud from both cameras
+- `/vk180/image_left` - Left camera RGB image
+- `/vk180/image_right` - Right camera RGB image
 
 ## Coordinate Frame Transformation
 
@@ -99,8 +101,8 @@ Replace the RealSense depth input with VK180 body frame depth:
 2. **Update Planner Launch**: Replace RealSense topics in planner launch file:
    ```xml
    <!-- Before (RealSense) -->
-   <remap from="/grid_map/odom" to="/camera/odom/sample" />
-   <remap from="/grid_map/depth" to="/camera/depth/image_rect_raw" />
+   <remap from="/vk180/odom" to="/camera/odom/sample" />
+   <remap from="/vk180/depth" to="/camera/depth/image_rect_raw" />
    
    <!-- After (VK180 with body frame) -->
    <!-- Topics already published correctly by enhanced_planner_integration -->
@@ -159,15 +161,14 @@ If planner expects camera frame depth with TF transforms:
 roslaunch vk180_ros enhanced_planner_integration.launch
 
 # Verify topics
-rostopic list | grep -E "(grid_map|vk180)"
-rostopic echo /grid_map/depth -n 1
+rostopic list | grep -E "(vk180)"
+rostopic echo /vk180/depth -n 1
 ```
 
 ### 3. Visualize in RViz
 ```bash
 # Add depth displays in RViz:
-# - /vk180/raw_depth (camera frame)
-# - /vk180/body_frame_depth (body frame)  
+# - /vk180/depth (for planner)
 # - /grid_map/depth (for planner)
 ```
 

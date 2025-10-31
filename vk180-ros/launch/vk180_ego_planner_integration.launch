@@ -36,7 +36,7 @@
         <arg name="map_size_z_" value="$(arg map_size_z)"/>
         
         <!-- VK180 Topics -->
-        <arg name="odometry_topic" value="/grid_map/odom"/>
+        <arg name="odometry_topic" value="/vk180/odom"/>
         <arg name="depth_topic" value="nouse1"/>
         <arg name="camera_pose_topic" value="nouse2"/>
         <arg name="cloud_topic" value="/vk180/pointcloud"/>
