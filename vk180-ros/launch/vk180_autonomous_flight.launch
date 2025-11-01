@@ -5,9 +5,10 @@
     <!-- Arguments -->
     <arg name="use_sim" default="false" />
     <arg name="fcu_url_sim" default="udp://:14540@127.0.0.1:14557" />
-    <arg name="fcu_url_real" default="/dev/ttymxc2:921600" />
+    <arg name="fcu_url_real" default="/dev/ttyUSB0:921600" />
+    <arg name="gcs_url" default="" />
     <arg name="use_body_frame_transform" default="true" />
-    <arg name="waypoint_file" default="$(find shiviz_px4_nav)/config/waypoints.yaml" />
+    <!-- <arg name="waypoint_file" default="$(find shiviz_px4_nav)/config/waypoints.yaml" /> -->
     <arg name="takeoff_height" default="1.5" />
     <arg name="use_rc" default="true" />
     
@@ -87,6 +88,15 @@
         <arg name="point1_x" value="0.0" />
         <arg name="point1_y" value="5.0" />
         <arg name="point1_z" value="1.5" />
+        <arg name="point2_x" value="0.0" />
+        <arg name="point2_y" value="0.0" />
+        <arg name="point2_z" value="0.0" />
+        <arg name="point3_x" value="0.0" />
+        <arg name="point3_y" value="0.0" />
+        <arg name="point3_z" value="0.0" />
+        <arg name="point4_x" value="0.0" />
+        <arg name="point4_y" value="0.0" />
+        <arg name="point4_z" value="0.0" />
         
         <!-- Moving Objects -->
         <arg name="obj_num_set" value="0" />
@@ -103,6 +113,7 @@
     <group if="$(arg use_sim)">
         <include file="$(find mavros)/launch/px4.launch">
             <arg name="fcu_url" value="$(arg fcu_url_sim)" />
+            <arg name="gcs_url" value="$(arg gcs_url)" />
         </include>
     </group>
 
@@ -110,6 +121,7 @@
     <group unless="$(arg use_sim)">
         <include file="$(find mavros)/launch/px4.launch">
             <arg name="fcu_url" value="$(arg fcu_url_real)" />
+            <arg name="gcs_url" value="$(arg gcs_url)" />
         </include>
     </group>
     
