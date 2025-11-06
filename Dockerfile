@@ -1,4 +1,7 @@
-FROM ros:noetic-ros-core-focal
+# Multi-architecture support: works for x86_64 and ARM64 (Jetson)
+ARG BASE_IMAGE=ros:noetic-ros-core-focal
+FROM ${BASE_IMAGE}
+
 LABEL maintainer="1nrobotics@github"
 LABEL description="Docker image for Star Nav - Multi-package ROS Navigation System (px4ctrl, shiviz_px4_nav, utils)"
 
@@ -50,6 +53,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-eigen-conversions \
     ros-${ROS_DISTRO}-cmake-modules \
     ros-${ROS_DISTRO}-rviz \
+    ros-${ROS_DISTRO}-cv-bridge \
+    ros-${ROS_DISTRO}-image-transport \
+    ros-${ROS_DISTRO}-roslint \
+    ros-${ROS_DISTRO}-xacro \
+    ros-${ROS_DISTRO}-ddynamic-reconfigure \
     && rm -rf /var/lib/apt/lists/*
 
 # Install system dependencies
@@ -112,12 +120,9 @@ COPY shiviz_px4_nav/tools/ecal.ini /etc/ecal/ecal.ini
 # Initialize and build the workspace
 WORKDIR /catkin_ws/
 RUN source /opt/ros/noetic/setup.bash \
-    && catkin init \
-    && catkin config --extend /opt/ros/noetic \
-    && catkin config --cmake-args -DCMAKE_BUILD_TYPE=Release \
     && rosdep update \
     && rosdep install --from-paths src --ignore-src -r -y \
-    && catkin build
+    && catkin_make -DCMAKE_BUILD_TYPE=Release
 
 # Set up environment in bashrc
 RUN echo "source /opt/ros/noetic/setup.bash" >> /root/.bashrc && \

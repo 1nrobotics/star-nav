@@ -1,0 +1,2 @@
+# Skip building realsense2_camera - requires Intel RealSense SDK
+# VK180 system does not need this package
