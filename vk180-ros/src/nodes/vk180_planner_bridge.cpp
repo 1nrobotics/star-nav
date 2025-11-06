@@ -3,6 +3,7 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -44,7 +45,8 @@ class VK180PlannerBridge {
 public:
     VK180PlannerBridge(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
         // Publishers for planner
-        odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odom", 10);
+        odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odom_raw", 10);  // Raw VIO before PX4 fusion
+        vision_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);  // Vision pose to PX4 EKF2
         depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/depth", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
         pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("vk180/pointcloud", 10);
@@ -59,6 +61,10 @@ public:
         pnh_.param<double>("max_depth", max_depth_, 10.0);
         pnh_.param<double>("min_depth", min_depth_, 0.1);
         
+        ROS_INFO("VK180 Planner Bridge initialized with MAVROS vision pose output");
+        ROS_INFO("  Publishing raw VIO to: /vk180/odom_raw");
+        ROS_INFO("  Publishing vision pose to PX4 EKF2: /mavros/vision_pose/pose");
+        
         initializePointCloudParams();
         initializeEcal();
     }
@@ -72,6 +78,7 @@ public:
 private:
     ros::NodeHandle nh_, pnh_;
     ros::Publisher odom_pub_;
+    ros::Publisher vision_pose_pub_;
     ros::Publisher depth_pub_;
     ros::Publisher disparity_pub_;
     ros::Publisher pointcloud_pub_;
@@ -140,7 +147,7 @@ private:
         } else {
             ROS_INFO("Skipping stereo image stream subscriptions (subscribe_to_image_stream=false)");
         }
-
+        
         // Subscribe to both left and right disparity streams
         auto disparity_receiver_left = std::make_unique<DisparityReceiverLeft>(*this);
         visualkit_->source().install("S1/stereo1_l/disparity", std::move(disparity_receiver_left));
@@ -174,17 +181,11 @@ private:
                     ROS_INFO("Left image dimensions: %dx%d", image.getWidth(), image.getHeight());
                 }
                 
-                if (message_count_ % 30 == 1) {
-                    ROS_INFO("LEFT IMAGE STREAM ALIVE: Received image #%d from %s", 
-                             message_count_, image.getStreamName().cStr());
-                }
-                
                 std::string stream_name = image.getStreamName().cStr();
                 ROS_INFO_THROTTLE(5.0, "Processing left image (message #%d, stream: %s)", 
                                  message_count_, stream_name.c_str());
                 
                 integration_.extractExtrinsicsLeft(image);
-                integration_.extractIntrinsicsLeft(image);
                 integration_.storeLatestImageLeft(image);
                 
             } catch (const std::exception& e) {
@@ -216,18 +217,12 @@ private:
                     ROS_INFO("!!! RECEIVED FIRST RIGHT IMAGE from stream: %s !!!", image.getStreamName().cStr());
                     ROS_INFO("Right image dimensions: %dx%d", image.getWidth(), image.getHeight());
                 }
-                
-                if (message_count_ % 30 == 1) {
-                    ROS_INFO("RIGHT IMAGE STREAM ALIVE: Received image #%d from %s", 
-                             message_count_, image.getStreamName().cStr());
-                }
-                
+                                
                 std::string stream_name = image.getStreamName().cStr();
                 ROS_INFO_THROTTLE(5.0, "Processing right image (message #%d, stream: %s)", 
                                  message_count_, stream_name.c_str());
                 
                 integration_.extractExtrinsicsRight(image);
-                integration_.extractIntrinsicsRight(image);
                 integration_.storeLatestImageRight(image);
                 
             } catch (const std::exception& e) {
@@ -264,45 +259,7 @@ private:
             message_count_++;
             auto disparity_data = message.payload.reader();
             
-            // Debug: Print disparity data info every 30 messages (roughly every second at 30Hz)
-            if (message_count_ % 30 == 1) {
-                ROS_INFO("LEFT DISPARITY DEBUG [Message #%d]:", message_count_);
-                ROS_INFO("  Stream: %s", disparity_data.getStreamName().cStr());
-                ROS_INFO("  Dimensions: %dx%d", disparity_data.getWidth(), disparity_data.getHeight());
-                ROS_INFO("  Step: %d", disparity_data.getStep());
-                ROS_INFO("  Data size: %zu bytes", disparity_data.getData().size());
-                ROS_INFO("  Encoding: %d", static_cast<int>(disparity_data.getEncoding()));
-                ROS_INFO("  Max disparity: %u", disparity_data.getMaxDisparity());
-                ROS_INFO("  Baseline: %.4f m", disparity_data.getBaseline());
-                ROS_INFO("  Intrinsics: fx=%.1f, fy=%.1f, cx=%.1f, cy=%.1f", 
-                         disparity_data.getFx(), disparity_data.getFy(),
-                         disparity_data.getCx(), disparity_data.getCy());
-                
-                // Check data validity - interpret based on encoding
-                auto data = disparity_data.getData();
-                auto encoding = disparity_data.getEncoding();
-                if (data.size() > 0) {
-                    if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
-                        const uint16_t* disp_data = reinterpret_cast<const uint16_t*>(data.begin());
-                        int num_pixels = data.size() / sizeof(uint16_t);
-                        uint16_t min_val = *std::min_element(disp_data, disp_data + num_pixels);
-                        uint16_t max_val = *std::max_element(disp_data, disp_data + num_pixels);
-                        int valid_pixels = std::count_if(disp_data, disp_data + num_pixels, [](uint16_t d) { return d > 0; });
-                        ROS_INFO("  Data range: [%u - %u], Valid pixels: %d/%d (%.1f%%)", 
-                                 min_val, max_val, valid_pixels, num_pixels, 
-                                 100.0 * valid_pixels / num_pixels);
-                    } else {
-                        ROS_INFO("  Data size: %zu bytes (encoding %d not DISPARITY16, skipping stats)", 
-                                 data.size(), static_cast<int>(encoding));
-                    }
-                } else {
-                    ROS_WARN("  No left disparity data received!");
-                }
-            }
-            
             try {
-                integration_.publishDepthForPlanner(disparity_data);
-                integration_.publishDisparityImage(disparity_data);
                 // Store left disparity for combined point cloud generation
                 integration_.storeLeftDisparity(message.payload);
                 
@@ -329,42 +286,6 @@ private:
         vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Disparity>>& message) override {
             message_count_++;
             auto disparity_data = message.payload.reader();
-            
-            // Debug: Print disparity data info every 30 messages
-            if (message_count_ % 30 == 1) {
-                ROS_INFO("RIGHT DISPARITY DEBUG [Message #%d]:", message_count_);
-                ROS_INFO("  Stream: %s", disparity_data.getStreamName().cStr());
-                ROS_INFO("  Dimensions: %dx%d", disparity_data.getWidth(), disparity_data.getHeight());
-                ROS_INFO("  Step: %d", disparity_data.getStep());
-                ROS_INFO("  Data size: %zu bytes", disparity_data.getData().size());
-                ROS_INFO("  Encoding: %d", static_cast<int>(disparity_data.getEncoding()));
-                ROS_INFO("  Max disparity: %u", disparity_data.getMaxDisparity());
-                ROS_INFO("  Baseline: %.4f m", disparity_data.getBaseline());
-                ROS_INFO("  Intrinsics: fx=%.1f, fy=%.1f, cx=%.1f, cy=%.1f", 
-                         disparity_data.getFx(), disparity_data.getFy(),
-                         disparity_data.getCx(), disparity_data.getCy());
-                
-                // Check data validity
-                auto data = disparity_data.getData();
-                auto encoding = disparity_data.getEncoding();
-                if (data.size() > 0) {
-                    if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
-                        const uint16_t* disp_data = reinterpret_cast<const uint16_t*>(data.begin());
-                        int num_pixels = data.size() / sizeof(uint16_t);
-                        uint16_t min_val = *std::min_element(disp_data, disp_data + num_pixels);
-                        uint16_t max_val = *std::max_element(disp_data, disp_data + num_pixels);
-                        int valid_pixels = std::count_if(disp_data, disp_data + num_pixels, [](uint16_t d) { return d > 0; });
-                        ROS_INFO("  Data range: [%u - %u], Valid pixels: %d/%d (%.1f%%)", 
-                                 min_val, max_val, valid_pixels, num_pixels, 
-                                 100.0 * valid_pixels / num_pixels);
-                    } else {
-                        ROS_INFO("  Data size: %zu bytes (encoding %d not DISPARITY16, skipping stats)", 
-                                 data.size(), static_cast<int>(encoding));
-                    }
-                } else {
-                    ROS_WARN("  No right disparity data received!");
-                }
-            }
             
             try {
                 // Store right disparity for combined point cloud generation
@@ -472,24 +393,6 @@ private:
                  stereo1_r_extrinsics_.body_rotation.y(),
                  stereo1_r_extrinsics_.body_rotation.z());
         ROS_INFO("===================================================");
-    }
-
-    void extractIntrinsicsLeft(const vkc::Image::Reader& image) {
-        if (stereo1_l_intrinsics_.is_valid) {
-            return;  // Already extracted
-        }
-        
-        // Camera intrinsics will be extracted from disparity data
-        ROS_INFO("Left image stream available, waiting for disparity data for intrinsics");
-    }
-
-    void extractIntrinsicsRight(const vkc::Image::Reader& image) {
-        if (stereo1_r_intrinsics_.is_valid) {
-            return;  // Already extracted
-        }
-        
-        // Camera intrinsics will be extracted from disparity data
-        ROS_INFO("Right image stream available, waiting for disparity data for intrinsics");
     }
 
     void storeLatestImageLeft(const vkc::Image::Reader& image) {
@@ -627,7 +530,7 @@ private:
         }
         
         // Try to generate combined point cloud when both disparities available
-        generateCombinedPointCloud();
+        // generateCombinedPointCloud();
     }
 
     void publishOdometry(const vkc::Odometry3d::Reader& odom_data) {
@@ -662,8 +565,15 @@ private:
         odom_msg.twist.twist.angular.y = 0.0;
         odom_msg.twist.twist.angular.z = 0.0;
 
-        // Publish to planner
+        // Publish raw VIO odometry
         odom_pub_.publish(odom_msg);
+        
+        // Publish vision pose to MAVROS for PX4 EKF2 fusion
+        geometry_msgs::PoseStamped vision_pose;
+        vision_pose.header.stamp = odom_msg.header.stamp;
+        vision_pose.header.frame_id = odom_frame_id_;
+        vision_pose.pose = odom_msg.pose.pose;
+        vision_pose_pub_.publish(vision_pose);
         
         // Store body_to_world transform for point cloud transformation
         {
@@ -1301,6 +1211,13 @@ int main(int argc, char** argv) {
     ros::init(argc, argv, "vk180_planner_bridge");
     ros::NodeHandle nh;
     ros::NodeHandle pnh("~");
+    
+    // Set logging level to reduce console output
+    // Options: Debug, Info, Warn, Error, Fatal
+    if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Warn))
+    {
+        ros::console::notifyLoggerLevelsChanged();
+    }
     
     ROS_INFO("Starting VK180 Planner Bridge with Body Frame Transformation");
     
