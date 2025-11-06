@@ -179,7 +179,6 @@ private:
                                  message_count_, stream_name.c_str());
                 
                 integration_.extractExtrinsicsLeft(image);
-                integration_.extractIntrinsicsLeft(image);
                 integration_.storeLatestImageLeft(image);
                 
             } catch (const std::exception& e) {
@@ -217,7 +216,6 @@ private:
                                  message_count_, stream_name.c_str());
                 
                 integration_.extractExtrinsicsRight(image);
-                integration_.extractIntrinsicsRight(image);
                 integration_.storeLatestImageRight(image);
                 
             } catch (const std::exception& e) {
@@ -388,24 +386,6 @@ private:
                  stereo1_r_extrinsics_.body_rotation.y(),
                  stereo1_r_extrinsics_.body_rotation.z());
         ROS_INFO("===================================================");
-    }
-
-    void extractIntrinsicsLeft(const vkc::Image::Reader& image) {
-        if (stereo1_l_intrinsics_.is_valid) {
-            return;  // Already extracted
-        }
-        
-        // Camera intrinsics will be extracted from disparity data
-        ROS_INFO("Left image stream available, waiting for disparity data for intrinsics");
-    }
-
-    void extractIntrinsicsRight(const vkc::Image::Reader& image) {
-        if (stereo1_r_intrinsics_.is_valid) {
-            return;  // Already extracted
-        }
-        
-        // Camera intrinsics will be extracted from disparity data
-        ROS_INFO("Right image stream available, waiting for disparity data for intrinsics");
     }
 
     void storeLatestImageLeft(const vkc::Image::Reader& image) {
@@ -1217,6 +1197,13 @@ int main(int argc, char** argv) {
     ros::init(argc, argv, "vk180_planner_bridge");
     ros::NodeHandle nh;
     ros::NodeHandle pnh("~");
+    
+    // Set logging level to reduce console output
+    // Options: Debug, Info, Warn, Error, Fatal
+    if (ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Warn))
+    {
+        ros::console::notifyLoggerLevelsChanged();
+    }
     
     ROS_INFO("Starting VK180 Planner Bridge with Body Frame Transformation");
     
