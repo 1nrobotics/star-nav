@@ -25,12 +25,9 @@ export DISPLAY=${DISPLAY}
 # Check if image exists, if not build it
 if ! docker images | grep -q "${IMAGE_NAME}"; then
     echo "Image not found. Building..."
-    cd /home/yc/catkin_ws/src
+    cd /home/yingcai/src/star-nav
     docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
 fi
-
-# Create logs directory
-mkdir -p /home/yc/catkin_ws/src/logs
 
 # Start interactive container
 echo "Starting interactive development container..."
@@ -38,11 +35,12 @@ docker run -it --rm \
     --name star_nav_interactive \
     --network host \
     --privileged \
-    -v /home/yc/catkin_ws/src/px4ctrl:/catkin_ws/src/px4ctrl:rw \
-    -v /home/yc/catkin_ws/src/shiviz_px4_nav:/catkin_ws/src/shiviz_px4_nav:rw \
-    -v /home/yc/catkin_ws/src/utils:/catkin_ws/src/utils:rw \
-    -v /home/yc/catkin_ws/src/logs:/catkin_ws/logs:rw \
-    -v /dev:/dev:rw \
+    -v /home/yingcai/src/star-nav/px4ctrl:/catkin_ws/src/px4ctrl:rw \
+    -v /home/yingcai/src/star-nav/planner:/catkin_ws/src/planner:rw \
+    -v /home/yingcai/src/star-nav/shiviz_px4_nav:/catkin_ws/src/shiviz_px4_nav:rw \
+    -v /home/yingcai/src/star-nav/vk180-ros:/catkin_ws/src/vk180-ros:rw \
+    -v /home/yingcai/src/star-nav/utils:/catkin_ws/src/utils:rw \
+    -v /home/yingcai/src/star-nav/realsense-ros:/catkin_ws/src/realsense-ros:rw \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -e DISPLAY="${DISPLAY}" \
     -e ROS_MASTER_URI="http://localhost:11311" \
