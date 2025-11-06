@@ -140,7 +140,7 @@ private:
         } else {
             ROS_INFO("Skipping stereo image stream subscriptions (subscribe_to_image_stream=false)");
         }
-
+        
         // Subscribe to both left and right disparity streams
         auto disparity_receiver_left = std::make_unique<DisparityReceiverLeft>(*this);
         visualkit_->source().install("S1/stereo1_l/disparity", std::move(disparity_receiver_left));
@@ -172,11 +172,6 @@ private:
                 if (message_count_ == 1) {
                     ROS_INFO("!!! RECEIVED FIRST LEFT IMAGE from stream: %s !!!", image.getStreamName().cStr());
                     ROS_INFO("Left image dimensions: %dx%d", image.getWidth(), image.getHeight());
-                }
-                
-                if (message_count_ % 30 == 1) {
-                    ROS_INFO("LEFT IMAGE STREAM ALIVE: Received image #%d from %s", 
-                             message_count_, image.getStreamName().cStr());
                 }
                 
                 std::string stream_name = image.getStreamName().cStr();
@@ -216,12 +211,7 @@ private:
                     ROS_INFO("!!! RECEIVED FIRST RIGHT IMAGE from stream: %s !!!", image.getStreamName().cStr());
                     ROS_INFO("Right image dimensions: %dx%d", image.getWidth(), image.getHeight());
                 }
-                
-                if (message_count_ % 30 == 1) {
-                    ROS_INFO("RIGHT IMAGE STREAM ALIVE: Received image #%d from %s", 
-                             message_count_, image.getStreamName().cStr());
-                }
-                
+                                
                 std::string stream_name = image.getStreamName().cStr();
                 ROS_INFO_THROTTLE(5.0, "Processing right image (message #%d, stream: %s)", 
                                  message_count_, stream_name.c_str());
@@ -264,45 +254,7 @@ private:
             message_count_++;
             auto disparity_data = message.payload.reader();
             
-            // Debug: Print disparity data info every 30 messages (roughly every second at 30Hz)
-            if (message_count_ % 30 == 1) {
-                ROS_INFO("LEFT DISPARITY DEBUG [Message #%d]:", message_count_);
-                ROS_INFO("  Stream: %s", disparity_data.getStreamName().cStr());
-                ROS_INFO("  Dimensions: %dx%d", disparity_data.getWidth(), disparity_data.getHeight());
-                ROS_INFO("  Step: %d", disparity_data.getStep());
-                ROS_INFO("  Data size: %zu bytes", disparity_data.getData().size());
-                ROS_INFO("  Encoding: %d", static_cast<int>(disparity_data.getEncoding()));
-                ROS_INFO("  Max disparity: %u", disparity_data.getMaxDisparity());
-                ROS_INFO("  Baseline: %.4f m", disparity_data.getBaseline());
-                ROS_INFO("  Intrinsics: fx=%.1f, fy=%.1f, cx=%.1f, cy=%.1f", 
-                         disparity_data.getFx(), disparity_data.getFy(),
-                         disparity_data.getCx(), disparity_data.getCy());
-                
-                // Check data validity - interpret based on encoding
-                auto data = disparity_data.getData();
-                auto encoding = disparity_data.getEncoding();
-                if (data.size() > 0) {
-                    if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
-                        const uint16_t* disp_data = reinterpret_cast<const uint16_t*>(data.begin());
-                        int num_pixels = data.size() / sizeof(uint16_t);
-                        uint16_t min_val = *std::min_element(disp_data, disp_data + num_pixels);
-                        uint16_t max_val = *std::max_element(disp_data, disp_data + num_pixels);
-                        int valid_pixels = std::count_if(disp_data, disp_data + num_pixels, [](uint16_t d) { return d > 0; });
-                        ROS_INFO("  Data range: [%u - %u], Valid pixels: %d/%d (%.1f%%)", 
-                                 min_val, max_val, valid_pixels, num_pixels, 
-                                 100.0 * valid_pixels / num_pixels);
-                    } else {
-                        ROS_INFO("  Data size: %zu bytes (encoding %d not DISPARITY16, skipping stats)", 
-                                 data.size(), static_cast<int>(encoding));
-                    }
-                } else {
-                    ROS_WARN("  No left disparity data received!");
-                }
-            }
-            
             try {
-                integration_.publishDepthForPlanner(disparity_data);
-                integration_.publishDisparityImage(disparity_data);
                 // Store left disparity for combined point cloud generation
                 integration_.storeLeftDisparity(message.payload);
                 
@@ -329,42 +281,6 @@ private:
         vkc::ReceiverStatus handle(const vkc::Message<vkc::Shared<vkc::Disparity>>& message) override {
             message_count_++;
             auto disparity_data = message.payload.reader();
-            
-            // Debug: Print disparity data info every 30 messages
-            if (message_count_ % 30 == 1) {
-                ROS_INFO("RIGHT DISPARITY DEBUG [Message #%d]:", message_count_);
-                ROS_INFO("  Stream: %s", disparity_data.getStreamName().cStr());
-                ROS_INFO("  Dimensions: %dx%d", disparity_data.getWidth(), disparity_data.getHeight());
-                ROS_INFO("  Step: %d", disparity_data.getStep());
-                ROS_INFO("  Data size: %zu bytes", disparity_data.getData().size());
-                ROS_INFO("  Encoding: %d", static_cast<int>(disparity_data.getEncoding()));
-                ROS_INFO("  Max disparity: %u", disparity_data.getMaxDisparity());
-                ROS_INFO("  Baseline: %.4f m", disparity_data.getBaseline());
-                ROS_INFO("  Intrinsics: fx=%.1f, fy=%.1f, cx=%.1f, cy=%.1f", 
-                         disparity_data.getFx(), disparity_data.getFy(),
-                         disparity_data.getCx(), disparity_data.getCy());
-                
-                // Check data validity
-                auto data = disparity_data.getData();
-                auto encoding = disparity_data.getEncoding();
-                if (data.size() > 0) {
-                    if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
-                        const uint16_t* disp_data = reinterpret_cast<const uint16_t*>(data.begin());
-                        int num_pixels = data.size() / sizeof(uint16_t);
-                        uint16_t min_val = *std::min_element(disp_data, disp_data + num_pixels);
-                        uint16_t max_val = *std::max_element(disp_data, disp_data + num_pixels);
-                        int valid_pixels = std::count_if(disp_data, disp_data + num_pixels, [](uint16_t d) { return d > 0; });
-                        ROS_INFO("  Data range: [%u - %u], Valid pixels: %d/%d (%.1f%%)", 
-                                 min_val, max_val, valid_pixels, num_pixels, 
-                                 100.0 * valid_pixels / num_pixels);
-                    } else {
-                        ROS_INFO("  Data size: %zu bytes (encoding %d not DISPARITY16, skipping stats)", 
-                                 data.size(), static_cast<int>(encoding));
-                    }
-                } else {
-                    ROS_WARN("  No right disparity data received!");
-                }
-            }
             
             try {
                 // Store right disparity for combined point cloud generation
@@ -627,7 +543,7 @@ private:
         }
         
         // Try to generate combined point cloud when both disparities available
-        generateCombinedPointCloud();
+        // generateCombinedPointCloud();
     }
 
     void publishOdometry(const vkc::Odometry3d::Reader& odom_data) {
