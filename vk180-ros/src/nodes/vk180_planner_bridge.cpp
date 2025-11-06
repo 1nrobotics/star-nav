@@ -1,3 +1,12 @@
+// VK180 Planner Bridge Node
+// 
+// This node bridges VK180 sensor data (odometry, disparity, point clouds) to ROS for autonomous navigation.
+// Features:
+// - Publishes raw VIO odometry and vision pose to PX4 EKF2 for sensor fusion
+// - Generates combined point cloud from dual stereo cameras
+// - FOV filtering: Keeps only forward-facing points (±30° horizontal, 0° to -30° vertical)
+//   to avoid rear-camera occlusions from drone body/propellers
+
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/Image.h>
@@ -941,8 +950,19 @@ private:
             return 0;
         }
         
+        // FOV filtering parameters (body frame)
+        // Body frame: X-forward, Y-left, Z-up
+        const double horizontal_fov_deg = 60.0;  // ±30° left/right
+        const double vertical_min_deg = -30.0;   // 30° downward from horizontal
+        const double vertical_max_deg = 0.0;     // Horizontal (forward)
+        
+        const double half_horizontal_fov_rad = (horizontal_fov_deg / 2.0) * M_PI / 180.0;
+        const double vertical_min_rad = vertical_min_deg * M_PI / 180.0;
+        const double vertical_max_rad = vertical_max_deg * M_PI / 180.0;
+        
         unsigned char* pc_data = const_cast<unsigned char*>(points_data.begin());
         int valid_points = 0;
+        int fov_filtered_points = 0;
         
         for (int i = 0; i < points_count; ++i) {
             unsigned char* point_ptr = pc_data + i * point_stride;
@@ -952,34 +972,75 @@ private:
             float z = *reinterpret_cast<float*>(point_ptr + field_offsets[2]);
             
             // Skip invalid points (NaN or zero depth)
-            if (std::isfinite(x) && std::isfinite(y) && std::isfinite(z) && z > 0) {
-                // Transform point from camera frame to world frame
-                Eigen::Vector4d camera_point(x, y, z, 1.0);
-                Eigen::Vector4d world_point;
-                
-                if (extrinsics.is_valid) {
-                    // First transform from camera to base_link
-                    Eigen::Vector4d body_point = extrinsics.cam_to_body_transform * camera_point;
-                    // Then transform from base_link to world frame
-                    world_point = body_to_world * body_point;
-                } else {
-                    // Fallback: assume camera_link == base_link, transform directly to world
-                    world_point = body_to_world * camera_point;
-                }
-                
-                pcl::PointXYZ point;
-                point.x = world_point.x();
-                point.y = world_point.y();
-                point.z = world_point.z();
-                
-                output_cloud->points.push_back(point);
-                valid_points++;
+            if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) || z <= 0) {
+                continue;
             }
+            
+            // Transform point from camera frame to body frame for FOV filtering
+            Eigen::Vector4d camera_point(x, y, z, 1.0);
+            Eigen::Vector3d body_point_3d;
+            
+            if (extrinsics.is_valid) {
+                // Transform to body frame
+                Eigen::Vector4d body_point = extrinsics.cam_to_body_transform * camera_point;
+                body_point_3d = body_point.head<3>();
+            } else {
+                // Fallback: assume camera_link == base_link
+                body_point_3d = camera_point.head<3>();
+            }
+            
+            // Apply FOV filter in body frame
+            // Body frame: X-forward, Y-left, Z-up
+            double point_x = body_point_3d.x();
+            double point_y = body_point_3d.y();
+            double point_z = body_point_3d.z();
+            
+            // Skip points behind the drone (negative X)
+            if (point_x <= 0) {
+                fov_filtered_points++;
+                continue;
+            }
+            
+            // Horizontal FOV check: atan2(y, x) should be within ±30°
+            double horizontal_angle = std::atan2(point_y, point_x);
+            if (std::abs(horizontal_angle) > half_horizontal_fov_rad) {
+                fov_filtered_points++;
+                continue;
+            }
+            
+            // Vertical FOV check: atan2(-z, x) should be within [0°, -30°]
+            // Negative z because we want downward angles to be negative
+            double horizontal_dist = std::sqrt(point_x * point_x + point_y * point_y);
+            double vertical_angle = std::atan2(-point_z, horizontal_dist);
+            
+            if (vertical_angle < vertical_min_rad || vertical_angle > vertical_max_rad) {
+                fov_filtered_points++;
+                continue;
+            }
+            
+            // Point passes FOV filter, transform to world frame
+            Eigen::Vector4d world_point;
+            if (extrinsics.is_valid) {
+                Eigen::Vector4d body_point_4d(body_point_3d.x(), body_point_3d.y(), body_point_3d.z(), 1.0);
+                world_point = body_to_world * body_point_4d;
+            } else {
+                world_point = body_to_world * camera_point;
+            }
+            
+            pcl::PointXYZ point;
+            point.x = world_point.x();
+            point.y = world_point.y();
+            point.z = world_point.z();
+            
+            output_cloud->points.push_back(point);
+            valid_points++;
         }
         
         float validity_ratio = static_cast<float>(valid_points) / points_count;
-        ROS_INFO_THROTTLE(8.0, "%s camera: %d/%d valid points (%.1f%%)", 
-                         camera_name.c_str(), valid_points, points_count, validity_ratio * 100.0f);
+        float fov_filter_ratio = static_cast<float>(fov_filtered_points) / points_count;
+        ROS_INFO_THROTTLE(8.0, "%s camera: %d/%d valid points (%.1f%%), %d filtered by FOV (%.1f%%)", 
+                         camera_name.c_str(), valid_points, points_count, validity_ratio * 100.0f,
+                         fov_filtered_points, fov_filter_ratio * 100.0f);
         
         return valid_points;
     }
