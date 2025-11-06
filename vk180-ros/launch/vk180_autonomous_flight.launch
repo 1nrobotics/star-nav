@@ -21,7 +21,8 @@
     <arg name="max_vel" default="1.0" />
     <arg name="max_acc" default="2.0" />
     
-    <!-- VK180 Planner Bridge - Provides odometry and sensor data -->
+    <!-- VK180 Planner Bridge - Provides raw VIO odometry and sensor data -->
+    <!-- Also publishes vision pose directly to MAVROS for PX4 EKF2 fusion -->
     <node name="vk180_planner_bridge" 
           pkg="vk180_ros" 
           type="vk180_planner_bridge" 
@@ -37,12 +38,17 @@
         <param name="max_depth" value="8.0" />
         <param name="min_depth" value="0.3" />
         
+        <!-- Note: 
+             - Publishes /vk180/odom_raw (raw VIO before PX4 fusion)
+             - Publishes /mavros/vision_pose/pose (vision input to PX4 EKF2)
+             - PX4 fuses VIO + IMU → /mavros/local_position/odom
+        -->
     </node>
     
-    <!-- PX4 Controller - Subscribes to odom and publishes to MAVROS -->
+    <!-- PX4 Controller - Uses fused odometry from PX4 EKF2 -->
     <node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl" output="screen">
-        <!-- Remap to VK180 odometry topic -->
-        <remap from="~odom" to="/vk180/odom" />
+        <!-- Remap to PX4's fused odometry (VIO + IMU fusion) -->
+        <remap from="~odom" to="/mavros/local_position/odom" />
         
         <!-- Command input from EGO planner trajectory -->
         <remap from="~cmd" to="/drone_$(arg drone_id)_planning/pos_cmd" />
@@ -58,8 +64,8 @@
         <arg name="map_size_y_" value="$(arg map_size_y)"/>
         <arg name="map_size_z_" value="$(arg map_size_z)"/>
         
-        <!-- VK180 Topics -->
-        <arg name="odometry_topic" value="/vk180/odom"/>
+        <!-- Use PX4's fused odometry (VIO + IMU) instead of raw VIO -->
+        <arg name="odometry_topic" value="/mavros/local_position/odom"/>
         <arg name="depth_topic" value="nouse1"/>
         <arg name="camera_pose_topic" value="nouse2"/>
         <arg name="cloud_topic" value="/vk180/pointcloud"/>

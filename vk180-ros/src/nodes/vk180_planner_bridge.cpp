@@ -3,6 +3,7 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -44,7 +45,8 @@ class VK180PlannerBridge {
 public:
     VK180PlannerBridge(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
         // Publishers for planner
-        odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odom", 10);
+        odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odom_raw", 10);  // Raw VIO before PX4 fusion
+        vision_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);  // Vision pose to PX4 EKF2
         depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/depth", 10);
         disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
         pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("vk180/pointcloud", 10);
@@ -59,6 +61,10 @@ public:
         pnh_.param<double>("max_depth", max_depth_, 10.0);
         pnh_.param<double>("min_depth", min_depth_, 0.1);
         
+        ROS_INFO("VK180 Planner Bridge initialized with MAVROS vision pose output");
+        ROS_INFO("  Publishing raw VIO to: /vk180/odom_raw");
+        ROS_INFO("  Publishing vision pose to PX4 EKF2: /mavros/vision_pose/pose");
+        
         initializePointCloudParams();
         initializeEcal();
     }
@@ -72,6 +78,7 @@ public:
 private:
     ros::NodeHandle nh_, pnh_;
     ros::Publisher odom_pub_;
+    ros::Publisher vision_pose_pub_;
     ros::Publisher depth_pub_;
     ros::Publisher disparity_pub_;
     ros::Publisher pointcloud_pub_;
@@ -558,8 +565,15 @@ private:
         odom_msg.twist.twist.angular.y = 0.0;
         odom_msg.twist.twist.angular.z = 0.0;
 
-        // Publish to planner
+        // Publish raw VIO odometry
         odom_pub_.publish(odom_msg);
+        
+        // Publish vision pose to MAVROS for PX4 EKF2 fusion
+        geometry_msgs::PoseStamped vision_pose;
+        vision_pose.header.stamp = odom_msg.header.stamp;
+        vision_pose.header.frame_id = odom_frame_id_;
+        vision_pose.pose = odom_msg.pose.pose;
+        vision_pose_pub_.publish(vision_pose);
         
         // Store body_to_world transform for point cloud transformation
         {
