@@ -18,7 +18,7 @@ xhost +local:docker 2>/dev/null || true
 # Set default environment variables
 export IMAGE_TAG=${IMAGE_TAG:-local}
 export IMAGE_NAME=${IMAGE_NAME:-1nrobotics/star-nav}
-export DRONE_ID=${DRONE_ID:-1}
+export DRONE_ID=${DRONE_ID:-0}
 export VEHICLE_ID=${VEHICLE_ID:-1}
 export DISPLAY=${DISPLAY}
 
@@ -68,12 +68,10 @@ docker run -d \
     -e ROS_MASTER_URI=http://localhost:11311 \
     -e ROS_HOSTNAME=localhost \
     -e ROS_IP=localhost \
-    -e PX4_SIM_HOST=localhost \
-    -e PX4_SIM_MODEL=iris \
     -e VEHICLE_ID=${VEHICLE_ID} \
     -e DISPLAY=${DISPLAY} \
     ${IMAGE_NAME}:${IMAGE_TAG} \
-    bash -c "source /catkin_ws/devel/setup.bash && roslaunch vk180_ros vk180_autonomous_flight.launch ${DOCKER_LAUNCH_ARGS}"
+    bash -c "source /catkin_ws/devel/setup.bash && roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=true ${DOCKER_LAUNCH_ARGS}"
 
 echo ""
 echo -e "${GREEN}✅ Local deployment completed!${NC}"
