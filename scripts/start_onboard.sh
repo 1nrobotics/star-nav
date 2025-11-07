@@ -32,6 +32,10 @@ export MAVROS_RESPAWN=true
 
 echo "Star Nav onboard environment loaded"
 
+# Set system time
+echo "[*] Setting system time..."
+sudo date -s "2025-11-07 20:02:38"
+
 # Check VK180 connectivity
 echo "[*] Checking VK180 connectivity..."
 if ! ping -c 1 -W 2 $VK180_HOST &> /dev/null; then

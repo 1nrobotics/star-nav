@@ -10,6 +10,10 @@ echo "  Star Nav - Onboard Setup"
 echo "=========================================="
 echo ""
 
+# Set system time
+echo "[*] Setting system time..."
+sudo date -s "2025-11-07 20:02:38"
+
 # Add user to docker group (no password needed)
 echo "[*] Adding user to docker group..."
 sudo usermod -aG docker $USER
