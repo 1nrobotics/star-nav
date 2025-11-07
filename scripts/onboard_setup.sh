@@ -18,6 +18,10 @@ sudo usermod -aG docker $USER
 echo "[*] Adding user to dialout group..."
 sudo usermod -aG dialout $USER
 
+# Install sshpass for VK180 password authentication
+echo "[*] Installing sshpass for VK180 SSH access..."
+sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
 # Configure VK180 network
 echo "[*] Adding VK180 host entry..."
 echo "10.42.0.64	compulab-imx8mp-01" | sudo tee -a /etc/hosts
