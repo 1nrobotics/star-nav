@@ -77,4 +77,4 @@ fi
 
 echo "Starting Star Nav with device: $DEVICE"
 cd "$WORKSPACE_ROOT"
-./docker/local-deploy.sh
+# ./docker/local-deploy.sh

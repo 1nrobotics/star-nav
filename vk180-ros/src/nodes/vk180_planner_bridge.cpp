@@ -62,6 +62,10 @@ public:
         image_left_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image_left", 10);
         image_right_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image_right", 10);
         
+        // Subscriber for MAVROS fused odometry (for point cloud transformation)
+        mavros_odom_sub_ = nh_.subscribe("/mavros/local_position/odom", 10, 
+                                         &VK180PlannerBridge::mavrosOdomCallback, this);
+        
         // Parameters
         pnh_.param<std::string>("odom_frame_id", odom_frame_id_, "odom");
         pnh_.param<std::string>("base_frame_id", base_frame_id_, "base_link");
@@ -73,6 +77,8 @@ public:
         ROS_INFO("VK180 Planner Bridge initialized with MAVROS vision pose output");
         ROS_INFO("  Publishing raw VIO to: /vk180/odom_raw");
         ROS_INFO("  Publishing vision pose to PX4 EKF2: /mavros/vision_pose/pose");
+        ROS_INFO("  Subscribing to MAVROS fused odometry: /mavros/local_position/odom");
+        ROS_INFO("  Using MAVROS odometry for point cloud transformation to world frame");
         
         initializePointCloudParams();
         initializeEcal();
@@ -93,6 +99,8 @@ private:
     ros::Publisher pointcloud_pub_;
     ros::Publisher image_left_pub_;
     ros::Publisher image_right_pub_;
+    
+    ros::Subscriber mavros_odom_sub_;
     
     tf2_ros::TransformBroadcaster tf_broadcaster_;
     
@@ -584,24 +592,8 @@ private:
         vision_pose.pose = odom_msg.pose.pose;
         vision_pose_pub_.publish(vision_pose);
         
-        // Store body_to_world transform for point cloud transformation
-        {
-            std::lock_guard<std::mutex> lock(odom_mutex_);
-            
-            Eigen::Quaterniond body_q(odom_msg.pose.pose.orientation.w,
-                                     odom_msg.pose.pose.orientation.x,
-                                     odom_msg.pose.pose.orientation.y,
-                                     odom_msg.pose.pose.orientation.z);
-            Eigen::Matrix3d body_r_m = body_q.toRotationMatrix();
-            
-            body_to_world_transform_ = Eigen::Matrix4d::Identity();
-            body_to_world_transform_.block<3,3>(0,0) = body_r_m;
-            body_to_world_transform_(0,3) = odom_msg.pose.pose.position.x;
-            body_to_world_transform_(1,3) = odom_msg.pose.pose.position.y;
-            body_to_world_transform_(2,3) = odom_msg.pose.pose.position.z;
-            
-            has_odom_ = true;
-        }
+        // Note: We no longer store body_to_world transform here
+        // Instead, we use the MAVROS fused odometry from mavrosOdomCallback()
         
         // Publish TF: odom -> base_link
         try {
@@ -625,6 +617,27 @@ private:
         } catch (const std::exception& e) {
             ROS_ERROR("Exception publishing odometry TF: %s", e.what());
         }
+    }
+
+    void mavrosOdomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
+        // Store MAVROS fused odometry for point cloud transformation
+        std::lock_guard<std::mutex> lock(odom_mutex_);
+        
+        Eigen::Quaterniond body_q(msg->pose.pose.orientation.w,
+                                 msg->pose.pose.orientation.x,
+                                 msg->pose.pose.orientation.y,
+                                 msg->pose.pose.orientation.z);
+        Eigen::Matrix3d body_r_m = body_q.toRotationMatrix();
+        
+        body_to_world_transform_ = Eigen::Matrix4d::Identity();
+        body_to_world_transform_.block<3,3>(0,0) = body_r_m;
+        body_to_world_transform_(0,3) = msg->pose.pose.position.x;
+        body_to_world_transform_(1,3) = msg->pose.pose.position.y;
+        body_to_world_transform_(2,3) = msg->pose.pose.position.z;
+        
+        has_odom_ = true;
+        
+        ROS_INFO_ONCE("Receiving MAVROS fused odometry for point cloud transformation");
     }
 
     void publishDepthForPlanner(const vkc::Disparity::Reader& disparity_data) {
@@ -828,9 +841,9 @@ private:
             return;
         }
         
-        // Need current odometry pose to transform points to world frame
+        // Need current MAVROS fused odometry pose to transform points to world frame
         if (!has_odom_) {
-            ROS_WARN_THROTTLE(10.0, "No odometry available yet, skipping point cloud generation");
+            ROS_WARN_THROTTLE(10.0, "No MAVROS fused odometry available yet, skipping point cloud generation");
             return;
         }
         
@@ -955,6 +968,7 @@ private:
         const double horizontal_fov_deg = 60.0;  // ±30° left/right
         const double vertical_min_deg = -30.0;   // 30° downward from horizontal
         const double vertical_max_deg = 0.0;     // Horizontal (forward)
+        const double min_distance = 0.4;         // Minimum distance from drone center (meters)
         
         const double half_horizontal_fov_rad = (horizontal_fov_deg / 2.0) * M_PI / 180.0;
         const double vertical_min_rad = vertical_min_deg * M_PI / 180.0;
@@ -963,6 +977,7 @@ private:
         unsigned char* pc_data = const_cast<unsigned char*>(points_data.begin());
         int valid_points = 0;
         int fov_filtered_points = 0;
+        int distance_filtered_points = 0;
         
         for (int i = 0; i < points_count; ++i) {
             unsigned char* point_ptr = pc_data + i * point_stride;
@@ -994,6 +1009,15 @@ private:
             double point_x = body_point_3d.x();
             double point_y = body_point_3d.y();
             double point_z = body_point_3d.z();
+            
+            // Calculate distance from drone center
+            double distance_from_center = std::sqrt(point_x * point_x + point_y * point_y + point_z * point_z);
+            
+            // Filter out points too close to the drone (within 0.4m)
+            if (distance_from_center < min_distance) {
+                distance_filtered_points++;
+                continue;
+            }
             
             // Skip points behind the drone (negative X)
             if (point_x <= 0) {
@@ -1038,9 +1062,11 @@ private:
         
         float validity_ratio = static_cast<float>(valid_points) / points_count;
         float fov_filter_ratio = static_cast<float>(fov_filtered_points) / points_count;
-        ROS_INFO_THROTTLE(8.0, "%s camera: %d/%d valid points (%.1f%%), %d filtered by FOV (%.1f%%)", 
+        float distance_filter_ratio = static_cast<float>(distance_filtered_points) / points_count;
+        ROS_INFO_THROTTLE(8.0, "%s camera: %d/%d valid points (%.1f%%), %d filtered by FOV (%.1f%%), %d filtered by distance <0.4m (%.1f%%)", 
                          camera_name.c_str(), valid_points, points_count, validity_ratio * 100.0f,
-                         fov_filtered_points, fov_filter_ratio * 100.0f);
+                         fov_filtered_points, fov_filter_ratio * 100.0f,
+                         distance_filtered_points, distance_filter_ratio * 100.0f);
         
         return valid_points;
     }
