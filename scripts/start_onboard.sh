@@ -9,26 +9,18 @@ set -e
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 WORKSPACE_ROOT="$(realpath "$SCRIPT_DIR/..")"
 
-# Star Nav Onboard Environment
-export PLATFORM_TYPE="onboard"
-export VK180_HOST=10.42.0.64
-export VK180_HOSTNAME=compulab-imx8mp-01
-export VK180_USER=compulab
-export VK180_PASS=compulab
-export DEVICE=/dev/ttyUSB0
-export FCU_BAUD=921600
-export IMAGE_TAG=local
-export IMAGE_NAME=1nrobotics/star-nav
-export ROS_MASTER_URI=http://localhost:11311
-export ROS_HOSTNAME=localhost
-export ROS_IP=localhost
-export VEHICLE_ID=1
-export DRONE_ID=1
-export USE_RVIZ=false
-export TAKEOFF_HEIGHT=1.5
-export MAX_VEL=1.0
-export MAX_ACC=2.0
-export MAVROS_RESPAWN=true
+# VK180 SSH configuration
+VK180_HOST=10.42.0.64
+VK180_USER=compulab
+VK180_PASS=compulab
+
+# PX4 Serial device
+DEVICE=/dev/ttyUSB0
+FCU_BAUD=921600
+
+# Docker image
+IMAGE_TAG=local
+IMAGE_NAME=1nrobotics/star-nav
 
 echo "Star Nav onboard environment loaded"
 
