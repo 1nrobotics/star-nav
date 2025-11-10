@@ -965,9 +965,16 @@ private:
         // Minimum distance filter (body frame)
         const double min_distance = 0.4;  // 40cm - filter out points too close to drone center
         
+        // FOV filter parameters (in radians)
+        const double fov_horizontal_left = 40.0 * M_PI / 180.0;   // 40 degrees left
+        const double fov_horizontal_right = -50.0 * M_PI / 180.0; // 50 degrees right
+        const double fov_vertical_up = 10.0 * M_PI / 180.0;       // +10 degrees up
+        const double fov_vertical_down = -60.0 * M_PI / 180.0;    // -60 degrees down
+        
         unsigned char* pc_data = const_cast<unsigned char*>(points_data.begin());
         int valid_points = 0;
         int distance_filtered_points = 0;
+        int fov_filtered_points = 0;
         
         for (int i = 0; i < points_count; ++i) {
             unsigned char* point_ptr = pc_data + i * point_stride;
@@ -1004,7 +1011,24 @@ private:
                 continue;
             }
             
-            // Point passes distance filter, transform to world frame
+            // FOV filter: check horizontal and vertical angles in body frame
+            // Horizontal angle: atan2(y, x) - left/right (positive = left, negative = right)
+            // Vertical angle: atan2(z, sqrt(x^2 + y^2)) - up/down
+            double horizontal_angle = std::atan2(body_point_3d.y(), body_point_3d.x());
+            double horizontal_distance = std::sqrt(body_point_3d.x() * body_point_3d.x() + 
+                                                   body_point_3d.y() * body_point_3d.y());
+            double vertical_angle = std::atan2(body_point_3d.z(), horizontal_distance);
+            
+            // Filter points outside FOV (asymmetric: 40° left, 50° right, 10° up, 60° down)
+            if (horizontal_angle > fov_horizontal_left || 
+                horizontal_angle < fov_horizontal_right ||
+                vertical_angle > fov_vertical_up || 
+                vertical_angle < fov_vertical_down) {
+                fov_filtered_points++;
+                continue;
+            }
+            
+            // Point passes distance and FOV filters, transform to world frame
             Eigen::Vector4d world_point;
             if (extrinsics.is_valid) {
                 Eigen::Vector4d body_point_4d(body_point_3d.x(), body_point_3d.y(), body_point_3d.z(), 1.0);
@@ -1024,9 +1048,11 @@ private:
         
         float validity_ratio = static_cast<float>(valid_points) / points_count;
         float distance_filter_ratio = static_cast<float>(distance_filtered_points) / points_count;
-        ROS_INFO_THROTTLE(8.0, "%s camera: %d/%d valid points (%.1f%%), %d filtered by distance <0.4m (%.1f%%)", 
+        float fov_filter_ratio = static_cast<float>(fov_filtered_points) / points_count;
+        ROS_INFO_THROTTLE(8.0, "%s camera: %d/%d valid points (%.1f%%), %d filtered by distance <0.4m (%.1f%%), %d filtered by FOV (%.1f%%)", 
                          camera_name.c_str(), valid_points, points_count, validity_ratio * 100.0f,
-                         distance_filtered_points, distance_filter_ratio * 100.0f);
+                         distance_filtered_points, distance_filter_ratio * 100.0f,
+                         fov_filtered_points, fov_filter_ratio * 100.0f);
         
         return valid_points;
     }
