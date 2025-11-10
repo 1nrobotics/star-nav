@@ -5,8 +5,10 @@ This branch (`feature/build-for-release`) creates a production-ready Docker imag
 ## What's Different from Development Build
 
 ### Dockerfile Changes
-- **After `catkin_make`**, the source code is cleaned up
-- **Keeps only runtime-necessary files**:
+- **Build argument `RELEASE_BUILD`** controls source code cleanup (default: `false`)
+- **When `RELEASE_BUILD=true`**, after `catkin_make`, the source code is cleaned up
+- **When `RELEASE_BUILD=false`** (default), all source code is kept for development
+- **Keeps only runtime-necessary files in release mode**:
   - Launch files (`*.launch`, `*.xml` for urdf/xacro)
   - Configuration files (`*.yaml`, `*.rviz`, `*.ini`)
   - Python scripts (in `scripts/` directories)
@@ -25,12 +27,14 @@ This branch (`feature/build-for-release`) creates a production-ready Docker imag
 - Mounts source code directories from host into container
 - Allows live code editing and quick rebuilds
 - Uses `IMAGE_TAG=local`
+- Builds with `RELEASE_BUILD=false` (keeps source code)
 - **Use for**: Development, debugging, testing new features
 
 #### Release Deployment: `docker/release-deploy.sh` ✨ NEW
 - No source code volume mounts
 - Runs entirely from compiled binaries in the image
 - Uses `IMAGE_TAG=release`
+- Builds with `RELEASE_BUILD=true` (removes source code)
 - Automatically launches the navigation stack
 - **Use for**: Production deployments, field operations
 
@@ -39,7 +43,15 @@ This branch (`feature/build-for-release`) creates a production-ready Docker imag
 ### Building the Release Image
 ```bash
 cd /home/yc/catkin_ws/src
-docker build -t 1nrobotics/star-nav:release .
+docker build --build-arg RELEASE_BUILD=true -t 1nrobotics/star-nav:release .
+```
+
+### Building the Development Image
+```bash
+cd /home/yc/catkin_ws/src
+docker build -t 1nrobotics/star-nav:local .
+# Or explicitly:
+docker build --build-arg RELEASE_BUILD=false -t 1nrobotics/star-nav:local .
 ```
 
 ### Deploying Release Build

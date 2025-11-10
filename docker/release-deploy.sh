@@ -38,7 +38,7 @@ if ! docker images | grep -q "${IMAGE_NAME}.*${IMAGE_TAG}"; then
     echo "Release image not found. Building..."
     echo "Using repository root: ${REPO_ROOT}"
     cd "${REPO_ROOT}"
-    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+    docker build --build-arg RELEASE_BUILD=true -t ${IMAGE_NAME}:${IMAGE_TAG} .
     echo -e "${GREEN}✓ Build complete - source code removed from image${NC}"
 fi
 
