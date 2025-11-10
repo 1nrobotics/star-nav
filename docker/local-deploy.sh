@@ -71,7 +71,8 @@ docker run -d \
     -e VEHICLE_ID=${VEHICLE_ID} \
     -e DISPLAY=${DISPLAY} \
     ${IMAGE_NAME}:${IMAGE_TAG} \
-    bash -c "source /catkin_ws/devel/setup.bash && roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=true ${DOCKER_LAUNCH_ARGS}"
+    bash -c "source /catkin_ws/devel/setup.bash && tail -f /dev/null"
+    # bash -c "source /catkin_ws/devel/setup.bash && roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=true ${DOCKER_LAUNCH_ARGS}"
 
 echo ""
 echo -e "${GREEN}✅ Local deployment completed!${NC}"

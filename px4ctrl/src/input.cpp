@@ -133,7 +133,7 @@ void Odom_Data_t::feed(nav_msgs::OdometryConstPtr pMsg)
 
     uav_utils::extract_odometry(pMsg, p, v, q, w);
 
-// #define VEL_IN_BODY
+#define VEL_IN_BODY 1
 #ifdef VEL_IN_BODY /* Set to 1 if the velocity in odom topic is relative to current body frame, not to world frame.*/
     Eigen::Quaternion<double> wRb_q(msg.pose.pose.orientation.w, msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z);
     Eigen::Matrix3d wRb = wRb_q.matrix();
