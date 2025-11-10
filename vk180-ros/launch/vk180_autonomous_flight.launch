@@ -6,7 +6,7 @@
     <arg name="use_sim" default="false" />
     <arg name="fcu_url_sim" default="udp://:14540@127.0.0.1:14557" />
     <arg name="fcu_url_real" default="/dev/ttyUSB0:921600" />
-    <arg name="gcs_url" default="" />
+    <arg name="gcs_url" default="udp-b://@" />
     <arg name="use_body_frame_transform" default="true" />
     <arg name="takeoff_height" default="1.5" />
     <arg name="use_rc" default="true" />
@@ -18,7 +18,7 @@
     <arg name="map_size_z" default="3.0"/>
     <arg name="use_rviz" default="true"/>
     <arg name="flight_type" default="1" /> <!-- 1=2D Nav Goal, 2=Waypoints -->
-    <arg name="max_vel" default="1.0" />
+    <arg name="max_vel" default="0.5" />
     <arg name="max_acc" default="2.0" />
     
     <!-- VK180 Planner Bridge - Provides raw VIO odometry and sensor data -->
