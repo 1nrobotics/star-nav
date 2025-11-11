@@ -69,12 +69,10 @@ echo "Starting Star Nav service..."
 # Detect serial device to pass through to container (override with DEVICE env)
 DEVICE=${DEVICE:-/dev/ttyUSB0}
 DOCKER_DEVICE_ARGS=""
-DOCKER_LAUNCH_ARGS=""
 if [ -e "${DEVICE}" ]; then
     echo "Found serial device on host: ${DEVICE} — passing through to container"
     DOCKER_DEVICE_ARGS="--device ${DEVICE}:${DEVICE}"
     FCU_BAUD=${FCU_BAUD:-921600}
-    DOCKER_LAUNCH_ARGS="fcu_url:=${DEVICE}:${FCU_BAUD}"
 else
     echo "No serial device '${DEVICE}' found on host — starting without passthrough (use DEVICE env to override)"
 fi
@@ -90,8 +88,10 @@ docker run -d \
     -e ROS_IP=${ROS_IP} \
     -e VEHICLE_ID=${VEHICLE_ID} \
     -e DISPLAY=${DISPLAY} \
+    -e DISABLE_ROS1_EOL_WARNINGS=1 \
     ${IMAGE_NAME}:${IMAGE_TAG} \
-    bash -c "source /catkin_ws/devel/setup.bash && roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=false ${DOCKER_LAUNCH_ARGS}"
+    bash -c "source /catkin_ws/devel/setup.bash && tail -f /dev/null"
+    # bash -c "source /catkin_ws/devel/setup.bash && roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=false use_sim:=true"
 
 echo ""
 echo -e "${GREEN}✅ Release deployment completed!${NC}"

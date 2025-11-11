@@ -135,7 +135,7 @@ RUN if [ "$RELEASE_BUILD" = "true" ]; then \
         echo "=== Building RELEASE image - removing source code ===" && \
         cd /catkin_ws/src && \
         # Keep launch files \
-        find . -name "*.launch" -o -name "*.xml" | grep -E "(launch|urdf|xacro)" > /tmp/keep_files.txt && \
+        find . -name "*.launch" -o -name "*.xml" | grep -E "(launch|urdf|xacro|plugin_description)" > /tmp/keep_files.txt && \
         # Keep config files \
         find . -name "*.yaml" -o -name "*.rviz" -o -name "*.ini" >> /tmp/keep_files.txt && \
         # Keep Python scripts \
