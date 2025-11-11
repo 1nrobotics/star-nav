@@ -75,6 +75,25 @@ DEVICE=/dev/ttyACM0 ./docker/release-deploy.sh
 2. **IP Protection**: Source code is not accessible in the deployed container
 3. **Cleaner Runtime**: No unnecessary files in the container
 4. **Production Ready**: Optimized for deployment, not development
+5. **Fast Builds**: Layer caching works - building release after dev only rebuilds the cleanup layer ⚡
+
+## Build Performance
+
+Thanks to optimized layer caching, if you've already built the development image:
+
+```bash
+# First build (development) - takes ~10-15 minutes
+docker build -t 1nrobotics/star-nav:local .
+
+# Second build (release) - takes ~30 seconds (only rebuilds cleanup layer!)
+docker build --build-arg RELEASE_BUILD=true -t 1nrobotics/star-nav:release .
+```
+
+**Why it's fast:**
+- The `RELEASE_BUILD` argument is declared **after** the build layer
+- Docker reuses all cached layers up to `catkin_make`
+- Only the source cleanup layer needs to run for release builds
+- This saves ~10+ minutes of build time!
 
 ## Important Notes
 

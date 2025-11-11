@@ -2,9 +2,6 @@
 ARG BASE_IMAGE=ros:noetic-ros-core-focal
 FROM ${BASE_IMAGE}
 
-# Build argument to control source code cleanup (default: keep source for development)
-ARG RELEASE_BUILD=false
-
 LABEL maintainer="1nrobotics@github"
 LABEL description="Docker image for Star Nav - Multi-package ROS Navigation System (px4ctrl, shiviz_px4_nav, utils)"
 
@@ -126,6 +123,10 @@ RUN source /opt/ros/noetic/setup.bash \
     && rosdep update \
     && rosdep install --from-paths src --ignore-src -r -y \
     && catkin_make -DCMAKE_BUILD_TYPE=Release
+
+# Build argument to control source code cleanup (default: keep source for development)
+# Declared here AFTER build to allow layer caching regardless of build arg value
+ARG RELEASE_BUILD=false
 
 # Clean up source code after build (only for release builds)
 # Keep: launch files, config files, scripts, and compiled binaries
