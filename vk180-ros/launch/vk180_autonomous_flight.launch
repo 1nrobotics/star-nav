@@ -130,16 +130,6 @@
         </include>
     </group>
     
-    <!-- Optional: Waypoint Navigator from shiviz_px4_nav -->
-    <!-- Uncomment to enable waypoint navigation -->
-    <!--
-    <node pkg="shiviz_px4_nav" type="px4_offboard_node" name="px4_offboard_node" output="screen">
-        <param name="waypoint_file" value="$(arg waypoint_file)" />
-        <param name="takeoff_height" value="$(arg takeoff_height)" />
-        <param name="use_rc" value="$(arg use_rc)" />
-    </node>
-    -->
-    
     <!-- Static TF Publishers -->
     <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_map"
           args="0 0 0 0 0 0 world map" />
