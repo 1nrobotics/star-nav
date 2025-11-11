@@ -174,10 +174,7 @@ RUN if [ "$RELEASE_BUILD" = "true" ]; then \
 
 # Set up environment in bashrc
 RUN echo "source /opt/ros/noetic/setup.bash" >> /root/.bashrc && \
-    echo "source /catkin_ws/devel/setup.bash" >> /root/.bashrc && \
-    echo "export ROS_MASTER_URI=http://localhost:11311" >> /root/.bashrc && \
-    echo "export ROS_HOSTNAME=localhost" >> /root/.bashrc && \
-    echo "export ROS_IP=localhost" >> /root/.bashrc
+    echo "source /catkin_ws/devel/setup.bash" >> /root/.bashrc
 
 # Copy custom bashrc for additional configuration
 COPY docker/.bashrc /root/.bashrc_custom
