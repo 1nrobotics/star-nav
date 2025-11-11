@@ -14,6 +14,27 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}🚁 Star Nav - Release Deployment${NC}"
 echo -e "${YELLOW}⚠️  Using release build (no source code volume mounts)${NC}"
 
+# Check if remote visualization is needed
+ENABLE_REMOTE_VIZ=${ENABLE_REMOTE_VIZ:-false}
+
+# Configure ROS networking
+if [ "$ENABLE_REMOTE_VIZ" = "true" ]; then
+    # Get onboard computer's IP address for remote visualization
+    ONBOARD_IP=${ONBOARD_IP:-$(hostname -I | awk '{print $1}')}
+    ROS_MASTER_URI="http://${ONBOARD_IP}:11311"
+    ROS_HOSTNAME="${ONBOARD_IP}"
+    ROS_IP="${ONBOARD_IP}"
+    echo -e "${BLUE}Remote visualization ENABLED${NC}"
+    echo "Onboard IP: ${ONBOARD_IP}"
+    echo "Remote computer should connect to: ${ROS_MASTER_URI}"
+else
+    # Local only - use localhost
+    ROS_MASTER_URI="http://localhost:11311"
+    ROS_HOSTNAME="localhost"
+    ROS_IP="localhost"
+    echo -e "${BLUE}Local mode - remote visualization DISABLED${NC}"
+fi
+
 # Enable X11 forwarding for GUI applications
 xhost +local:docker 2>/dev/null || true
 
@@ -64,9 +85,9 @@ docker run -d \
     --privileged \
     ${DOCKER_DEVICE_ARGS} \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-    -e ROS_MASTER_URI=http://localhost:11311 \
-    -e ROS_HOSTNAME=localhost \
-    -e ROS_IP=localhost \
+    -e ROS_MASTER_URI=${ROS_MASTER_URI} \
+    -e ROS_HOSTNAME=${ROS_HOSTNAME} \
+    -e ROS_IP=${ROS_IP} \
     -e VEHICLE_ID=${VEHICLE_ID} \
     -e DISPLAY=${DISPLAY} \
     ${IMAGE_NAME}:${IMAGE_TAG} \
