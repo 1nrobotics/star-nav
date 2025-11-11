@@ -3,7 +3,7 @@ ARG BASE_IMAGE=ros:noetic-ros-core-focal
 FROM ${BASE_IMAGE}
 
 LABEL maintainer="1nrobotics@github"
-LABEL description="Docker image for Star Nav - Multi-package ROS Navigation System (px4ctrl, shiviz_px4_nav, utils)"
+LABEL description="Docker image for Star Nav - Multi-package ROS Navigation System (px4ctrl, vk180-ros, utils)"
 
 # Set environment variables
 ENV ROS_DISTRO=noetic
@@ -69,8 +69,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install eCAL using Vilota software installer
-# Copy the installer from shiviz_px4_nav package
-COPY shiviz_px4_nav/tools/VilotaSoftwareInstaller_v2.0-bba1a93f.py /tmp/installer.py
+# Copy the installer from docker tools
+COPY docker/tools/VilotaSoftwareInstaller_v2.0-bba1a93f.py /tmp/installer.py
 # Ensure helper tools needed by the Vilota installer are available during build
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -115,7 +115,7 @@ WORKDIR /catkin_ws/src/
 COPY . /catkin_ws/src/
 
 # Copy eCAL configuration
-COPY shiviz_px4_nav/tools/ecal.ini /etc/ecal/ecal.ini
+COPY docker/tools/ecal.ini /etc/ecal/ecal.ini
 
 # Initialize and build the workspace
 WORKDIR /catkin_ws/
