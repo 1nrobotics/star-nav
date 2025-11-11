@@ -26,12 +26,10 @@ alias rosenv='env | grep ROS'
 alias catkin_build_release='catkin build -DCMAKE_BUILD_TYPE=Release'
 alias catkin_clean_all='catkin clean --all'
 
-# Navigation specific aliases
-alias nav_launch='roslaunch shiviz_px4_nav px4_offboard.launch'
-alias nav_takeoff='rosservice call /waypoint_navigator/takeoff'
-alias nav_land='rosservice call /waypoint_navigator/land'
-alias nav_mission='rosservice call /waypoint_navigator/start_mission'
-alias nav_stop='rosservice call /waypoint_navigator/stop_mission'
+# VK180 Navigation aliases
+alias nav_launch='roslaunch vk180_ros vk180_autonomous_flight.launch'
+alias nav_launch_sim='roslaunch vk180_ros vk180_autonomous_flight.launch use_sim:=true'
+alias nav_launch_rviz='roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=true'
 
 # PX4 Control aliases
 alias ctrl_launch='roslaunch px4ctrl run_ctrl.launch'
@@ -44,14 +42,16 @@ alias px4_mode_offboard='rosservice call /mavros/set_mode "base_mode: 0 custom_m
 alias px4_mode_manual='rosservice call /mavros/set_mode "base_mode: 0 custom_mode: MANUAL"'
 
 # Monitoring aliases  
-alias nav_status='rostopic echo /waypoint_navigator/status'
+alias planner_status='rostopic echo /drone_0_ego_planner_node/planning/exec_state'
 alias px4_state='rostopic echo /mavros/state'
 alias px4_pose='rostopic echo /mavros/local_position/pose'
 alias px4_velocity='rostopic echo /mavros/local_position/velocity_local'
+alias vk180_odom='rostopic echo /vk180/odom_raw'
+alias vk180_cloud='rostopic echo /vk180/pointcloud --noarr'
 
 # Development helpers
 alias kill_ros='killall -9 rosmaster roscore; tmux kill-server 2>/dev/null || true'
-alias restart_navigation='rosnode kill waypoint_navigator && sleep 2 && nav_launch'
+alias restart_planner='rosnode kill drone_0_ego_planner_node && sleep 2 && nav_launch'
 alias restart_px4ctrl='rosnode kill px4ctrl && sleep 2 && ctrl_launch'
 
 # tmux convenience
@@ -80,14 +80,15 @@ echo "   Vehicle ID: $VEHICLE_ID"
 echo ""
 echo "Available packages:"
 echo "  - px4ctrl (PX4 Controller)"
-echo "  - shiviz_px4_nav (Waypoint Navigation)"
+echo "  - vk180-ros (VK180 Vision + EGO Planner Integration)"
+echo "  - ego_planner (Autonomous Navigation Planner)"
 echo "  - utils (quadrotor_msgs, uav_utils, DecompROS, etc.)"
 echo ""
 echo "Quick commands:"
-echo "  nav_launch      - Start navigation system"
-echo "  ctrl_launch     - Start PX4 controller"
-echo "  nav_takeoff     - Takeoff drone"  
-echo "  nav_mission     - Start waypoint mission"
+echo "  nav_launch      - Start VK180 autonomous navigation"
+echo "  nav_launch_sim  - Start with PX4 SITL simulation"
+echo "  ctrl_launch     - Start PX4 controller only"
 echo "  px4_arm         - Arm the drone"
-echo "  nav_status      - Monitor navigation status"
+echo "  planner_status  - Monitor planner execution state"
+echo "  vk180_odom      - View VK180 odometry"
 echo ""
