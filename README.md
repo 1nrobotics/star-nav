@@ -1,4 +1,40 @@
-## Field Test 
+## Field Test Release
+# start everything
+```bash
+ssh nvidia@192.168.10.200
+cd src/star-nav
+./scripts/start_onboard.sh  # start camera and vio
+./docker/release_deploy.sh  # start container, if pulled image, modify this script
+
+docker exec -it star_nav bash
+tmux
+nav_launch     # tmux window 1, launch all nodes without online rviz
+px4_odom       # tmux window 2, monitor local odom fused by px4
+px4_cmd        # tmux window 3, monitor thrust and attitude command sent from px4ctrl to px4
+planner_cmd    # tmux window 4, monitor planner pos command sent from planner to px4ctrl
+```
+# send a waypoint with topic or click on remote rviz
+```bash
+rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "header:
+  seq: 0
+  stamp:
+    secs: 0
+    nsecs: 0
+  frame_id: 'world'
+pose:
+  position:
+    x: 1.0
+    y: 0.0
+    z: 2
+  orientation:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 0.0"
+```
+
+
+## Field Test Dev
 ```bash
 ssh nvidia@192.168.10.200
 cd src/star-nav

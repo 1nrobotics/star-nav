@@ -42,11 +42,12 @@ alias px4_mode_manual='rosservice call /mavros/set_mode "base_mode: 0 custom_mod
 
 # Monitoring aliases  
 alias planner_status='rostopic echo /drone_0_ego_planner_node/planning/exec_state'
+alias planner_cmd='rostopic echo /drone_0_planning/pos_cmd'
 alias px4_state='rostopic echo /mavros/state'
-alias px4_pose='rostopic echo /mavros/local_position/pose'
-alias px4_velocity='rostopic echo /mavros/local_position/velocity_local'
+alias px4_odom='rostopic echo /mavros/local_position/odom'
+alias px4_cmd='rostopic echo /mavros/setpoint_raw/attitude'
 alias vk180_odom='rostopic echo /vk180/odom_raw'
-alias vk180_cloud='rostopic echo /vk180/pointcloud --noarr'
+
 
 # Development helpers
 alias kill_ros='killall -9 rosmaster roscore; tmux kill-server 2>/dev/null || true'
@@ -84,9 +85,11 @@ echo "  - utils (quadrotor_msgs, uav_utils, DecompROS, etc.)"
 echo ""
 echo "Quick commands:"
 echo "  nav_launch      - Start VK180 autonomous navigation"
+echo "  nav_launch_rviz - Start VK180 autonomous navigation with rviz"
 echo "  nav_launch_sim  - Start with PX4 SITL simulation"
-echo "  ctrl_launch     - Start PX4 controller only"
-echo "  px4_arm         - Arm the drone"
 echo "  planner_status  - Monitor planner execution state"
+echo "  planner_cmd     - Monitor planner traj pos cmd"
+echo "  px4_cmd         - Monitor PX4 ctrl cmd"
 echo "  vk180_odom      - View VK180 odometry"
+echo "  px4_odom        - View PX4 odometry"
 echo ""

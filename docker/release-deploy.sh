@@ -15,7 +15,8 @@ echo -e "${BLUE}🚁 Star Nav - Release Deployment${NC}"
 echo -e "${YELLOW}⚠️  Using release build (no source code volume mounts)${NC}"
 
 # Check if remote visualization is needed
-ENABLE_REMOTE_VIZ=${ENABLE_REMOTE_VIZ:-false}
+ENABLE_REMOTE_VIZ=${ENABLE_REMOTE_VIZ:-true}
+ONBOARD_IP=192.168.10.200
 
 # Configure ROS networking
 if [ "$ENABLE_REMOTE_VIZ" = "true" ]; then
