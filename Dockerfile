@@ -189,7 +189,6 @@ EXPOSE 11311 14540 14557
 # Default environment variables (can be overridden at runtime)
 ENV PX4_SIM_HOST=localhost
 ENV PX4_SIM_MODEL=iris
-ENV VEHICLE_ID=1
 
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]

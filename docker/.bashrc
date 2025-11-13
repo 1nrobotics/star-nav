@@ -8,7 +8,6 @@ source /catkin_ws/devel/setup.bash
 # PX4 and MAVROS configuration
 export PX4_SIM_HOST=${PX4_SIM_HOST:-localhost}
 export PX4_SIM_MODEL=${PX4_SIM_MODEL:-iris}
-export VEHICLE_ID=${VEHICLE_ID:-1}
 
 # ROS networking (can be overridden by environment variables)
 export ROS_MASTER_URI=${ROS_MASTER_URI:-http://localhost:11311}
@@ -76,7 +75,6 @@ fi
 echo "🚁 Star Nav Docker Environment"
 echo "   ROS Master: $ROS_MASTER_URI"
 echo "   PX4 Host: $PX4_SIM_HOST"
-echo "   Vehicle ID: $VEHICLE_ID"
 echo ""
 echo "Available packages:"
 echo "  - px4ctrl (PX4 Controller)"

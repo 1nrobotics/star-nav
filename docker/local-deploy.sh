@@ -39,8 +39,6 @@ xhost +local:docker 2>/dev/null || true
 # Set default environment variables
 export IMAGE_TAG=${IMAGE_TAG:-local}
 export IMAGE_NAME=${IMAGE_NAME:-1nrobotics/star-nav}
-export DRONE_ID=${DRONE_ID:-0}
-export VEHICLE_ID=${VEHICLE_ID:-1}
 export DISPLAY=${DISPLAY}
 
 # Repository root (default: one level up from this script's directory)
@@ -89,7 +87,6 @@ docker run -d \
     -e ROS_MASTER_URI=${ROS_MASTER_URI} \
     -e ROS_HOSTNAME=${ROS_HOSTNAME} \
     -e ROS_IP=${ROS_IP} \
-    -e VEHICLE_ID=${VEHICLE_ID} \
     -e DISPLAY=${DISPLAY} \
     -e DISABLE_ROS1_EOL_WARNINGS=1 \
     ${IMAGE_NAME}:${IMAGE_TAG} \

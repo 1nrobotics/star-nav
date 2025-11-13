@@ -155,7 +155,6 @@ EXPOSE 11311 14540 14557
 # Default environment variables
 ENV PX4_SIM_HOST=localhost
 ENV PX4_SIM_MODEL=iris
-ENV VEHICLE_ID=1
 
 ENTRYPOINT ["/bin/bash", "-c"]
 CMD ["source /catkin_ws/devel/setup.bash && bash"]
