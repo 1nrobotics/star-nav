@@ -3,7 +3,7 @@ ARG BASE_IMAGE=ros:noetic-ros-core-focal
 FROM ${BASE_IMAGE}
 
 LABEL maintainer="1nrobotics@github"
-LABEL description="Docker image for Star Nav - Multi-package ROS Navigation System (px4ctrl, shiviz_px4_nav, utils)"
+LABEL description="Docker image for Star Nav - Multi-package ROS Navigation System (px4ctrl, vk180-ros, utils)"
 
 # Set environment variables
 ENV ROS_DISTRO=noetic
@@ -69,8 +69,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install eCAL using Vilota software installer
-# Copy the installer from shiviz_px4_nav package
-COPY shiviz_px4_nav/tools/VilotaSoftwareInstaller_v2.0-bba1a93f.py /tmp/installer.py
+# Copy the installer from docker tools
+COPY docker/tools/VilotaSoftwareInstaller_v2.0-bba1a93f.py /tmp/installer.py
 # Ensure helper tools needed by the Vilota installer are available during build
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -115,7 +115,7 @@ WORKDIR /catkin_ws/src/
 COPY . /catkin_ws/src/
 
 # Copy eCAL configuration
-COPY shiviz_px4_nav/tools/ecal.ini /etc/ecal/ecal.ini
+COPY docker/tools/ecal.ini /etc/ecal/ecal.ini
 
 # Initialize and build the workspace
 WORKDIR /catkin_ws/
@@ -124,12 +124,57 @@ RUN source /opt/ros/noetic/setup.bash \
     && rosdep install --from-paths src --ignore-src -r -y \
     && catkin_make -DCMAKE_BUILD_TYPE=Release
 
+# Build argument to control source code cleanup (default: keep source for development)
+# Declared here AFTER build to allow layer caching regardless of build arg value
+ARG RELEASE_BUILD=false
+
+# Clean up source code after build (only for release builds)
+# Keep: launch files, config files, scripts, and compiled binaries
+# Remove: source code (.cpp, .h, CMakeLists.txt, package.xml build artifacts)
+RUN if [ "$RELEASE_BUILD" = "true" ]; then \
+        echo "=== Building RELEASE image - removing source code ===" && \
+        cd /catkin_ws/src && \
+        # Keep launch files \
+        find . -name "*.launch" -o -name "*.xml" | grep -E "(launch|urdf|xacro|plugin_description)" > /tmp/keep_files.txt && \
+        # Keep config files \
+        find . -name "*.yaml" -o -name "*.rviz" -o -name "*.ini" >> /tmp/keep_files.txt && \
+        # Keep Python scripts \
+        find . -name "*.py" -path "*/scripts/*" >> /tmp/keep_files.txt && \
+        # Keep shell scripts \
+        find . -name "*.sh" >> /tmp/keep_files.txt && \
+        # Keep package.xml for roslaunch to work \
+        find . -name "package.xml" >> /tmp/keep_files.txt && \
+        # Keep msg/srv/action definitions (might be needed at runtime) \
+        find . -path "*/msg/*" -o -path "*/srv/*" -o -path "*/action/*" >> /tmp/keep_files.txt && \
+        # Create a temporary directory with only necessary files \
+        mkdir -p /tmp/catkin_ws_minimal/src && \
+        cd /catkin_ws/src && \
+        # Copy directory structure first \
+        find . -type d -exec mkdir -p /tmp/catkin_ws_minimal/src/{} \; && \
+        # Copy only the files we want to keep \
+        cat /tmp/keep_files.txt | while read file; do \
+            if [ -f "$file" ]; then \
+                cp --parents "$file" /tmp/catkin_ws_minimal/src/ || true; \
+            fi; \
+        done && \
+        # Remove old source directory and replace with minimal version \
+        cd /catkin_ws && \
+        rm -rf src && \
+        mv /tmp/catkin_ws_minimal/src . && \
+        # Clean up \
+        rm /tmp/keep_files.txt && \
+        # Display what's left (for debugging) \
+        echo "=== Remaining source files ===" && \
+        du -sh src && \
+        find src -type f | wc -l && \
+        echo "files remaining"; \
+    else \
+        echo "=== Building DEVELOPMENT image - keeping all source code ==="; \
+    fi
+
 # Set up environment in bashrc
 RUN echo "source /opt/ros/noetic/setup.bash" >> /root/.bashrc && \
-    echo "source /catkin_ws/devel/setup.bash" >> /root/.bashrc && \
-    echo "export ROS_MASTER_URI=http://localhost:11311" >> /root/.bashrc && \
-    echo "export ROS_HOSTNAME=localhost" >> /root/.bashrc && \
-    echo "export ROS_IP=localhost" >> /root/.bashrc
+    echo "source /catkin_ws/devel/setup.bash" >> /root/.bashrc
 
 # Copy custom bashrc for additional configuration
 COPY docker/.bashrc /root/.bashrc_custom
@@ -144,7 +189,6 @@ EXPOSE 11311 14540 14557
 # Default environment variables (can be overridden at runtime)
 ENV PX4_SIM_HOST=localhost
 ENV PX4_SIM_MODEL=iris
-ENV VEHICLE_ID=1
 
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]

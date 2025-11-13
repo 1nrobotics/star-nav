@@ -16,7 +16,7 @@
     <arg name="map_size_x" default="50"/>
     <arg name="map_size_y" default="25"/>
     <arg name="map_size_z" default="3.0"/>
-    <arg name="use_rviz" default="true"/>
+    <arg name="use_rviz" default="false"/>
     <arg name="flight_type" default="1" /> <!-- 1=2D Nav Goal, 2=Waypoints -->
     <arg name="max_vel" default="0.5" />
     <arg name="max_acc" default="2.0" />
@@ -129,16 +129,6 @@
             <arg name="gcs_url" value="$(arg gcs_url)" />
         </include>
     </group>
-    
-    <!-- Optional: Waypoint Navigator from shiviz_px4_nav -->
-    <!-- Uncomment to enable waypoint navigation -->
-    <!--
-    <node pkg="shiviz_px4_nav" type="px4_offboard_node" name="px4_offboard_node" output="screen">
-        <param name="waypoint_file" value="$(arg waypoint_file)" />
-        <param name="takeoff_height" value="$(arg takeoff_height)" />
-        <param name="use_rc" value="$(arg use_rc)" />
-    </node>
-    -->
     
     <!-- Static TF Publishers -->
     <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_map"

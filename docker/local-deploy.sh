@@ -12,14 +12,33 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}🚁 Star Nav - Local Deployment${NC}"
 
+# Check if remote visualization is needed
+ENABLE_REMOTE_VIZ=${ENABLE_REMOTE_VIZ:-false}
+
+# Configure ROS networking
+if [ "$ENABLE_REMOTE_VIZ" = "true" ]; then
+    # Get onboard computer's IP address for remote visualization
+    ONBOARD_IP=${ONBOARD_IP:-$(hostname -I | awk '{print $1}')}
+    ROS_MASTER_URI="http://${ONBOARD_IP}:11311"
+    ROS_HOSTNAME="${ONBOARD_IP}"
+    ROS_IP="${ONBOARD_IP}"
+    echo -e "${BLUE}Remote visualization ENABLED${NC}"
+    echo "Onboard IP: ${ONBOARD_IP}"
+    echo "Remote computer should connect to: ${ROS_MASTER_URI}"
+else
+    # Local only - use localhost
+    ROS_MASTER_URI="http://localhost:11311"
+    ROS_HOSTNAME="localhost"
+    ROS_IP="localhost"
+    echo -e "${BLUE}Local mode - remote visualization DISABLED${NC}"
+fi
+
 # Enable X11 forwarding for GUI applications
 xhost +local:docker 2>/dev/null || true
 
 # Set default environment variables
 export IMAGE_TAG=${IMAGE_TAG:-local}
 export IMAGE_NAME=${IMAGE_NAME:-1nrobotics/star-nav}
-export DRONE_ID=${DRONE_ID:-0}
-export VEHICLE_ID=${VEHICLE_ID:-1}
 export DISPLAY=${DISPLAY}
 
 # Repository root (default: one level up from this script's directory)
@@ -65,11 +84,11 @@ docker run -d \
     -v "${REPO_ROOT}/vk180-ros":/catkin_ws/src/vk180-ros:rw \
     -v "${REPO_ROOT}/utils":/catkin_ws/src/utils:rw \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-    -e ROS_MASTER_URI=http://localhost:11311 \
-    -e ROS_HOSTNAME=localhost \
-    -e ROS_IP=localhost \
-    -e VEHICLE_ID=${VEHICLE_ID} \
+    -e ROS_MASTER_URI=${ROS_MASTER_URI} \
+    -e ROS_HOSTNAME=${ROS_HOSTNAME} \
+    -e ROS_IP=${ROS_IP} \
     -e DISPLAY=${DISPLAY} \
+    -e DISABLE_ROS1_EOL_WARNINGS=1 \
     ${IMAGE_NAME}:${IMAGE_TAG} \
     bash -c "source /catkin_ws/devel/setup.bash && tail -f /dev/null"
     # bash -c "source /catkin_ws/devel/setup.bash && roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=true ${DOCKER_LAUNCH_ARGS}"
