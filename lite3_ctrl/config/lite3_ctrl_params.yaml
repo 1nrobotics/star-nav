@@ -1,0 +1,26 @@
+# Lite3 Velocity Controller Configuration
+
+# Maximum velocities (safety limits)
+max_linear_vel: 1.0    # m/s (Lite3 can do ~1.5 m/s, kept conservative)
+max_angular_vel: 1.0   # rad/s (yaw rotation speed)
+
+# Control gains
+position_gain: 0.5     # Proportional gain for position tracking (0-1)
+                       # Higher = more aggressive tracking, lower = smoother
+
+# Velocity smoothing
+velocity_alpha: 0.3    # Smoothing factor for velocity commands (0-1)
+                       # Lower = more smoothing, higher = more responsive
+
+# Control loop parameters
+control_rate: 50.0     # Hz (control loop frequency)
+
+# Timeout parameters
+odom_timeout: 0.5      # seconds (stop if no odometry)
+cmd_timeout: 1.0       # seconds (stop if no trajectory commands)
+
+# Notes:
+# - Lite3 has its own height controller, so Z velocity is ignored
+# - The controller uses velocity feedforward + position error feedback
+# - Tune position_gain if tracking is too aggressive or too sluggish
+# - Adjust velocity_alpha if commands are too jerky or too slow to respond
