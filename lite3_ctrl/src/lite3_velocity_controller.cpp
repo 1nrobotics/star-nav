@@ -38,7 +38,7 @@ public:
         // Subscribers
         pos_cmd_sub_ = nh_.subscribe("/drone_0_planning/pos_cmd", 10,
                                      &Lite3VelocityController::posCmdCallback, this);
-        odom_sub_ = nh_.subscribe("/mavros/local_position/odom", 10,
+        odom_sub_ = nh_.subscribe("/leg_odom", 10,
                                   &Lite3VelocityController::odomCallback, this);
         
         // Control timer

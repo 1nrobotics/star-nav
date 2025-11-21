@@ -60,7 +60,7 @@ class Lite3VelocityController:
         )
         
         self.odom_sub = rospy.Subscriber(
-            '/mavros/local_position/odom',
+            '/leg_odom',
             Odometry,
             self.odom_callback,
             queue_size=10
