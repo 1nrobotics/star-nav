@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Simple test that just publishes velocity commands without requiring message_transformer -->
+    <!-- Useful for testing the script logic or when message_transformer is already running -->
+    
+    <!-- Test mode: 'simple' for forward only, 'full' for complete test sequence -->
+    <arg name="test_mode" default="simple" doc="Test mode: 'simple' or 'full'"/>
+    
+    <!-- Launch the walk test script -->
+    <node pkg="lite3_ctrl" type="simple_walk_test.py" name="lite3_walk_test" output="screen">
+        <param name="test_mode" value="$(arg test_mode)"/>
+    </node>
+    
+</launch>

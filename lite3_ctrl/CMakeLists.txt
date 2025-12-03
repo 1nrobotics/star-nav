@@ -40,3 +40,9 @@ add_executable(lite3_velocity_controller
 target_link_libraries(lite3_velocity_controller
   ${catkin_LIBRARIES}
 )
+
+## Install scripts
+catkin_install_python(PROGRAMS
+  scripts/simple_walk_test.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

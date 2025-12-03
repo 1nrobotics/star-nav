@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Test mode: 'simple' for forward only, 'full' for complete test sequence -->
+    <arg name="test_mode" default="simple" doc="Test mode: 'simple' or 'full'"/>
+    
+    <!-- Launch Lite3 message transformer (handles UDP to ROS conversion) -->
+    <include file="$(find message_transformer)/launch/message_transformer.launch"/>
+    
+    <!-- Launch the walk test script -->
+    <node pkg="lite3_ctrl" type="simple_walk_test.py" name="lite3_walk_test" output="screen">
+        <param name="test_mode" value="$(arg test_mode)"/>
+    </node>
+    
+    <!-- Optional: Monitor odometry -->
+    <node pkg="rostopic" type="rostopic" name="odom_monitor" 
+          args="hz /leg_odom" output="screen" if="false"/>
+    
+</launch>
