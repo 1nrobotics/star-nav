@@ -1,85 +1,108 @@
 #ifndef _PLANNER_MANAGER_H_
 #define _PLANNER_MANAGER_H_
 
-#include <stdlib.h>
-
 #include <bspline_opt/bspline_optimizer.h>
-#include <bspline_opt/uniform_bspline.h>
-#include <traj_utils/DataDisp.h>
-#include <plan_env/grid_map.h>
-#include <plan_env/obj_predictor.h>
-#include <traj_utils/plan_container.hpp>
+#include <bspline/non_uniform_bspline.h>
+
+#include <path_searching/astar2.h>
+#include <path_searching/kinodynamic_astar.h>
+#include <path_searching/topo_prm.h>
+
+#include <plan_env/edt_environment.h>
+
+#include <active_perception/frontier_finder.h>
+#include <active_perception/heading_planner.h>
+
+#include <plan_manage/plan_container.hpp>
+
 #include <ros/ros.h>
-#include <traj_utils/planning_visualization.h>
 
-namespace ego_planner
-{
+namespace fast_planner {
+// Fast Planner Manager
+// Key algorithms of mapping and planning are called
 
-  // Fast Planner Manager
-  // Key algorithms of mapping and planning are called
+class FastPlannerManager {
+  // SECTION stable
+public:
+  FastPlannerManager();
+  ~FastPlannerManager();
 
-  class EGOPlannerManager
-  {
-    // SECTION stable
-  public:
-    EGOPlannerManager();
-    ~EGOPlannerManager();
+  /* main planning interface */
+  bool kinodynamicReplan(const Eigen::Vector3d& start_pt, const Eigen::Vector3d& start_vel,
+                         const Eigen::Vector3d& start_acc, const Eigen::Vector3d& end_pt,
+                         const Eigen::Vector3d& end_vel, const double& time_lb = -1);
+  void planExploreTraj(const vector<Eigen::Vector3d>& tour, const Eigen::Vector3d& cur_vel,
+                       const Eigen::Vector3d& cur_acc, const double& time_lb = -1);
+  bool planGlobalTraj(const Eigen::Vector3d& start_pos);
+  bool topoReplan(bool collide);
 
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  void planYaw(const Eigen::Vector3d& start_yaw);
+  void planYawExplore(const Eigen::Vector3d& start_yaw, const double& end_yaw, bool lookfwd,
+                      const double& relax_time);
 
-    /* main planning interface */
-    bool reboundReplan(Eigen::Vector3d start_pt, Eigen::Vector3d start_vel, Eigen::Vector3d start_acc,
-                       Eigen::Vector3d end_pt, Eigen::Vector3d end_vel, bool flag_polyInit, bool flag_randomPolyTraj);
-    bool EmergencyStop(Eigen::Vector3d stop_pos);
-    bool planGlobalTraj(const Eigen::Vector3d &start_pos, const Eigen::Vector3d &start_vel, const Eigen::Vector3d &start_acc,
-                        const Eigen::Vector3d &end_pos, const Eigen::Vector3d &end_vel, const Eigen::Vector3d &end_acc);
-    bool planGlobalTrajWaypoints(const Eigen::Vector3d &start_pos, const Eigen::Vector3d &start_vel, const Eigen::Vector3d &start_acc,
-                                 const std::vector<Eigen::Vector3d> &waypoints, const Eigen::Vector3d &end_vel, const Eigen::Vector3d &end_acc);
+  void initPlanModules(ros::NodeHandle& nh);
+  void setGlobalWaypoints(vector<Eigen::Vector3d>& waypoints);
 
-    void initPlanModules(ros::NodeHandle &nh, PlanningVisualization::Ptr vis = NULL);
+  bool checkTrajCollision(double& distance);
+  void calcNextYaw(const double& last_yaw, double& yaw);
 
-    void deliverTrajToOptimizer(void) { bspline_optimizer_->setSwarmTrajs(&swarm_trajs_buf_); };
+  PlanParameters pp_;
+  LocalTrajData local_data_;
+  GlobalTrajData global_data_;
+  MidPlanData plan_data_;
+  EDTEnvironment::Ptr edt_environment_;
+  unique_ptr<Astar> path_finder_;
+  unique_ptr<TopologyPRM> topo_prm_;
 
-    void setDroneIdtoOpt(void) { bspline_optimizer_->setDroneId(pp_.drone_id); }
+private:
+  /* main planning algorithms & modules */
+  shared_ptr<SDFMap> sdf_map_;
 
-    double getSwarmClearance(void) { return bspline_optimizer_->getSwarmClearance(); }
+  unique_ptr<KinodynamicAstar> kino_path_finder_;
+  vector<BsplineOptimizer::Ptr> bspline_optimizers_;
 
-    bool checkCollision(int drone_id);
-    
+  void updateTrajInfo();
 
-    PlanParameters pp_;
-    LocalTrajData local_data_;
-    GlobalTrajData global_data_;
-    GridMap::Ptr grid_map_;
-    fast_planner::ObjPredictor::Ptr obj_predictor_;    
-    SwarmTrajData swarm_trajs_buf_;
+  // topology guided optimization
 
-  private:
-    /* main planning algorithms & modules */
-    PlanningVisualization::Ptr visualization_;
+  void findCollisionRange(vector<Eigen::Vector3d>& colli_start, vector<Eigen::Vector3d>& colli_end,
+                          vector<Eigen::Vector3d>& start_pts, vector<Eigen::Vector3d>& end_pts);
 
-    // ros::Publisher obj_pub_; //zx-todo 
+  void optimizeTopoBspline(double start_t, double duration, vector<Eigen::Vector3d> guide_path,
+                           int traj_id);
+  Eigen::MatrixXd paramLocalTraj(double start_t, double& dt, double& duration);
+  Eigen::MatrixXd reparamLocalTraj(const double& start_t, const double& duration, const double& dt);
 
-    BsplineOptimizer::Ptr bspline_optimizer_;
+  void selectBestTraj(NonUniformBspline& traj);
+  void refineTraj(NonUniformBspline& best_traj);
+  void reparamBspline(NonUniformBspline& bspline, double ratio, Eigen::MatrixXd& ctrl_pts, double& dt,
+                      double& time_inc);
 
-    int continous_failures_count_{0};
+  // Heading planning
 
-    void updateTrajInfo(const UniformBspline &position_traj, const ros::Time time_now);
+  // !SECTION stable
 
-    void reparamBspline(UniformBspline &bspline, vector<Eigen::Vector3d> &start_end_derivative, double ratio, Eigen::MatrixXd &ctrl_pts, double &dt,
-                        double &time_inc);
+  // SECTION developing
 
-    bool refineTrajAlgo(UniformBspline &traj, vector<Eigen::Vector3d> &start_end_derivative, double ratio, double &ts, Eigen::MatrixXd &optimal_control_points);
+public:
+  typedef shared_ptr<FastPlannerManager> Ptr;
 
-    // !SECTION stable
+  void planYawActMap(const Eigen::Vector3d& start_yaw);
+  void test();
+  void searchFrontier(const Eigen::Vector3d& p);
 
-    // SECTION developing
+private:
+  unique_ptr<FrontierFinder> frontier_finder_;
+  unique_ptr<HeadingPlanner> heading_planner_;
+  unique_ptr<VisibilityUtil> visib_util_;
 
-  public:
-    typedef unique_ptr<EGOPlannerManager> Ptr;
+  // Benchmark method, local exploration
+public:
+  bool localExplore(Eigen::Vector3d start_pt, Eigen::Vector3d start_vel, Eigen::Vector3d start_acc,
+                    Eigen::Vector3d end_pt);
 
-    // !SECTION
-  };
-} // namespace ego_planner
+  // !SECTION
+};
+}  // namespace fast_planner
 
 #endif

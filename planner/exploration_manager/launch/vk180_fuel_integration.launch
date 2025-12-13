@@ -1,0 +1,186 @@
+<launch>
+  <!-- ============================================ -->
+  <!-- VK180 + PX4 + FUEL Planner Integration      -->
+  <!-- ============================================ -->
+  
+  <arg name="drone_id" default="0"/>
+  
+  <!-- Map size - adjust based on your environment -->
+  <arg name="map_size_x" default="50.0"/>
+  <arg name="map_size_y" default="50.0"/>
+  <arg name="map_size_z" default="5.0"/>
+  
+  <!-- Exploration bounds -->
+  <arg name="box_min_x" default="-20.0"/>
+  <arg name="box_min_y" default="-20.0"/>
+  <arg name="box_min_z" default="0.5"/>
+  <arg name="box_max_x" default="20.0"/>
+  <arg name="box_max_y" default="20.0"/>
+  <arg name="box_max_z" default="3.0"/>
+  
+  <!-- ============================================ -->
+  <!-- 1. VK180 Vision Sensor                      -->
+  <!-- ============================================ -->
+  <!-- Assumes VK180 already running externally -->
+  <!-- Topics: /vk180/odom_raw, /vk180/pointcloud -->
+  
+  <!-- VK180 Planner Bridge (Sensor Fusion) -->
+  <node pkg="vk180_planner_bridge" type="vk180_planner_bridge" name="vk180_planner_bridge" output="screen">
+    <param name="drone_id" value="$(arg drone_id)"/>
+    <remap from="~odom_fused" to="/mavros/local_position/odom"/>
+    <remap from="~odom_raw" to="/vk180/odom_raw"/>
+  </node>
+  
+  <!-- ============================================ -->
+  <!-- 2. PX4 Flight Controller                    -->
+  <!-- ============================================ -->
+  <node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl_node" output="screen">
+    <remap from="~odom" to="/mavros/local_position/odom"/>
+    <remap from="~cmd" to="/planning/pos_cmd"/>
+    <rosparam file="$(find px4ctrl)/config/ctrl_param_fpv.yaml"/>
+    <param name="use_bodyrate_ctrl" value="false"/>
+  </node>
+  
+  <!-- ============================================ -->
+  <!-- 3. FUEL Exploration System                  -->
+  <!-- ============================================ -->
+  
+  <!-- Main exploration node -->
+  <node pkg="exploration_manager" name="exploration_node" type="exploration_node" output="screen">
+    <!-- Topic remapping for VK180 integration -->
+    <remap from="/odom_world" to="/mavros/local_position/odom"/>
+    <remap from="/map_ros/cloud" to="/vk180/pointcloud"/>
+    <remap from="/map_ros/pose" to="/mavros/local_position/pose"/>
+    
+    <!-- VK180 doesn't provide depth images, only point clouds -->
+    <param name="map_ros/use_depth_image" value="false"/>
+    <param name="map_ros/use_cloud" value="true"/>
+    
+    <!-- Map parameters -->
+    <param name="sdf_map/resolution" value="0.1"/>
+    <param name="sdf_map/map_size_x" value="$(arg map_size_x)"/>
+    <param name="sdf_map/map_size_y" value="$(arg map_size_y)"/>
+    <param name="sdf_map/map_size_z" value="$(arg map_size_z)"/>
+    <param name="sdf_map/obstacles_inflation" value="0.3"/>
+    <param name="sdf_map/local_bound_inflate" value="0.5"/>
+    <param name="sdf_map/local_map_margin" value="50"/>
+    <param name="sdf_map/ground_height" value="0.0"/>
+    <param name="sdf_map/default_dist" value="0.0"/>
+    
+    <!-- Occupancy mapping -->
+    <param name="sdf_map/p_hit" value="0.65"/>
+    <param name="sdf_map/p_miss" value="0.35"/>
+    <param name="sdf_map/p_min" value="0.12"/>
+    <param name="sdf_map/p_max" value="0.90"/>
+    <param name="sdf_map/p_occ" value="0.80"/>
+    <param name="sdf_map/min_ray_length" value="0.3"/>
+    <param name="sdf_map/max_ray_length" value="10.0"/>
+    <param name="sdf_map/virtual_ceil_height" value="10.0"/>
+    <param name="sdf_map/optimistic" value="false"/>
+    <param name="sdf_map/signed_dist" value="false"/>
+    
+    <!-- Exploration bounds -->
+    <param name="sdf_map/box_min_x" value="$(arg box_min_x)"/>
+    <param name="sdf_map/box_min_y" value="$(arg box_min_y)"/>
+    <param name="sdf_map/box_min_z" value="$(arg box_min_z)"/>
+    <param name="sdf_map/box_max_x" value="$(arg box_max_x)"/>
+    <param name="sdf_map/box_max_y" value="$(arg box_max_y)"/>
+    <param name="sdf_map/box_max_z" value="$(arg box_max_z)"/>
+    
+    <!-- Point cloud parameters (VK180 specific) -->
+    <param name="map_ros/skip_pixel" value="1"/>
+    <param name="map_ros/depth_filter_maxdist" value="10.0"/>
+    <param name="map_ros/depth_filter_mindist" value="0.3"/>
+    <param name="map_ros/depth_filter_margin" value="2"/>
+    <param name="map_ros/esdf_slice_height" value="1.0"/>
+    <param name="map_ros/visualization_truncate_height" value="5.0"/>
+    <param name="map_ros/visualization_truncate_low" value="-0.5"/>
+    <param name="map_ros/show_occ_time" value="false"/>
+    <param name="map_ros/show_esdf_time" value="false"/>
+    <param name="map_ros/show_all_map" value="true"/>
+    <param name="map_ros/frame_id" value="odom"/>
+    
+    <!-- FSM parameters -->
+    <param name="fsm/thresh_replan1" value="0.5"/>
+    <param name="fsm/thresh_replan2" value="0.5"/>
+    <param name="fsm/thresh_no_replan" value="2.0"/>
+    <param name="fsm/waypoint_num" value="1"/>
+    
+    <!-- Planner parameters - CONSERVATIVE FOR REAL HARDWARE -->
+    <param name="manager/max_vel" value="1.0"/>
+    <param name="manager/max_acc" value="1.0"/>
+    <param name="manager/max_jerk" value="4.0"/>
+    <param name="manager/control_points_distance" value="0.5"/>
+    <param name="manager/dynamic" value="1"/>
+    <param name="manager/clearance" value="0.3"/>
+    
+    <!-- Optimization parameters -->
+    <param name="optimization/lambda1" value="10.0"/>
+    <param name="optimization/lambda2" value="5.0"/>
+    <param name="optimization/lambda3" value="0.0001"/>
+    <param name="optimization/lambda4" value="0.01"/>
+    <param name="optimization/lambda5" value="1.5"/>
+    <param name="optimization/lambda6" value="10.0"/>
+    <param name="optimization/lambda7" value="100.0"/>
+    <param name="optimization/lambda8" value="0.0"/>
+    <param name="optimization/max_iteration_num1" value="2"/>
+    <param name="optimization/max_iteration_num2" value="300"/>
+    <param name="optimization/max_iteration_num3" value="200"/>
+    <param name="optimization/max_iteration_num4" value="200"/>
+    <param name="optimization/max_iteration_time1" value="0.0001"/>
+    <param name="optimization/max_iteration_time2" value="0.005"/>
+    <param name="optimization/max_iteration_time3" value="0.003"/>
+    <param name="optimization/max_iteration_time4" value="0.003"/>
+    <param name="optimization/algorithm1" value="15"/>
+    <param name="optimization/algorithm2" value="11"/>
+    <param name="optimization/order" value="3"/>
+    
+    <!-- Exploration parameters -->
+    <param name="exploration/refine_local" value="true"/>
+    <param name="exploration/refined_num" value="7"/>
+    <param name="exploration/refined_radius" value="5.0"/>
+    <param name="exploration/top_view_num" value="15"/>
+    <param name="exploration/max_decay" value="0.9"/>
+    <param name="exploration/tsp_dir" value="$(find exploration_manager)/resource"/>
+    <param name="exploration/relax_time" value="1.0"/>
+    
+    <!-- Frontier parameters -->
+    <param name="frontier/cluster_min" value="50"/>
+    <param name="frontier/cluster_size_xy" value="2.0"/>
+    <param name="frontier/cluster_size_z" value="10.0"/>
+    <param name="frontier/min_candidate_dist" value="0.75"/>
+    <param name="frontier/min_candidate_clearance" value="0.5"/>
+    <param name="frontier/candidate_dphi" value="45"/>
+    <param name="frontier/candidate_rnum" value="3"/>
+    <param name="frontier/candidate_rmin" value="0.75"/>
+    <param name="frontier/candidate_rmax" value="1.5"/>
+    <param name="frontier/down_sample" value="3"/>
+    <param name="frontier/min_visib_num" value="20"/>
+    <param name="frontier/min_view_finish_fraction" value="0.2"/>
+    
+    <!-- Perception utils -->
+    <param name="perception_utils/top_angle" value="0.56125"/>
+    <param name="perception_utils/left_angle" value="0.69222"/>
+    <param name="perception_utils/right_angle" value="0.68835"/>
+    <param name="perception_utils/max_dist" value="4.5"/>
+    <param name="perception_utils/vis_dist" value="1.0"/>
+  </node>
+  
+  <!-- Trajectory server for smooth command generation -->
+  <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
+    <remap from="/position_cmd" to="/planning/pos_cmd"/>
+    <remap from="/planning/bspline" to="/planning/bspline"/>
+    
+    <param name="traj_server/time_forward" value="1.5"/>
+  </node>
+  
+  <!-- ============================================ -->
+  <!-- 4. RViz Visualization (Optional)            -->
+  <!-- ============================================ -->
+  <!-- Uncomment to launch RViz -->
+  <!--
+  <node pkg="rviz" type="rviz" name="fuel_rviz" 
+        args="-d $(find exploration_manager)/launch/rviz.rviz" if="false"/>
+  -->
+  
+</launch>
