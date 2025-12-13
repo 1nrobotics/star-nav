@@ -1,0 +1,51 @@
+<launch>
+  <!-- Exploration Manager Parameters -->
+  <arg name="map_size_x" default="50.0"/>
+  <arg name="map_size_y" default="50.0"/>
+  <arg name="map_size_z" default="5.0"/>
+  
+  <!-- Exploration Node -->
+  <node pkg="exploration_manager" type="exploration_node" name="exploration_node" output="screen">
+    
+    <!-- FSM Parameters -->
+    <param name="fsm/fsm_exec_dt" value="0.1" type="double"/>
+    <param name="fsm/replan_time" value="0.05" type="double"/>
+    <param name="fsm/max_exploration_time" value="600.0" type="double"/> <!-- 10 minutes -->
+    <param name="fsm/frontier_search_interval" value="3.0" type="double"/>
+    
+    <!-- Frontier Finder Parameters -->
+    <param name="exploration/frontier_cluster_min_size" value="0.5" type="double"/>
+    <param name="exploration/frontier_search_radius" value="10.0" type="double"/>
+    <param name="exploration/frontier_min_cells" value="10" type="int"/>
+    <param name="exploration/viewpoint_distance" value="2.5" type="double"/>
+    <param name="exploration/viewpoint_num" value="8" type="int"/>
+    
+    <!-- Map Parameters (inherited from EGO planner) -->
+    <param name="grid_map/resolution" value="0.1" type="double"/>
+    <param name="grid_map/map_size_x" value="$(arg map_size_x)" type="double"/>
+    <param name="grid_map/map_size_y" value="$(arg map_size_y)" type="double"/>
+    <param name="grid_map/map_size_z" value="$(arg map_size_z)" type="double"/>
+    <param name="grid_map/local_update_range_x" value="5.5" type="double"/>
+    <param name="grid_map/local_update_range_y" value="5.5" type="double"/>
+    <param name="grid_map/local_update_range_z" value="3.5" type="double"/>
+    <param name="grid_map/obstacles_inflation" value="0.3" type="double"/>
+    
+    <!-- Planner Parameters -->
+    <param name="manager/max_vel" value="1.0" type="double"/>
+    <param name="manager/max_acc" value="1.0" type="double"/>
+    <param name="manager/max_jerk" value="4.0" type="double"/>
+    <param name="manager/dynamic_environment" value="1" type="int"/>
+    <param name="manager/clearance_threshold" value="0.2" type="double"/>
+    <param name="manager/local_segment_length" value="3.0" type="double"/>
+    
+    <!-- Topic remapping -->
+    <remap from="/exploration_node/odom" to="/mavros/local_position/odom"/>
+    <remap from="/exploration_node/cloud" to="/vk180/pointcloud"/>
+    
+  </node>
+  
+  <!-- RViz Visualization (optional) -->
+  <node pkg="rviz" type="rviz" name="exploration_rviz" 
+        args="-d $(find exploration_manager)/launch/exploration.rviz" if="false"/>
+  
+</launch>
