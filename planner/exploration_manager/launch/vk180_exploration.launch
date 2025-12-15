@@ -70,9 +70,10 @@
     <param name="grid_map/map_size_x" value="$(arg map_size_x)" type="double"/>
     <param name="grid_map/map_size_y" value="$(arg map_size_y)" type="double"/>
     <param name="grid_map/map_size_z" value="$(arg map_size_z)" type="double"/>
-    <param name="grid_map/local_update_range_x" value="5.5" type="double"/>
-    <param name="grid_map/local_update_range_y" value="5.5" type="double"/>
-    <param name="grid_map/local_update_range_z" value="3.5" type="double"/>
+    <!-- IMPORTANT: Must be >= max_exploration_radius to avoid forgetting old map data -->
+    <param name="grid_map/local_update_range_x" value="30.0" type="double"/>  <!-- Was 5.5 -->
+    <param name="grid_map/local_update_range_y" value="30.0" type="double"/>  <!-- Was 5.5 -->
+    <param name="grid_map/local_update_range_z" value="5.0" type="double"/>   <!-- Was 3.5 -->
     <param name="grid_map/obstacles_inflation" value="0.3" type="double"/>
 
     <!-- FSM (not used in exploration mode) -->
@@ -116,9 +117,10 @@
     <param name="grid_map/map_size_x" value="$(arg map_size_x)" type="double"/>
     <param name="grid_map/map_size_y" value="$(arg map_size_y)" type="double"/>
     <param name="grid_map/map_size_z" value="$(arg map_size_z)" type="double"/>
-    <param name="grid_map/local_update_range_x" value="5.5" type="double"/>
-    <param name="grid_map/local_update_range_y" value="5.5" type="double"/>
-    <param name="grid_map/local_update_range_z" value="3.5" type="double"/>
+    <!-- IMPORTANT: Must be >= max_exploration_radius to avoid forgetting old map data -->
+    <param name="grid_map/local_update_range_x" value="30.0" type="double"/>
+    <param name="grid_map/local_update_range_y" value="30.0" type="double"/>
+    <param name="grid_map/local_update_range_z" value="5.0" type="double"/>
     <param name="grid_map/obstacles_inflation" value="0.3" type="double"/>
     
     <!-- Topic remapping -->
