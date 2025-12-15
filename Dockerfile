@@ -68,6 +68,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libyaml-cpp0.6 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install nlopt from source (required for FUEL planner)
+RUN cd /tmp && \
+    git clone -b v2.7.1 https://github.com/stevengj/nlopt.git && \
+    cd nlopt && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make -j$(nproc) && \
+    make install && \
+    cd / && \
+    rm -rf /tmp/nlopt
+
 # Install eCAL using Vilota software installer
 # Copy the installer from docker tools
 COPY docker/tools/VilotaSoftwareInstaller_v2.0-bba1a93f.py /tmp/installer.py
