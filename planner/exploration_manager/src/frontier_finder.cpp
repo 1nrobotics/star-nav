@@ -18,6 +18,16 @@ void FrontierFinder::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_map) {
   nh.param("exploration/viewpoint_distance", viewpoint_distance_, 2.0);
   nh.param("exploration/viewpoint_num", viewpoint_num_, 8);
   
+  // Geofence parameters
+  nh.param("exploration/use_geofence", use_geofence_, true);
+  nh.param("exploration/max_exploration_radius", max_exploration_radius_, 25.0);
+  nh.param("exploration/exploration_center_x", exploration_center_(0), 0.0);
+  nh.param("exploration/exploration_center_y", exploration_center_(1), 0.0);
+  nh.param("exploration/exploration_center_z", exploration_center_(2), 1.5);
+  
+  // Explored region tracking
+  nh.param("exploration/explored_cell_expiry_time", explored_cell_expiry_time_, 0.0); // 0 = never revisit
+  
   // Get map parameters
   grid_map_->getRegion(map_min_, map_max_);
   resolution_ = grid_map_->getResolution();
@@ -41,13 +51,33 @@ void FrontierFinder::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_map) {
   frontier_pub_ = nh.advertise<visualization_msgs::MarkerArray>("exploration/frontiers", 10);
   frontier_cells_pub_ = nh.advertise<sensor_msgs::PointCloud2>("exploration/frontier_cells", 10);
   
-  ROS_INFO("[FrontierFinder] Initialized with search radius: %.2f", frontier_search_radius_);
+  ROS_INFO("[FrontierFinder] Initialized:");
+  ROS_INFO("  - Search radius: %.2f m", frontier_search_radius_);
+  ROS_INFO("  - Geofence: %s", use_geofence_ ? "ENABLED" : "DISABLED");
+  if (use_geofence_) {
+    ROS_INFO("  - Max exploration radius: %.2f m from [%.1f, %.1f, %.1f]", 
+             max_exploration_radius_, exploration_center_(0), exploration_center_(1), exploration_center_(2));
+  }
+  ROS_INFO("  - Explored region tracking: %s", 
+           explored_cell_expiry_time_ > 0 ? "ENABLED (with expiry)" : "ENABLED (permanent)");
 }
 
 bool FrontierFinder::isFrontierCell(const Eigen::Vector3d& pos) {
   // A frontier cell is:
   // 1. Free space
   // 2. Has at least one unknown neighbor
+  // 3. Within geofence (if enabled)
+  // 4. Not already explored (if tracking enabled)
+  
+  // Check geofence first (fast check)
+  if (!isWithinGeofence(pos)) {
+    return false;
+  }
+  
+  // Check if already explored
+  if (isAlreadyExplored(pos)) {
+    return false;
+  }
   
   if (grid_map_->getInflateOccupancy(pos) == 1) {
     return false; // Occupied
@@ -297,6 +327,65 @@ void FrontierFinder::publishFrontierCells(const vector<Eigen::Vector3d>& cells) 
   msg.header.stamp = ros::Time::now();
   
   frontier_cells_pub_.publish(msg);
+}
+
+bool FrontierFinder::isWithinGeofence(const Eigen::Vector3d& pos) {
+  if (!use_geofence_) {
+    return true; // No geofence, everything is allowed
+  }
+  
+  // Check if position is within max_exploration_radius_ from exploration_center_
+  double dist = (pos - exploration_center_).norm();
+  return dist <= max_exploration_radius_;
+}
+
+bool FrontierFinder::isAlreadyExplored(const Eigen::Vector3d& pos) {
+  // Convert position to grid index
+  Eigen::Vector3i idx;
+  grid_map_->posToIndex(pos, idx);
+  
+  // Check if this cell was already explored
+  auto it = explored_cells_.find(idx);
+  if (it == explored_cells_.end()) {
+    return false; // Not explored yet
+  }
+  
+  // Check if exploration expired (if expiry time is set)
+  if (explored_cell_expiry_time_ > 0.0) {
+    ros::Time now = ros::Time::now();
+    ros::Duration elapsed = now - it->second;
+    if (elapsed.toSec() > explored_cell_expiry_time_) {
+      explored_cells_.erase(it); // Remove expired entry
+      return false; // Can explore again
+    }
+  }
+  
+  return true; // Already explored and not expired
+}
+
+void FrontierFinder::markAsExplored(const Eigen::Vector3d& pos) {
+  // Convert position to grid index
+  Eigen::Vector3i idx;
+  grid_map_->posToIndex(pos, idx);
+  
+  // Mark with current timestamp
+  explored_cells_[idx] = ros::Time::now();
+  
+  // Also mark nearby cells (to account for viewpoint observation range)
+  double mark_radius = viewpoint_distance_ * 1.5; // Mark cells within 1.5x viewpoint distance
+  for (double dx = -mark_radius; dx <= mark_radius; dx += resolution_) {
+    for (double dy = -mark_radius; dy <= mark_radius; dy += resolution_) {
+      for (double dz = -mark_radius; dz <= mark_radius; dz += resolution_) {
+        Eigen::Vector3d nearby = pos + Eigen::Vector3d(dx, dy, dz);
+        double dist = (nearby - pos).norm();
+        if (dist <= mark_radius) {
+          Eigen::Vector3i nearby_idx;
+          grid_map_->posToIndex(nearby, nearby_idx);
+          explored_cells_[nearby_idx] = ros::Time::now();
+        }
+      }
+    }
+  }
 }
 
 } // namespace exploration_manager

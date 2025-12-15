@@ -217,6 +217,11 @@ void ExplorationFSM::execTrajState() {
   if (dist_to_goal < 0.5) {
     ROS_INFO("[ExplorationFSM] Reached frontier viewpoint!");
     
+    // Mark this frontier region as explored (to avoid revisiting)
+    frontier_finder_->markAsExplored(target_pt_);
+    ROS_INFO("[ExplorationFSM] Marked region around (%.2f, %.2f, %.2f) as explored",
+             target_pt_(0), target_pt_(1), target_pt_(2));
+    
     // Wait and search for new frontiers
     ros::Duration(1.0).sleep(); // Give time for map to update
     transitState(SEARCH_FRONTIER, "execTrajState");

@@ -6,6 +6,7 @@
 #include <vector>
 #include <list>
 #include <memory>
+#include <unordered_map>
 #include <ros/ros.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
@@ -67,6 +68,9 @@ public:
   // Get best frontier for exploration
   Frontier getBestFrontier(const Eigen::Vector3d& cur_pos, const Eigen::Vector3d& cur_vel);
   
+  // Mark a region as explored (to avoid revisiting)
+  void markAsExplored(const Eigen::Vector3d& pos);
+  
   // Check if exploration is complete
   bool isExplorationComplete() { return frontiers_.empty(); }
   
@@ -87,6 +91,19 @@ private:
   double viewpoint_distance_;
   int viewpoint_num_;
   
+  // Geofence parameters
+  Eigen::Vector3d exploration_center_;  // Origin point for exploration
+  double max_exploration_radius_;       // Maximum distance from center
+  bool use_geofence_;                   // Enable/disable boundary limits
+  
+  // Explored region tracking (persistent memory)
+  struct ExploredCell {
+    Eigen::Vector3i idx;
+    ros::Time last_visited;
+  };
+  std::unordered_map<Eigen::Vector3i, ros::Time, matrix_hash<Eigen::Vector3i>> explored_cells_;
+  double explored_cell_expiry_time_;  // Time before cell can be re-explored (0 = never revisit)
+  
   // Frontiers
   vector<Frontier> frontiers_;
   vector<Eigen::Vector3d> frontier_cells_;
@@ -95,6 +112,8 @@ private:
   // Helper functions
   bool isNeighborUnknown(const Eigen::Vector3d& pos);
   bool isFrontierCell(const Eigen::Vector3d& pos);
+  bool isWithinGeofence(const Eigen::Vector3d& pos);
+  bool isAlreadyExplored(const Eigen::Vector3d& pos);
   void clusterFrontiers();
   void computeViewpoints(Frontier& frontier);
   double computeFrontierCost(const Frontier& frontier, const Eigen::Vector3d& cur_pos, 

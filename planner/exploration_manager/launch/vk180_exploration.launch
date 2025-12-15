@@ -99,6 +99,18 @@
     <param name="exploration/viewpoint_distance" value="2.5" type="double"/>
     <param name="exploration/viewpoint_num" value="8" type="int"/>
     
+    <!-- Geofence Parameters (NEW) -->
+    <param name="exploration/use_geofence" value="true" type="bool"/>
+    <param name="exploration/max_exploration_radius" value="25.0" type="double"/>
+    <param name="exploration/exploration_center_x" value="0.0" type="double"/>
+    <param name="exploration/exploration_center_y" value="0.0" type="double"/>
+    <param name="exploration/exploration_center_z" value="1.5" type="double"/>
+    
+    <!-- Explored Region Tracking (NEW) -->
+    <!-- 0.0 = never revisit explored regions (permanent memory) -->
+    <!-- >0.0 = allow revisit after N seconds (for dynamic environments) -->
+    <param name="exploration/explored_cell_expiry_time" value="0.0" type="double"/>
+    
     <!-- Map Parameters (must match EGO planner) -->
     <param name="grid_map/resolution" value="0.1" type="double"/>
     <param name="grid_map/map_size_x" value="$(arg map_size_x)" type="double"/>
