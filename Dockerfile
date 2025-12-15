@@ -122,6 +122,9 @@ RUN wget https://raw.githubusercontent.com/mavlink/mavros/master/mavros/scripts/
 # Enable the use of `source` keyword
 SHELL ["/bin/bash", "-c"]
 
+# Cache buster for forcing rebuild of source code layers
+ARG CACHE_BUST=1
+
 # Create workspace and copy all source code
 WORKDIR /catkin_ws/src/
 COPY . /catkin_ws/src/

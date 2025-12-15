@@ -1,0 +1,111 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- ============================================ -->
+  <!-- VK180 + PX4 + FUEL Exploration Integration  -->
+  <!-- Reuses algorithm.xml for consistency        -->
+  <!-- ============================================ -->
+  
+  <arg name="drone_id" default="0"/>
+  
+  <!-- Map size - adjust based on available memory -->
+  <arg name="map_size_x" default="10.0"/>
+  <arg name="map_size_y" default="10.0"/>
+  <arg name="map_size_z" default="3.0"/>
+  
+  <!-- Initial position -->
+  <arg name="init_x" default="0"/>
+  <arg name="init_y" default="0"/>
+  <arg name="init_z" default="1.0"/>
+  
+  <!-- ============================================ -->
+  <!-- 1. VK180 Vision Sensor Bridge               -->
+  <!-- ============================================ -->
+  <node name="vk180_planner_bridge" 
+        pkg="vk180_ros" 
+        type="vk180_planner_bridge" 
+        output="screen"
+        required="false">
+    <param name="odom_frame_id" value="odom"/>
+    <param name="base_frame_id" value="base_link"/>
+    <param name="use_body_frame_transform" value="true"/>
+    <param name="subscribe_to_image_stream" value="true"/>
+    <param name="max_depth" value="10.0"/>
+    <param name="min_depth" value="0.4"/>
+  </node>
+  
+  <!-- ============================================ -->
+  <!-- 2. PX4 Flight Controller                    -->
+  <!-- ============================================ -->
+  <node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl_node" output="screen" required="false">
+    <remap from="~odom" to="/mavros/local_position/odom"/>
+    <remap from="~cmd" to="/planning/pos_cmd"/>
+    <rosparam file="$(find px4ctrl)/config/ctrl_param_fpv.yaml"/>
+    <param name="use_bodyrate_ctrl" value="false"/>
+  </node>
+  
+  <!-- ============================================ -->
+  <!-- 3. FUEL Exploration (using algorithm.xml)   -->
+  <!-- ============================================ -->
+  <include file="$(find exploration_manager)/launch/algorithm.xml">
+    <!-- Map size -->
+    <arg name="map_size_x_" value="$(arg map_size_x)"/>
+    <arg name="map_size_y_" value="$(arg map_size_y)"/>
+    <arg name="map_size_z_" value="$(arg map_size_z)"/>
+    
+    <!-- Exploration bounds (geofence) -->
+    <arg name="box_min_x" value="-5.0"/>
+    <arg name="box_min_y" value="-5.0"/>
+    <arg name="box_min_z" value="0.5"/>
+    <arg name="box_max_x" value="5.0"/>
+    <arg name="box_max_y" value="5.0"/>
+    <arg name="box_max_z" value="2.5"/>
+    
+    <!-- VK180 topic remappings -->
+    <arg name="odometry_topic" value="/mavros/local_position/odom"/>
+    <arg name="sensor_pose_topic" value="/mavros/local_position/pose"/>
+    <arg name="depth_topic" value="/invalid_topic"/>  <!-- VK180 doesn't provide depth images -->
+    <arg name="cloud_topic" value="/vk180/pointcloud"/>
+    
+    <!-- Camera intrinsics (not used for point cloud, but required by algorithm.xml) -->
+    <arg name="cx" value="320.0"/>
+    <arg name="cy" value="240.0"/>
+    <arg name="fx" value="320.0"/>
+    <arg name="fy" value="320.0"/>
+    
+    <!-- Conservative velocity/acceleration for real hardware -->
+    <arg name="max_vel" value="0.8"/>
+    <arg name="max_acc" value="0.8"/>
+  </include>
+  
+  <!-- VK180-specific overrides (after algorithm.xml) -->
+  <node pkg="rosservice" type="rosservice" name="set_vk180_cloud_mode" 
+        args="call --wait /exploration_node/set_parameters &quot;{config: {bools: [{name: 'map_ros/use_cloud', value: true}, {name: 'map_ros/use_depth_image', value: false}]}}&quot;"
+        launch-prefix="bash -c 'sleep 3; '"
+        if="false"/>  <!-- Disabled for now, auto-detection should work -->
+  
+  <!-- ============================================ -->
+  <!-- 4. Trajectory Server                        -->
+  <!-- ============================================ -->
+  <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
+    <remap from="/position_cmd" to="/planning/pos_cmd"/>
+    <remap from="/odom_world" to="/mavros/local_position/odom"/>
+    
+    <param name="traj_server/time_forward" value="1.5"/>
+    <param name="traj_server/pub_traj_id" value="4"/>
+    <param name="traj_server/init_x" value="$(arg init_x)"/>
+    <param name="traj_server/init_y" value="$(arg init_y)"/>
+    <param name="traj_server/init_z" value="$(arg init_z)"/>
+    
+    <!-- Camera FOV for trajectory server -->
+    <param name="perception_utils/top_angle" value="0.56125"/>
+    <param name="perception_utils/left_angle" value="0.69222"/>
+    <param name="perception_utils/right_angle" value="0.68901"/>
+    <param name="perception_utils/max_dist" value="4.5"/>
+    <param name="perception_utils/vis_dist" value="1.0"/>
+  </node>
+  
+  <!-- Static transform: world to odom (if needed) -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_odom"
+        args="0 0 0 0 0 0 world odom"/>
+  
+</launch>

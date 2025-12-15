@@ -12,7 +12,7 @@ echo ""
 
 # Set system time
 echo "[*] Setting system time..."
-sudo date -s "2025-11-13 09:12:38"
+sudo date -s "2025-12-15 21:30:00"
 
 # Add user to docker group (no password needed)
 echo "[*] Adding user to docker group..."

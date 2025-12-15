@@ -7,18 +7,18 @@
   
   <arg name="drone_id" default="0"/>
   
-  <!-- Map Parameters - FUEL requires smaller maps for efficiency -->
-  <arg name="map_size_x" default="20.0"/>
-  <arg name="map_size_y" default="20.0"/>
-  <arg name="map_size_z" default="5.0"/>
+  <!-- Map Parameters - REDUCED for Jetson memory constraints -->
+  <arg name="map_size_x" default="10.0"/>
+  <arg name="map_size_y" default="10.0"/>
+  <arg name="map_size_z" default="3.0"/>
   
   <!-- Exploration Bounds - Must be within map size -->
-  <arg name="box_min_x" default="-10.0"/>
-  <arg name="box_min_y" default="-10.0"/>
+  <arg name="box_min_x" default="-5.0"/>
+  <arg name="box_min_y" default="-5.0"/>
   <arg name="box_min_z" default="0.5"/>
-  <arg name="box_max_x" default="10.0"/>
-  <arg name="box_max_y" default="10.0"/>
-  <arg name="box_max_z" default="3.0"/>
+  <arg name="box_max_x" default="5.0"/>
+  <arg name="box_max_y" default="5.0"/>
+  <arg name="box_max_z" default="2.5"/>
   
   <!-- ============================================ -->
   <!-- 1. VK180 Vision Sensor Bridge               -->
@@ -223,6 +223,15 @@
     <param name="perception_utils/right_angle" value="0.68835"/>   <!-- ~39° -->
     <param name="perception_utils/max_dist" value="4.5"/>
     <param name="perception_utils/vis_dist" value="1.0"/>
+    
+    <!-- ============================================ -->
+    <!-- A* Path Search Parameters (CRITICAL!)       -->
+    <!-- ============================================ -->
+    <!-- MUST set allocate_num to prevent memory crash -->
+    <param name="astar/lambda_heu" value="10000.0"/>
+    <param name="astar/resolution_astar" value="0.2"/>  <!-- Match sdf_map/resolution -->
+    <param name="astar/allocate_num" value="100000"/>   <!-- Reduced for 10x10x3m map -->
+    <param name="astar/max_search_time" value="0.001"/>
   </node>
   
   <!-- ============================================ -->
