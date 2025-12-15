@@ -73,7 +73,7 @@
     
     <!-- VK180 topic remappings - Use VK180 raw odometry -->
     <arg name="odometry_topic" value="/vk180/odom_raw"/>
-    <arg name="sensor_pose_topic" value="/vk180/odom_raw"/>  <!-- Extract pose from odometry -->
+    <arg name="sensor_pose_topic" value="/mavros/vision_pose/pose"/>  <!-- Extract pose from odometry -->
     <arg name="depth_topic" value="/invalid_topic"/>  <!-- VK180 doesn't provide depth images -->
     <arg name="cloud_topic" value="/vk180/pointcloud"/>
     
