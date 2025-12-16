@@ -142,6 +142,17 @@
     <param name="perception_utils/vis_dist" value="1.0"/>
   </node>
   
+  <!-- ============================================ -->
+  <!-- 6. Waypoint Generator (Trigger)             -->
+  <!-- ============================================ -->
+  <!-- This node triggers exploration when receiving goals from RViz or other sources -->
+  <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="screen">
+    <remap from="~odom" to="/mavros/local_position/odom"/>
+    <remap from="~goal" to="/move_base_simple/goal"/>
+    <remap from="~traj_start_trigger" to="/traj_start_trigger"/>
+    <param name="waypoint_type" value="point"/>
+  </node>
+  
   <!-- Static TF Publishers -->
   <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_map"
         args="0 0 0 0 0 0 world map"/>
@@ -150,7 +161,7 @@
         args="0 0 0 0 0 0 world odom"/>
   
   <!-- ============================================ -->
-  <!-- 6. RViz Visualization (Optional)            -->
+  <!-- 7. RViz Visualization (Optional)            -->
   <!-- ============================================ -->
   <group if="$(arg use_rviz)">
     <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" 
