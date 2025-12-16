@@ -6,13 +6,20 @@
   <!-- ============================================ -->
   
   <!-- ODOMETRY CONFIGURATION:
-       - VK180 publishes VIO odometry directly to /vk180/odom_raw
-       - This bypasses MAVROS /local_position/odom which requires EKF2 fusion config
-       - For production: configure PX4 EKF2 to fuse vision data and use MAVROS odom
-       - For testing: direct VK180 odometry works fine
+       - VK180 bridge publishes:
+         * /vk180/odom_raw: Raw VIO odometry
+         * /mavros/vision_pose/pose: Vision input to PX4 EKF2
+       - PX4 EKF2 fuses VIO + IMU → /mavros/local_position/odom
+       - All nodes use the fused odometry for better accuracy
   -->
   
   <arg name="drone_id" default="0"/>
+  
+  <!-- MAVROS Configuration -->
+  <arg name="use_sim" default="false"/>
+  <arg name="fcu_url_sim" default="udp://:14540@127.0.0.1:14557"/>
+  <arg name="fcu_url_real" default="/dev/ttyUSB0:921600"/>
+  <arg name="gcs_url" default="udp-b://@"/>
   
   <!-- RViz visualization -->
   <arg name="use_rviz" default="false"/>
@@ -30,6 +37,11 @@
   <!-- ============================================ -->
   <!-- 1. VK180 Vision Sensor Bridge               -->
   <!-- ============================================ -->
+  <!-- Publishes:
+       - /vk180/odom_raw: Raw VIO odometry
+       - /mavros/vision_pose/pose: Vision input to PX4 EKF2 for fusion
+       - /vk180/pointcloud: Merged point cloud from stereo cameras
+  -->
   <node name="vk180_planner_bridge" 
         pkg="vk180_ros" 
         type="vk180_planner_bridge" 
@@ -44,18 +56,38 @@
   </node>
   
   <!-- ============================================ -->
-  <!-- 2. PX4 Flight Controller                    -->
+  <!-- 2. MAVROS - PX4 Communication               -->
   <!-- ============================================ -->
+  <!-- MAVROS for simulation -->
+  <group if="$(arg use_sim)">
+    <include file="$(find mavros)/launch/px4.launch">
+      <arg name="fcu_url" value="$(arg fcu_url_sim)"/>
+      <arg name="gcs_url" value="$(arg gcs_url)"/>
+    </include>
+  </group>
+  
+  <!-- MAVROS for real hardware -->
+  <group unless="$(arg use_sim)">
+    <include file="$(find mavros)/launch/px4.launch">
+      <arg name="fcu_url" value="$(arg fcu_url_real)"/>
+      <arg name="gcs_url" value="$(arg gcs_url)"/>
+    </include>
+  </group>
+  
+  <!-- ============================================ -->
+  <!-- 3. PX4 Flight Controller                    -->
+  <!-- ============================================ -->
+  <!-- Uses PX4 EKF2 fused odometry (VIO + IMU fusion) -->
   <node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl_node" output="screen" required="false">
-    <!-- Use VK180 raw odometry directly - MAVROS /local_position/odom requires EKF2 fusion config -->
-    <remap from="~odom" to="/vk180/odom_raw"/>
+    <!-- Use PX4's fused odometry from EKF2 (VIO + IMU) -->
+    <remap from="~odom" to="/mavros/local_position/odom"/>
     <remap from="~cmd" to="/planning/pos_cmd"/>
     <rosparam file="$(find px4ctrl)/config/ctrl_param_fpv.yaml"/>
     <param name="use_bodyrate_ctrl" value="false"/>
   </node>
   
   <!-- ============================================ -->
-  <!-- 3. FUEL Exploration (using algorithm.xml)   -->
+  <!-- 4. FUEL Exploration (using algorithm.xml)   -->
   <!-- ============================================ -->
   <include file="$(find exploration_manager)/launch/algorithm.xml">
     <!-- Map size -->
@@ -71,9 +103,9 @@
     <arg name="box_max_y" value="5.0"/>
     <arg name="box_max_z" value="2.0"/>
     
-    <!-- VK180 topic remappings - Use VK180 raw odometry -->
-    <arg name="odometry_topic" value="/vk180/odom_raw"/>
-    <arg name="sensor_pose_topic" value="/mavros/vision_pose/pose"/>  <!-- Extract pose from odometry -->
+    <!-- VK180 topic remappings - Use PX4 fused odometry -->
+    <arg name="odometry_topic" value="/mavros/local_position/odom"/>
+    <arg name="sensor_pose_topic" value="/mavros/vision_pose/pose"/>
     <arg name="depth_topic" value="/invalid_topic"/>  <!-- VK180 doesn't provide depth images -->
     <arg name="cloud_topic" value="/vk180/pointcloud"/>
     
@@ -88,19 +120,13 @@
     <arg name="max_acc" value="0.8"/>
   </include>
   
-  <!-- VK180-specific overrides (after algorithm.xml) -->
-  <node pkg="rosservice" type="rosservice" name="set_vk180_cloud_mode" 
-        args="call --wait /exploration_node/set_parameters &quot;{config: {bools: [{name: 'map_ros/use_cloud', value: true}, {name: 'map_ros/use_depth_image', value: false}]}}&quot;"
-        launch-prefix="bash -c 'sleep 3; '"
-        if="false"/>  <!-- Disabled for now, auto-detection should work -->
-  
   <!-- ============================================ -->
-  <!-- 4. Trajectory Server                        -->
+  <!-- 5. Trajectory Server                        -->
   <!-- ============================================ -->
   <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
     <remap from="/position_cmd" to="/planning/pos_cmd"/>
-    <!-- Use VK180 raw odometry directly -->
-    <remap from="/odom_world" to="/vk180/odom_raw"/>
+    <!-- Use PX4 fused odometry (VIO + IMU) -->
+    <remap from="/odom_world" to="/mavros/local_position/odom"/>
     
     <param name="traj_server/time_forward" value="1.5"/>
     <param name="traj_server/pub_traj_id" value="4"/>
@@ -116,12 +142,15 @@
     <param name="perception_utils/vis_dist" value="1.0"/>
   </node>
   
-  <!-- Static transform: world to odom (if needed) -->
+  <!-- Static TF Publishers -->
+  <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_map"
+        args="0 0 0 0 0 0 world map"/>
+  
   <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_odom"
         args="0 0 0 0 0 0 world odom"/>
   
   <!-- ============================================ -->
-  <!-- 5. RViz Visualization (Optional)            -->
+  <!-- 6. RViz Visualization (Optional)            -->
   <!-- ============================================ -->
   <group if="$(arg use_rviz)">
     <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" 
