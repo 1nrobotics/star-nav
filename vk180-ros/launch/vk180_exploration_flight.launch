@@ -5,6 +5,13 @@
   <!-- Reuses algorithm.xml for consistency        -->
   <!-- ============================================ -->
   
+  <!-- ODOMETRY CONFIGURATION:
+       - VK180 publishes VIO odometry directly to /vk180/odometry
+       - This bypasses MAVROS /local_position/odom which requires EKF2 fusion config
+       - For production: configure PX4 EKF2 to fuse vision data and use MAVROS odom
+       - For testing: direct VK180 odometry works fine
+  -->
+  
   <arg name="drone_id" default="0"/>
   
   <!-- RViz visualization -->
@@ -40,7 +47,8 @@
   <!-- 2. PX4 Flight Controller                    -->
   <!-- ============================================ -->
   <node pkg="px4ctrl" type="px4ctrl_node" name="px4ctrl_node" output="screen" required="false">
-    <remap from="~odom" to="/mavros/local_position/odom"/>
+    <!-- Use VK180 odometry directly - MAVROS /local_position/odom requires EKF2 fusion config -->
+    <remap from="~odom" to="/vk180/odometry"/>
     <remap from="~cmd" to="/planning/pos_cmd"/>
     <rosparam file="$(find px4ctrl)/config/ctrl_param_fpv.yaml"/>
     <param name="use_bodyrate_ctrl" value="false"/>
@@ -63,9 +71,9 @@
     <arg name="box_max_y" value="5.0"/>
     <arg name="box_max_z" value="2.0"/>
     
-    <!-- VK180 topic remappings -->
-    <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-    <arg name="sensor_pose_topic" value="/mavros/local_position/pose"/>
+    <!-- VK180 topic remappings - Use VK180 direct odometry -->
+    <arg name="odometry_topic" value="/vk180/odometry"/>
+    <arg name="sensor_pose_topic" value="/vk180/odometry"/>  <!-- Extract pose from odometry -->
     <arg name="depth_topic" value="/invalid_topic"/>  <!-- VK180 doesn't provide depth images -->
     <arg name="cloud_topic" value="/vk180/pointcloud"/>
     
@@ -91,7 +99,8 @@
   <!-- ============================================ -->
   <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
     <remap from="/position_cmd" to="/planning/pos_cmd"/>
-    <remap from="/odom_world" to="/mavros/local_position/odom"/>
+    <!-- Use VK180 odometry directly -->
+    <remap from="/odom_world" to="/vk180/odometry"/>
     
     <param name="traj_server/time_forward" value="1.5"/>
     <param name="traj_server/pub_traj_id" value="4"/>
