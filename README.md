@@ -1,3 +1,7 @@
+## Build image
+docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
+ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
+
 ## Field Test Release
 # start everything
 ```bash

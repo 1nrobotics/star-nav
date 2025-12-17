@@ -26,7 +26,7 @@ echo "Star Nav onboard environment loaded"
 
 # Set system time
 echo "[*] Setting system time..."
-sudo date -s "2025-11-13 09:12:38"
+sudo date -s "2025-12-17 22:50:00"
 
 # Check VK180 connectivity
 echo "[*] Checking VK180 connectivity..."
