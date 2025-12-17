@@ -35,6 +35,33 @@ pose:
 
 rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
 
+# In RViz, add these displays:
+# 1. MarkerArray - Topic: /exploration/frontiers
+# 2. PointCloud2 - Topic: /exploration/frontier_cells
+# 3. Pose - Topic: /move_base_simple/goal
+# 4. PointCloud2 - Topic: /vk180/pointcloud (map)
+
+# Monitor exploration state
+rostopic echo /exploration/state
+
+# Watch frontier detection
+rostopic echo /exploration/frontiers
+
+# Check if goals are being published
+rostopic echo /move_base_simple/goal
+
+# Monitor EGO planner status
+rostopic echo /drone_0_planning/data_display
+
+# Check distance to goal
+rostopic echo /mavros/local_position/odom | grep -A3 "position"
+
+# Trigger exploration manually
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
+
+# Emergency stop exploration
+rostopic pub /exploration/finish std_msgs/Empty "{}"
+
 ## Field Test Dev
 ```bash
 ssh nvidia@192.168.10.200
