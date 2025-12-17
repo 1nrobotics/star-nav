@@ -74,6 +74,9 @@ public:
   // Check if exploration is complete
   bool isExplorationComplete() { return frontiers_.empty(); }
   
+  // Geofence validation (public for FSM safety checks)
+  bool isWithinGeofence(const Eigen::Vector3d& pos);
+  
   // Visualization
   void publishFrontiers();
   void publishFrontierCells(const vector<Eigen::Vector3d>& cells);
@@ -112,7 +115,6 @@ private:
   // Helper functions
   bool isNeighborUnknown(const Eigen::Vector3d& pos);
   bool isFrontierCell(const Eigen::Vector3d& pos);
-  bool isWithinGeofence(const Eigen::Vector3d& pos);
   bool isAlreadyExplored(const Eigen::Vector3d& pos);
   void clusterFrontiers();
   void computeViewpoints(Frontier& frontier);

@@ -1,7 +1,7 @@
 #include "exploration_manager/exploration_fsm.h"
 #include <std_msgs/String.h>
 #include <visualization_msgs/Marker.h>
-#include <geometry_msgs/PoseStamped.h>h>
+#include <geometry_msgs/PoseStamped.h>
 
 namespace exploration_manager {
 
@@ -141,6 +141,12 @@ void ExplorationFSM::initState() {
 
 void ExplorationFSM::waitTriggerState() {
   if (exploration_triggered_) {
+    // Check if map has received data before starting exploration
+    if (!grid_map_->hasDepthObservation()) {
+      ROS_WARN_THROTTLE(2.0, "[ExplorationFSM] Waiting for map initialization...");
+      return;
+    }
+    
     transitState(SEARCH_FRONTIER, "waitTriggerState");
   }
 }
@@ -194,6 +200,14 @@ void ExplorationFSM::planToFrontierState() {
   Viewpoint target_vp = current_frontier_.viewpoints_[0];
   target_pt_ = target_vp.pos_; // Store for later tracking
   
+  // Validate target is within geofence before publishing
+  if (!frontier_finder_->isWithinGeofence(target_pt_)) {
+    ROS_WARN("[ExplorationFSM] Target (%.2f, %.2f, %.2f) outside geofence! Searching for new frontier...",
+             target_pt_(0), target_pt_(1), target_pt_(2));
+    transitState(SEARCH_FRONTIER, "planToFrontierState");
+    return;
+  }
+  
   ROS_INFO("[ExplorationFSM] Planning to frontier at (%.2f, %.2f, %.2f)", 
            target_pt_(0), target_pt_(1), target_pt_(2));
   
@@ -241,13 +255,11 @@ void ExplorationFSM::execTrajState() {
   // This exploration FSM just manages high-level frontier selection
 }
 
-void ExplorationFSM::finishState() { at current position.");
+void ExplorationFSM::finishState() {
+  ROS_INFO("[ExplorationFSM] Exploration finished, hovering at current position.");
   
   // EGO planner FSM will automatically hover when no new goal is published
   // No need to send commands - just wait in this state
-  cmd.yaw_dot = 0;
-  
-  goal_pub_.publish(cmd);
 }
 
 void ExplorationFSM::visualizeExplorationState() {
