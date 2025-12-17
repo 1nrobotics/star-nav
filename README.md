@@ -45,6 +45,15 @@ rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
 # 3. Pose - Topic: /move_base_simple/goal
 # 4. PointCloud2 - Topic: /vk180/pointcloud (map)
 
+# Trigger exploration manually
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
+
+# FSM returns to WAIT_TRIGGER
+rostopic pub /exploration/trigger_once std_msgs/Bool "data: false"
+
+# Emergency stop exploration
+rostopic pub /exploration/finish std_msgs/Empty "{}"
+
 # Monitor exploration state
 rostopic echo /exploration/state
 
@@ -59,15 +68,6 @@ rostopic echo /drone_0_planning/data_display
 
 # Check distance to goal
 rostopic echo /mavros/local_position/odom | grep -A3 "position"
-
-# Trigger exploration manually
-rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
-
-# FSM returns to WAIT_TRIGGER
-rostopic pub /exploration/trigger_once std_msgs/Bool "data: false"
-
-# Emergency stop exploration
-rostopic pub /exploration/finish std_msgs/Empty "{}"
 
 ## Field Test Dev
 ```bash

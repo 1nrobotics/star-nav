@@ -73,6 +73,7 @@ struct MappingParameters {
   double prob_hit_log_, prob_miss_log_, clamp_min_log_, clamp_max_log_,
       min_occupancy_log_;                   // logit of occupancy probability
   double min_ray_length_, max_ray_length_;  // range of doing raycasting
+  bool enable_pointcloud_raycasting_;       // enable raycasting for pointcloud data (needed for exploration)
 
   /* local map update and clear */
   int local_map_margin_;

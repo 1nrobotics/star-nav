@@ -38,6 +38,7 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/p_occ", mp_.p_occ_, 0.80);
   node_.param("grid_map/min_ray_length", mp_.min_ray_length_, -0.1);
   node_.param("grid_map/max_ray_length", mp_.max_ray_length_, -0.1);
+  node_.param("grid_map/enable_pointcloud_raycasting", mp_.enable_pointcloud_raycasting_, false);
 
   node_.param("grid_map/visualization_truncate_height", mp_.visualization_truncate_height_, -0.1);
   node_.param("grid_map/virtual_ceil_yp", mp_.virtual_ceil_yp_, -0.1);
@@ -761,6 +762,12 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
   this->resetBuffer(md_.camera_pos_ - mp_.local_update_range_,
                     md_.camera_pos_ + mp_.local_update_range_);
 
+  // Populate projection points for raycasting (only if enabled - needed for exploration)
+  if (mp_.enable_pointcloud_raycasting_)
+  {
+    md_.proj_points_cnt = 0;
+  }
+  
   pcl::PointXYZ pt;
   Eigen::Vector3d p3d, p3d_inf;
 
@@ -789,6 +796,15 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
     if (fabs(devi(0)) < mp_.local_update_range_(0) && fabs(devi(1)) < mp_.local_update_range_(1) &&
         fabs(devi(2)) < mp_.local_update_range_(2))
     {
+      // Add point to projection buffer for raycasting (only if enabled)
+      if (mp_.enable_pointcloud_raycasting_)
+      {
+        double dist = devi.norm();
+        if (dist > mp_.min_ray_length_ && dist < mp_.max_ray_length_)
+        {
+          md_.proj_points_[md_.proj_points_cnt++] = p3d;
+        }
+      }
 
       /* inflate the point */
       for (int x = -inf_step; x <= inf_step; ++x)
@@ -835,6 +851,12 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
 
   boundIndex(md_.local_bound_min_);
   boundIndex(md_.local_bound_max_);
+
+  // Only trigger raycasting if enabled (exploration needs this, EGO planner doesn't)
+  if (mp_.enable_pointcloud_raycasting_)
+  {
+    md_.occ_need_update_ = true;
+  }
 
 }
 
