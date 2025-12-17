@@ -139,8 +139,8 @@
         <!-- >0.0 = allow revisit after N seconds (for dynamic environments) -->
         <param name="exploration/explored_cell_expiry_time" value="0.0" type="double"/>
         
-        <!-- Map Parameters (must match EGO planner) -->
-        <param name="grid_map/resolution" value="0.1" type="double"/>
+        <!-- Map Parameters (MUST MATCH EGO planner for consistency) -->
+        <param name="grid_map/resolution" value="0.15" type="double"/>  <!-- Match EGO planner -->
         <param name="grid_map/map_size_x" value="$(arg map_size_x)" type="double"/>
         <param name="grid_map/map_size_y" value="$(arg map_size_y)" type="double"/>
         <param name="grid_map/map_size_z" value="$(arg map_size_z)" type="double"/>
@@ -148,11 +148,20 @@
         <param name="grid_map/local_update_range_x" value="30.0" type="double"/>
         <param name="grid_map/local_update_range_y" value="30.0" type="double"/>
         <param name="grid_map/local_update_range_z" value="5.0" type="double"/>
-        <param name="grid_map/obstacles_inflation" value="0.3" type="double"/>
+        <param name="grid_map/obstacles_inflation" value="0.2" type="double"/>  <!-- Match EGO planner -->
+        
+        <!-- Occupancy probability parameters (match EGO planner) -->
+        <param name="grid_map/p_hit"  value="0.65" type="double"/>
+        <param name="grid_map/p_miss" value="0.35" type="double"/>
+        <param name="grid_map/p_min"  value="0.12" type="double"/>
+        <param name="grid_map/p_max"  value="0.90" type="double"/>
+        <param name="grid_map/p_occ"  value="0.80" type="double"/>
+        <param name="grid_map/min_ray_length" value="0.3" type="double"/>
+        <param name="grid_map/max_ray_length" value="5.0" type="double"/>
         
         <!-- Topic remapping -->
-        <remap from="/exploration_node/odom" to="/mavros/local_position/odom"/>
-        <remap from="/exploration_node/cloud" to="/vk180/pointcloud"/>
+        <remap from="grid_map/odom" to="/mavros/local_position/odom"/>
+        <remap from="grid_map/cloud" to="/vk180/pointcloud"/>
         
     </node>
     
@@ -196,7 +205,7 @@
     <!-- 8. RViz Visualization (Optional) -->
     <!-- ============================== -->
     <node name="rviz" pkg="rviz" type="rviz" 
-          args="-d $(find vk180_ros)/config/vk180_planner_visualization.rviz" 
+          args="-d $(find vk180_ros)/config/vk180_exploration_visualization.rviz" 
           if="$(arg use_rviz)" />
     
 </launch>
