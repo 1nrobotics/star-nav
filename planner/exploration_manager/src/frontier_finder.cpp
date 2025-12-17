@@ -51,14 +51,13 @@ void FrontierFinder::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_map) {
   frontier_pub_ = nh.advertise<visualization_msgs::MarkerArray>("exploration/frontiers", 10);
   frontier_cells_pub_ = nh.advertise<sensor_msgs::PointCloud2>("exploration/frontier_cells", 10);
   
-  ROS_INFO("[FrontierFinder] Initialized:");
-  ROS_INFO("  - Search radius: %.2f m", frontier_search_radius_);
-  ROS_INFO("  - Geofence: %s", use_geofence_ ? "ENABLED" : "DISABLED");
-  if (use_geofence_) {
-    ROS_INFO("  - Max exploration radius: %.2f m from [%.1f, %.1f, %.1f]", 
+  ROS_INFO("[FrontierFinder] Initialized");
+  ROS_DEBUG("  - Search radius: %.2f m", frontier_search_radius_);
+  ROS_DEBUG("  - Geofence: %s", use_geofence_ ? "ENABLED" : "DISABLED");
+  if (use_geofence_)
+    ROS_DEBUG("  - Max exploration radius: %.2f m from [%.1f, %.1f, %.1f]",
              max_exploration_radius_, exploration_center_(0), exploration_center_(1), exploration_center_(2));
-  }
-  ROS_INFO("  - Explored region tracking: %s", 
+  ROS_DEBUG("  - Explored region tracking: %s", 
            explored_cell_expiry_time_ > 0 ? "ENABLED (with expiry)" : "ENABLED (permanent)");
 }
 
@@ -108,7 +107,7 @@ bool FrontierFinder::isNeighborUnknown(const Eigen::Vector3d& pos) {
   return false;
 }
 
-void FrontierFinder::searchFrontiers() {
+void FrontierFinder::searchFrontiers(const Eigen::Vector3d& drone_pos) {
   frontier_cells_.clear();
   frontiers_.clear();
   
@@ -121,11 +120,22 @@ void FrontierFinder::searchFrontiers() {
     }
   }
   
-  // Get current map bounds (observed region)
-  Eigen::Vector3d search_min, search_max;
-  grid_map_->getRegion(search_min, search_max);
+  // CRITICAL FIX: Search only within local radius around drone, not entire map
+  // This prevents searching millions of cells
+  Eigen::Vector3d search_min = drone_pos - Eigen::Vector3d(frontier_search_radius_, frontier_search_radius_, 1.0);
+  Eigen::Vector3d search_max = drone_pos + Eigen::Vector3d(frontier_search_radius_, frontier_search_radius_, 1.0);
   
-  // Search for frontier cells
+  // Clamp to map bounds
+  Eigen::Vector3d map_min, map_max;
+  grid_map_->getRegion(map_min, map_max);
+  search_min = search_min.cwiseMax(map_min);
+  search_max = search_max.cwiseMin(map_max);
+  
+  ROS_DEBUG("[FrontierFinder] Searching in local region [%.1f,%.1f,%.1f] to [%.1f,%.1f,%.1f]",
+           search_min(0), search_min(1), search_min(2),
+           search_max(0), search_max(1), search_max(2));
+  
+  // Search for frontier cells in local region
   for (double x = search_min(0); x < search_max(0); x += resolution_) {
     for (double y = search_min(1); y < search_max(1); y += resolution_) {
       for (double z = search_min(2); z < search_max(2); z += resolution_) {
@@ -138,7 +148,7 @@ void FrontierFinder::searchFrontiers() {
     }
   }
   
-  ROS_INFO("[FrontierFinder] Found %lu frontier cells", frontier_cells_.size());
+  ROS_DEBUG("[FrontierFinder] Found %lu frontier cells", frontier_cells_.size());
   
   // Cluster frontier cells
   if (!frontier_cells_.empty()) {
@@ -146,7 +156,7 @@ void FrontierFinder::searchFrontiers() {
   }
   
   ros::Time t2 = ros::Time::now();
-  ROS_INFO("[FrontierFinder] Search took %.3f ms, found %lu frontiers", 
+  ROS_DEBUG("[FrontierFinder] Search took %.3f ms, found %lu frontiers", 
            (t2 - t1).toSec() * 1000.0, frontiers_.size());
 }
 
@@ -219,7 +229,7 @@ void FrontierFinder::clusterFrontiers() {
     }
   }
   
-  ROS_INFO("[FrontierFinder] Clustered into %lu frontiers", frontiers_.size());
+  ROS_DEBUG("[FrontierFinder] Clustered into %lu frontiers", frontiers_.size());
 }
 
 void FrontierFinder::computeViewpoints(Frontier& frontier) {
@@ -269,7 +279,7 @@ Frontier FrontierFinder::getBestFrontier(const Eigen::Vector3d& cur_pos,
     }
   }
   
-  ROS_INFO("[FrontierFinder] Best frontier: ID=%d, cost=%.2f, cells=%lu", 
+  ROS_DEBUG("[FrontierFinder] Best frontier: ID=%d, cost=%.2f, cells=%lu", 
            frontiers_[best_idx].id_, min_cost, frontiers_[best_idx].cells_.size());
   
   return frontiers_[best_idx];
@@ -279,29 +289,58 @@ void FrontierFinder::publishFrontiers() {
   visualization_msgs::MarkerArray marker_array;
   
   for (size_t i = 0; i < frontiers_.size(); ++i) {
-    visualization_msgs::Marker marker;
-    marker.header.frame_id = "odom";
-    marker.header.stamp = ros::Time::now();
-    marker.ns = "frontiers";
-    marker.id = i;
-    marker.type = visualization_msgs::Marker::SPHERE;
-    marker.action = visualization_msgs::Marker::ADD;
+    // Sphere marker for cluster center
+    visualization_msgs::Marker sphere;
+    sphere.header.frame_id = "odom";
+    sphere.header.stamp = ros::Time::now();
+    sphere.ns = "frontiers";
+    sphere.id = i * 2;  // Even IDs for spheres
+    sphere.type = visualization_msgs::Marker::SPHERE;
+    sphere.action = visualization_msgs::Marker::ADD;
     
-    marker.pose.position.x = frontiers_[i].average_(0);
-    marker.pose.position.y = frontiers_[i].average_(1);
-    marker.pose.position.z = frontiers_[i].average_(2);
-    marker.pose.orientation.w = 1.0;
+    sphere.pose.position.x = frontiers_[i].average_(0);
+    sphere.pose.position.y = frontiers_[i].average_(1);
+    sphere.pose.position.z = frontiers_[i].average_(2);
+    sphere.pose.orientation.w = 1.0;
     
-    marker.scale.x = 0.5;
-    marker.scale.y = 0.5;
-    marker.scale.z = 0.5;
+    sphere.scale.x = 0.5;
+    sphere.scale.y = 0.5;
+    sphere.scale.z = 0.5;
     
-    marker.color.r = 1.0;
-    marker.color.g = 0.5;
-    marker.color.b = 0.0;
-    marker.color.a = 0.8;
+    sphere.color.r = 1.0;
+    sphere.color.g = 0.5;
+    sphere.color.b = 0.0;
+    sphere.color.a = 0.8;
     
-    marker_array.markers.push_back(marker);
+    marker_array.markers.push_back(sphere);
+    
+    // Text label showing cluster info
+    visualization_msgs::Marker text;
+    text.header.frame_id = "odom";
+    text.header.stamp = ros::Time::now();
+    text.ns = "frontiers";
+    text.id = i * 2 + 1;  // Odd IDs for text
+    text.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+    text.action = visualization_msgs::Marker::ADD;
+    
+    text.pose.position.x = frontiers_[i].average_(0);
+    text.pose.position.y = frontiers_[i].average_(1);
+    text.pose.position.z = frontiers_[i].average_(2) + 0.5;  // Above sphere
+    text.pose.orientation.w = 1.0;
+    
+    text.scale.z = 0.3;  // Text size
+    
+    text.color.r = 1.0;
+    text.color.g = 1.0;
+    text.color.b = 1.0;
+    text.color.a = 1.0;
+    
+    // Display: ID and number of cells
+    std::stringstream ss;
+    ss << "F" << i << " (" << frontiers_[i].cells_.size() << ")";
+    text.text = ss.str();
+    
+    marker_array.markers.push_back(text);
   }
   
   frontier_pub_.publish(marker_array);

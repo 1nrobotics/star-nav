@@ -204,7 +204,7 @@ namespace ego_planner
   void EGOReplanFSM::triggerCallback(const geometry_msgs::PoseStampedPtr &msg)
   {
     have_trigger_ = true;
-    cout << "Triggered!" << endl;
+    ROS_INFO("[EGO] Triggered!");
     init_pt_ = odom_pos_;
   }
 
@@ -213,7 +213,7 @@ namespace ego_planner
     if (msg->pose.position.z < -0.1)
       return;
 
-    cout << "Triggered!" << endl;
+    ROS_INFO("[EGO] New waypoint received");
     // trigger_ = true;
     init_pt_ = odom_pos_;
 
@@ -413,7 +413,7 @@ namespace ego_planner
     static string state_str[8] = {"INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ", "EMERGENCY_STOP", "SEQUENTIAL_START"};
     int pre_s = int(exec_state_);
     exec_state_ = new_state;
-    cout << "[" + pos_call + "]: from " + state_str[pre_s] + " to " + state_str[int(new_state)] << endl;
+    ROS_INFO("[EGO FSM]: %s -> %s", state_str[pre_s].c_str(), state_str[int(new_state)].c_str());
   }
 
   std::pair<int, EGOReplanFSM::FSM_EXEC_STATE> EGOReplanFSM::timesOfConsecutiveStateCalls()
@@ -425,7 +425,7 @@ namespace ego_planner
   {
     static string state_str[8] = {"INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ", "EMERGENCY_STOP", "SEQUENTIAL_START"};
 
-    cout << "[FSM]: state: " + state_str[int(exec_state_)] << endl;
+    ROS_INFO("[EGO FSM]: state: %s", state_str[int(exec_state_)].c_str());
   }
 
   void EGOReplanFSM::execFSMCallback(const ros::TimerEvent &e)
@@ -438,9 +438,9 @@ namespace ego_planner
     {
       printFSMExecState();
       if (!have_odom_)
-        cout << "no odom." << endl;
+        ROS_INFO("[EGO FSM]: no odom.");
       if (!have_target_)
-        cout << "wait for goal or trigger." << endl;
+        ROS_INFO("[EGO FSM]: waiting for goal or trigger.");
       fsm_num = 0;
     }
 
@@ -761,7 +761,7 @@ namespace ego_planner
         planner_manager_->reboundReplan(start_pt_, start_vel_, start_acc_, local_target_pt_, local_target_vel_, (have_new_target_ || flag_use_poly_init), flag_randomPolyTraj);
     have_new_target_ = false;
 
-    cout << "refine_success=" << plan_and_refine_success << endl;
+    ROS_DEBUG("refine_success=%d", plan_and_refine_success);
 
     if (plan_and_refine_success)
     {
@@ -913,7 +913,7 @@ namespace ego_planner
           {
             pos_t = pos_t_temp;
             dist = (pos_t - start_pt_).norm();
-            cout << "Escape conor case \"getLocalTarget\"" << endl;
+            ROS_DEBUG("Escape conor case \"getLocalTarget\"");
             break;
           }
         }

@@ -60,7 +60,7 @@ public:
   void init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_map);
   
   // Main frontier search function
-  void searchFrontiers();
+  void searchFrontiers(const Eigen::Vector3d& drone_pos);
   
   // Get frontiers sorted by cost/gain
   vector<Frontier> getFrontiers() { return frontiers_; }

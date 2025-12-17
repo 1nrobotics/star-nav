@@ -201,7 +201,7 @@ void cmdCallback(const ros::TimerEvent &e)
   }
   else
   {
-    cout << "[Traj server]: invalid time." << endl;
+    ROS_WARN("[Traj server]: invalid time.");
   }
   time_last = time_now;
 

@@ -135,7 +135,7 @@ void ExplorationFSM::initState() {
     return;
   }
   
-  ROS_INFO("[ExplorationFSM] Odometry received. Ready to explore.");
+  ROS_DEBUG("[ExplorationFSM] Odometry received. Ready to explore.");
   transitState(WAIT_TRIGGER, "initState");
 }
 
@@ -161,7 +161,7 @@ void ExplorationFSM::searchFrontierState() {
   
   // Search for frontiers
   ros::Time search_start = ros::Time::now();
-  frontier_finder_->searchFrontiers();
+  frontier_finder_->searchFrontiers(odom_pos_);  // Pass current drone position
   last_frontier_search_time_ = ros::Time::now();
   
   auto frontiers = frontier_finder_->getFrontiers();
@@ -175,9 +175,11 @@ void ExplorationFSM::searchFrontierState() {
   current_frontier_ = frontier_finder_->getBestFrontier(odom_pos_, odom_vel_);
   have_frontier_ = true;
   
-  // Visualize
+  // Visualize frontier clusters (low cost - just cluster centers)
   frontier_finder_->publishFrontiers();
-  frontier_finder_->publishFrontierCells(current_frontier_.cells_);
+  
+  // Optional: Publish cells only for selected frontier (comment out to reduce RViz load)
+  // frontier_finder_->publishFrontierCells(current_frontier_.cells_);
   
   transitState(PLAN_TO_FRONTIER, "searchFrontierState");
 }
@@ -208,7 +210,7 @@ void ExplorationFSM::planToFrontierState() {
     return;
   }
   
-  ROS_INFO("[ExplorationFSM] Planning to frontier at (%.2f, %.2f, %.2f)", 
+  ROS_DEBUG("[ExplorationFSM] Planning to frontier at (%.2f, %.2f, %.2f)", 
            target_pt_(0), target_pt_(1), target_pt_(2));
   
   // Publish target as 2D Nav Goal to trigger EGO planner FSM (same as manual mode)
@@ -235,7 +237,7 @@ void ExplorationFSM::execTrajState() {
     
     // Mark this frontier region as explored (to avoid revisiting)
     frontier_finder_->markAsExplored(target_pt_);
-    ROS_INFO("[ExplorationFSM] Marked region around (%.2f, %.2f, %.2f) as explored",
+    ROS_DEBUG("[ExplorationFSM] Marked region around (%.2f, %.2f, %.2f) as explored",
              target_pt_(0), target_pt_(1), target_pt_(2));
     
     // Wait and search for new frontiers
@@ -246,7 +248,7 @@ void ExplorationFSM::execTrajState() {
   
   // Periodically search for new frontiers during execution
   if ((ros::Time::now() - last_frontier_search_time_).toSec() > frontier_search_interval_) {
-    ROS_INFO("[ExplorationFSM] Periodic frontier search during execution");
+    ROS_DEBUG("[ExplorationFSM] Periodic frontier search during execution");
     transitState(SEARCH_FRONTIER, "execTrajState");
     return;
   }
