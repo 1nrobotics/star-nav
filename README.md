@@ -37,8 +37,6 @@ pose:
     w: 0.0"
 ```
 
-rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
-
 # In RViz, add these displays:
 # 1. MarkerArray - Topic: /exploration/frontiers
 # 2. PointCloud2 - Topic: /exploration/frontier_cells
