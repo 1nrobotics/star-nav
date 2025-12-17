@@ -122,10 +122,15 @@
     <param name="grid_map/local_update_range_y" value="30.0" type="double"/>
     <param name="grid_map/local_update_range_z" value="5.0" type="double"/>
     <param name="grid_map/obstacles_inflation" value="0.3" type="double"/>
+
+    <!-- Enable pointcloud raycasting for exploration (marks free space). -->
+    <!-- Without this, cloudCallback won't trigger occupancy updates and free cell count stays 0. -->
+    <param name="grid_map/enable_pointcloud_raycasting" value="true" type="bool"/>
     
     <!-- Topic remapping -->
-    <remap from="/exploration_node/odom" to="/mavros/local_position/odom"/>
-    <remap from="/exploration_node/cloud" to="/vk180/pointcloud"/>
+    <!-- GridMap subscribes in the node's private namespace ("~grid_map/*"). -->
+    <remap from="~grid_map/odom" to="/mavros/local_position/odom"/>
+    <remap from="~grid_map/cloud" to="/vk180/pointcloud"/>
     
   </node>
   

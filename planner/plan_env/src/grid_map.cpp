@@ -667,7 +667,12 @@ void GridMap::updateOccupancyCallback(const ros::TimerEvent & /*event*/)
   // ros::Time t1, t2, t3, t4;
   // t1 = ros::Time::now();
 
-  projectDepthImage();
+  // Depth-fusion path: project depth image into point set for raycasting.
+  // Pointcloud-only path: cloudCallback already populates md_.proj_points_ and md_.proj_points_cnt.
+  if (md_.flag_use_depth_fusion)
+  {
+    projectDepthImage();
+  }
   // t2 = ros::Time::now();
   raycastProcess();
   // t3 = ros::Time::now();
@@ -961,7 +966,11 @@ void GridMap::publishMapInflate(bool all_info)
 
 bool GridMap::odomValid() { return md_.has_odom_; }
 
-bool GridMap::hasDepthObservation() { return md_.has_first_depth_; }
+bool GridMap::hasDepthObservation()
+{
+  // In pointcloud-only mode (exploration), treat cloud reception as a valid map observation.
+  return md_.has_first_depth_ || (mp_.enable_pointcloud_raycasting_ && md_.has_cloud_);
+}
 
 Eigen::Vector3d GridMap::getOrigin() { return mp_.map_origin_; }
 

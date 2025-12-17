@@ -187,8 +187,9 @@
         <param name="grid_map/enable_pointcloud_raycasting" value="true" type="bool"/>
         
         <!-- Topic remapping -->
-        <remap from="grid_map/odom" to="/mavros/local_position/odom"/>
-        <remap from="grid_map/cloud" to="/vk180/pointcloud"/>
+        <!-- GridMap subscribes in the node's private namespace ("~grid_map/*") -->
+        <remap from="~grid_map/odom" to="/mavros/local_position/odom"/>
+        <remap from="~grid_map/cloud" to="/vk180/pointcloud"/>
         
     </node>
     
