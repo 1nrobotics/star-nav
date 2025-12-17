@@ -63,6 +63,9 @@ rostopic echo /mavros/local_position/odom | grep -A3 "position"
 # Trigger exploration manually
 rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
 
+# FSM returns to WAIT_TRIGGER
+rostopic pub /exploration/trigger_once std_msgs/Bool "data: false"
+
 # Emergency stop exploration
 rostopic pub /exploration/finish std_msgs/Empty "{}"
 

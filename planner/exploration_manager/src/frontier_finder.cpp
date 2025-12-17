@@ -111,6 +111,15 @@ void FrontierFinder::searchFrontiers(const Eigen::Vector3d& drone_pos) {
   frontier_cells_.clear();
   frontiers_.clear();
   
+  ROS_INFO("[FrontierFinder] Starting search at drone position [%.2f, %.2f, %.2f]", 
+           drone_pos(0), drone_pos(1), drone_pos(2));
+  if (use_geofence_) {
+    double dist_from_center = (drone_pos - exploration_center_).norm();
+    ROS_INFO("[FrontierFinder] Geofence: %.1fm from center [%.1f, %.1f, %.1f], max allowed: %.1fm", 
+             dist_from_center, exploration_center_(0), exploration_center_(1), exploration_center_(2),
+             max_exploration_radius_);
+  }
+  
   ros::Time t1 = ros::Time::now();
   
   // Reset visited flags
@@ -131,15 +140,23 @@ void FrontierFinder::searchFrontiers(const Eigen::Vector3d& drone_pos) {
   search_min = search_min.cwiseMax(map_min);
   search_max = search_max.cwiseMin(map_max);
   
-  ROS_DEBUG("[FrontierFinder] Searching in local region [%.1f,%.1f,%.1f] to [%.1f,%.1f,%.1f]",
+  ROS_INFO("[FrontierFinder] Searching in local region [%.1f,%.1f,%.1f] to [%.1f,%.1f,%.1f] with radius %.1f",
            search_min(0), search_min(1), search_min(2),
-           search_max(0), search_max(1), search_max(2));
+           search_max(0), search_max(1), search_max(2), frontier_search_radius_);
+  
+  int unknown_cells = 0, free_cells = 0, occupied_cells = 0;
   
   // Search for frontier cells in local region
   for (double x = search_min(0); x < search_max(0); x += resolution_) {
     for (double y = search_min(1); y < search_max(1); y += resolution_) {
       for (double z = search_min(2); z < search_max(2); z += resolution_) {
         Eigen::Vector3d pos(x, y, z);
+        
+        // Track occupancy statistics
+        int occ = grid_map_->getOccupancy(pos);
+        if (occ == 0) free_cells++;
+        else if (occ == 1) occupied_cells++;
+        else unknown_cells++;
         
         if (isFrontierCell(pos)) {
           frontier_cells_.push_back(pos);
@@ -148,7 +165,8 @@ void FrontierFinder::searchFrontiers(const Eigen::Vector3d& drone_pos) {
     }
   }
   
-  ROS_DEBUG("[FrontierFinder] Found %lu frontier cells", frontier_cells_.size());
+  ROS_INFO("[FrontierFinder] Map stats - Unknown: %d, Free: %d, Occupied: %d, Frontier cells: %lu",
+           unknown_cells, free_cells, occupied_cells, frontier_cells_.size());
   
   // Cluster frontier cells
   if (!frontier_cells_.empty()) {
@@ -156,7 +174,7 @@ void FrontierFinder::searchFrontiers(const Eigen::Vector3d& drone_pos) {
   }
   
   ros::Time t2 = ros::Time::now();
-  ROS_DEBUG("[FrontierFinder] Search took %.3f ms, found %lu frontiers", 
+  ROS_INFO("[FrontierFinder] Search took %.3f ms, found %lu frontier clusters", 
            (t2 - t1).toSec() * 1000.0, frontiers_.size());
 }
 

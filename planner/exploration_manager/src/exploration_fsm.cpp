@@ -166,7 +166,7 @@ void ExplorationFSM::searchFrontierState() {
   
   auto frontiers = frontier_finder_->getFrontiers();
   if (frontiers.empty()) {
-    ROS_INFO("[ExplorationFSM] No frontiers found. Exploration complete!");
+    ROS_INFO_THROTTLE(5.0, "[ExplorationFSM] No frontiers found. Exploration complete!");
     transitState(FINISH, "searchFrontierState");
     return;
   }
@@ -258,7 +258,18 @@ void ExplorationFSM::execTrajState() {
 }
 
 void ExplorationFSM::finishState() {
-  ROS_INFO("[ExplorationFSM] Exploration finished, hovering at current position.");
+  static bool logged_finish = false;
+  
+  if (!logged_finish) {
+    ROS_INFO("[ExplorationFSM] Exploration finished! Send new trigger to restart.");
+    logged_finish = true;
+  }
+  
+  // Reset trigger so we can start again if requested
+  if (!exploration_triggered_) {
+    logged_finish = false; // Reset for next exploration
+    transitState(WAIT_TRIGGER, "finishState");
+  }
   
   // EGO planner FSM will automatically hover when no new goal is published
   // No need to send commands - just wait in this state
