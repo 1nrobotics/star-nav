@@ -131,8 +131,10 @@ void GridMap::initMap(ros::NodeHandle &nh)
   occ_timer_ = node_.createTimer(ros::Duration(0.05), &GridMap::updateOccupancyCallback, this);
   vis_timer_ = node_.createTimer(ros::Duration(0.11), &GridMap::visCallback, this);
 
-  map_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy", 10);
-  map_inf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy_inflate", 10);
+  // Latched publishers so RViz can connect later and still see the last map.
+  // Also helps prevent the visualization from flickering when updates are intermittent.
+  map_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy", 10, true);
+  map_inf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy_inflate", 10, true);
 
   md_.occ_need_update_ = false;
   md_.local_updated_ = false;
@@ -908,6 +910,10 @@ void GridMap::publishMap()
   cloud.header.frame_id = mp_.frame_id_;
   sensor_msgs::PointCloud2 cloud_msg;
 
+  // Avoid publishing empty clouds: RViz will otherwise show "no data" and appear to flicker.
+  if (cloud.points.empty())
+    return;
+
   pcl::toROSMsg(cloud, cloud_msg);
   map_pub_.publish(cloud_msg);
 }
@@ -957,6 +963,10 @@ void GridMap::publishMapInflate(bool all_info)
   cloud.is_dense = true;
   cloud.header.frame_id = mp_.frame_id_;
   sensor_msgs::PointCloud2 cloud_msg;
+
+  // Avoid publishing empty clouds: keep last valid visualization latched.
+  if (cloud.points.empty())
+    return;
 
   pcl::toROSMsg(cloud, cloud_msg);
   map_inf_pub_.publish(cloud_msg);

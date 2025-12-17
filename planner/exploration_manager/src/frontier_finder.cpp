@@ -47,9 +47,9 @@ void FrontierFinder::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_map) {
     }
   }
   
-  // Publishers
-  frontier_pub_ = nh.advertise<visualization_msgs::MarkerArray>("exploration/frontiers", 10);
-  frontier_cells_pub_ = nh.advertise<sensor_msgs::PointCloud2>("exploration/frontier_cells", 10);
+  // Publishers (latched so RViz can connect later and still see the last published result)
+  frontier_pub_ = nh.advertise<visualization_msgs::MarkerArray>("exploration/frontiers", 10, true);
+  frontier_cells_pub_ = nh.advertise<sensor_msgs::PointCloud2>("exploration/frontier_cells", 10, true);
   
   ROS_INFO("[FrontierFinder] Initialized");
   ROS_DEBUG("  - Search radius: %.2f m", frontier_search_radius_);
