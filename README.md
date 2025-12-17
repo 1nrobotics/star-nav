@@ -33,6 +33,7 @@ pose:
     w: 0.0"
 ```
 
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
 
 ## Field Test Dev
 ```bash

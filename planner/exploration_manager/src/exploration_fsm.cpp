@@ -1,7 +1,7 @@
 #include "exploration_manager/exploration_fsm.h"
 #include <std_msgs/String.h>
 #include <visualization_msgs/Marker.h>
-#include <quadrotor_msgs/PositionCommand.h>
+#include <geometry_msgs/PoseStamped.h>h>
 
 namespace exploration_manager {
 
@@ -38,13 +38,14 @@ void ExplorationFSM::init(ros::NodeHandle& nh) {
   // Subscribers
   odom_sub_ = nh.subscribe("/mavros/local_position/odom", 10, 
                            &ExplorationFSM::odometryCallback, this);
-  trigger_sub_ = nh.subscribe("/move_base_simple/goal", 10,
+  // Use separate trigger topic to avoid conflict with manual 2D Nav Goal
+  trigger_sub_ = nh.subscribe("/exploration/trigger", 10,
                               &ExplorationFSM::triggerCallback, this);
   finish_sub_ = nh.subscribe("/exploration/finish", 10,
                              &ExplorationFSM::finishCallback, this);
   
   // Publishers
-  goal_pub_ = nh.advertise<quadrotor_msgs::PositionCommand>("/drone_0_planning/pos_cmd", 10);
+  goal_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
   state_pub_ = nh.advertise<std_msgs::String>("/exploration/state", 10);
   
   // Timer
@@ -196,15 +197,16 @@ void ExplorationFSM::planToFrontierState() {
   ROS_INFO("[ExplorationFSM] Planning to frontier at (%.2f, %.2f, %.2f)", 
            target_pt_(0), target_pt_(1), target_pt_(2));
   
-  // Publish target as PositionCommand for EGO planner/px4ctrl
-  quadrotor_msgs::PositionCommand cmd;
-  cmd.header.stamp = ros::Time::now();
-  cmd.header.frame_id = "odom";
-  cmd.position.x = target_pt_(0);
-  cmd.position.y = target_pt_(1);
-  cmd.position.z = target_pt_(2);
-  cmd.yaw = target_vp.yaw_;
-  goal_pub_.publish(cmd);
+  // Publish target as 2D Nav Goal to trigger EGO planner FSM (same as manual mode)
+  // This ensures collision-free planning and automatic replanning
+  geometry_msgs::PoseStamped goal;
+  goal.header.stamp = ros::Time::now();
+  goal.header.frame_id = "world";
+  goal.pose.position.x = target_pt_(0);
+  goal.pose.position.y = target_pt_(1);
+  goal.pose.position.z = target_pt_(2);
+  goal.pose.orientation.w = 1.0;
+  goal_pub_.publish(goal);
   
   replan_count_ = 0;
   transitState(EXEC_TRAJ, "planToFrontierState");
@@ -239,23 +241,10 @@ void ExplorationFSM::execTrajState() {
   // This exploration FSM just manages high-level frontier selection
 }
 
-void ExplorationFSM::finishState() {
-  ROS_INFO_THROTTLE(5.0, "[ExplorationFSM] Exploration finished. Hovering...");
+void ExplorationFSM::finishState() { at current position.");
   
-  // Publish hover command
-  quadrotor_msgs::PositionCommand cmd;
-  cmd.header.stamp = ros::Time::now();
-  cmd.header.frame_id = "odom";
-  cmd.position.x = odom_pos_(0);
-  cmd.position.y = odom_pos_(1);
-  cmd.position.z = odom_pos_(2);
-  cmd.velocity.x = 0;
-  cmd.velocity.y = 0;
-  cmd.velocity.z = 0;
-  cmd.acceleration.x = 0;
-  cmd.acceleration.y = 0;
-  cmd.acceleration.z = 0;
-  cmd.yaw = 0;
+  // EGO planner FSM will automatically hover when no new goal is published
+  // No need to send commands - just wait in this state
   cmd.yaw_dot = 0;
   
   goal_pub_.publish(cmd);
