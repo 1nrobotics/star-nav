@@ -114,7 +114,7 @@ Edit in `launch/vk180_exploration.launch`:
 ```xml
 <!-- Exploration behavior -->
 <param name="fsm/max_exploration_time" value="600.0"/>          <!-- Max time (seconds) -->
-<param name="fsm/frontier_search_interval" value="3.0"/>        <!-- Re-search frequency -->
+<param name="fsm/frontier_search_interval" value="60.0"/>       <!-- Re-search interval while executing -->
 
 <!-- Frontier detection -->
 <param name="exploration/frontier_search_radius" value="10.0"/>  <!-- Search radius (m) -->

@@ -12,7 +12,9 @@ void ExplorationFSM::init(ros::NodeHandle& nh) {
   nh.param("fsm/fsm_exec_dt", fsm_exec_dt_, 0.1);
   nh.param("fsm/replan_time", replan_time_, 0.05);
   nh.param("fsm/max_exploration_time", max_exploration_time_, 600.0); // 10 min default
-  nh.param("fsm/frontier_search_interval", frontier_search_interval_, 2.0);
+  // How often to re-run frontier search while executing a trajectory.
+  // Note: reaching the goal triggers a new SEARCH_FRONTIER immediately regardless of this interval.
+  nh.param("fsm/frontier_search_interval", frontier_search_interval_, 60.0);
   
   // Initialize modules
   frontier_finder_.reset(new FrontierFinder);

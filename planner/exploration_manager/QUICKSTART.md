@@ -85,7 +85,7 @@ Key parameters in launch file:
 ```xml
 <!-- Exploration Behavior -->
 <param name="fsm/max_exploration_time" value="600.0"/>          <!-- 10 minutes -->
-<param name="fsm/frontier_search_interval" value="3.0"/>        <!-- Re-search every 3s -->
+<param name="fsm/frontier_search_interval" value="60.0"/>       <!-- Re-search every 60s while executing -->
 
 <!-- Frontier Detection -->
 <param name="exploration/frontier_search_radius" value="10.0"/>  <!-- Search radius (m) -->
