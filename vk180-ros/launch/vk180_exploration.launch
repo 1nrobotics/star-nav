@@ -136,7 +136,7 @@
         <param name="fsm/fsm_exec_dt" value="0.1" type="double"/>
         <param name="fsm/replan_time" value="0.05" type="double"/>
         <param name="fsm/max_exploration_time" value="600.0" type="double"/> <!-- 10 minutes -->
-        <param name="fsm/frontier_search_interval" value="3.0" type="double"/>
+        <param name="fsm/frontier_search_interval" value="60.0" type="double"/>
         
         <!-- Frontier Finder Parameters -->
         <param name="exploration/frontier_cluster_min_size" value="0.8" type="double"/>
@@ -187,8 +187,9 @@
         <param name="grid_map/enable_pointcloud_raycasting" value="true" type="bool"/>
         
         <!-- Topic remapping -->
-        <remap from="grid_map/odom" to="/mavros/local_position/odom"/>
-        <remap from="grid_map/cloud" to="/vk180/pointcloud"/>
+        <!-- GridMap subscribes in the node's private namespace ("~grid_map/*") -->
+        <remap from="~grid_map/odom" to="/mavros/local_position/odom"/>
+        <remap from="~grid_map/cloud" to="/vk180/pointcloud"/>
         
     </node>
     

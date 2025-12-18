@@ -131,8 +131,10 @@ void GridMap::initMap(ros::NodeHandle &nh)
   occ_timer_ = node_.createTimer(ros::Duration(0.05), &GridMap::updateOccupancyCallback, this);
   vis_timer_ = node_.createTimer(ros::Duration(0.11), &GridMap::visCallback, this);
 
-  map_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy", 10);
-  map_inf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy_inflate", 10);
+  // Latched publishers so RViz can connect later and still see the last map.
+  // Also helps prevent the visualization from flickering when updates are intermittent.
+  map_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy", 10, true);
+  map_inf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy_inflate", 10, true);
 
   md_.occ_need_update_ = false;
   md_.local_updated_ = false;
@@ -667,7 +669,12 @@ void GridMap::updateOccupancyCallback(const ros::TimerEvent & /*event*/)
   // ros::Time t1, t2, t3, t4;
   // t1 = ros::Time::now();
 
-  projectDepthImage();
+  // Depth-fusion path: project depth image into point set for raycasting.
+  // Pointcloud-only path: cloudCallback already populates md_.proj_points_ and md_.proj_points_cnt.
+  if (md_.flag_use_depth_fusion)
+  {
+    projectDepthImage();
+  }
   // t2 = ros::Time::now();
   raycastProcess();
   // t3 = ros::Time::now();
@@ -903,6 +910,10 @@ void GridMap::publishMap()
   cloud.header.frame_id = mp_.frame_id_;
   sensor_msgs::PointCloud2 cloud_msg;
 
+  // Avoid publishing empty clouds: RViz will otherwise show "no data" and appear to flicker.
+  if (cloud.points.empty())
+    return;
+
   pcl::toROSMsg(cloud, cloud_msg);
   map_pub_.publish(cloud_msg);
 }
@@ -953,6 +964,10 @@ void GridMap::publishMapInflate(bool all_info)
   cloud.header.frame_id = mp_.frame_id_;
   sensor_msgs::PointCloud2 cloud_msg;
 
+  // Avoid publishing empty clouds: keep last valid visualization latched.
+  if (cloud.points.empty())
+    return;
+
   pcl::toROSMsg(cloud, cloud_msg);
   map_inf_pub_.publish(cloud_msg);
 
@@ -961,7 +976,11 @@ void GridMap::publishMapInflate(bool all_info)
 
 bool GridMap::odomValid() { return md_.has_odom_; }
 
-bool GridMap::hasDepthObservation() { return md_.has_first_depth_; }
+bool GridMap::hasDepthObservation()
+{
+  // In pointcloud-only mode (exploration), treat cloud reception as a valid map observation.
+  return md_.has_first_depth_ || (mp_.enable_pointcloud_raycasting_ && md_.has_cloud_);
+}
 
 Eigen::Vector3d GridMap::getOrigin() { return mp_.map_origin_; }
 
