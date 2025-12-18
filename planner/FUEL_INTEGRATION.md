@@ -25,6 +25,7 @@ This document describes the integration of FUEL (FAST-Exploration Using LKH) pla
 ```
 - Odometry: PX4 EKF2 fused VIO (/mavros/local_position/odom)
 - Sensor: VK180 point cloud (/vk180/pointcloud)  
+- Depth (added): Projected depth image (/vk180/depth/image_rect_raw)
 - Topics: Remapped to match hardware
 ```
 
@@ -36,6 +37,7 @@ Created `vk180_fuel_integration.launch` with the following mappings:
 |-----------|-----------------|---------|
 | `/odom_world` | `/mavros/local_position/odom` | Fused odometry from PX4 EKF2 |
 | `/map_ros/cloud` | `/vk180/pointcloud` | Point cloud from VK180 |
+| `/map_ros/depth` | `/vk180/depth/image_rect_raw` | Depth image projected from VK180 point cloud |
 | `/map_ros/pose` | `/mavros/local_position/pose` | Camera pose |
 | `/planning/pos_cmd` | `/planning/pos_cmd` | Commands to px4ctrl |
 
