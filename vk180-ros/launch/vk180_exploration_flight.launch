@@ -81,7 +81,7 @@
 
     <!-- Subscribe to the world-frame cloud and the same pose that is remapped into /map_ros/pose -->
     <remap from="cloud" to="/vk180/pointcloud"/>
-    <remap from="pose" to="/mavros/vision_pose/pose"/>
+    <remap from="pose" to="/mavros/local_position/pose"/>
     <remap from="depth" to="/vk180/depth/image_rect_raw"/>
   </node>
   
@@ -135,7 +135,8 @@
     
     <!-- VK180 topic remappings - Use PX4 fused odometry -->
     <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-    <arg name="sensor_pose_topic" value="/mavros/vision_pose/pose"/>
+    <!-- Use PX4 EKF2 fused pose to stay consistent with the fused odometry used for pointcloud/world -->
+    <arg name="sensor_pose_topic" value="/mavros/local_position/pose"/>
     <!-- Feed FUEL with a depth image derived from VK180 point cloud -->
     <arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
     <!-- Disable direct cloud callback to avoid double-fusing depth+cloud in MapROS -->

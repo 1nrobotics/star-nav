@@ -38,7 +38,7 @@ Created `vk180_fuel_integration.launch` with the following mappings:
 | `/odom_world` | `/mavros/local_position/odom` | Fused odometry from PX4 EKF2 |
 | `/map_ros/cloud` | `/vk180/pointcloud` | Point cloud from VK180 |
 | `/map_ros/depth` | `/vk180/depth/image_rect_raw` | Depth image projected from VK180 point cloud |
-| `/map_ros/pose` | `/mavros/local_position/pose` | Camera pose |
+| `/map_ros/pose` | `/mavros/local_position/pose` | Pose used for depth/cloud integration (EKF2 fused) |
 | `/planning/pos_cmd` | `/planning/pos_cmd` | Commands to px4ctrl |
 
 ### 4. Sensor Configuration Changes
