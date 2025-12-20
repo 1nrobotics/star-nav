@@ -120,11 +120,22 @@ void MapROS::updateESDFCallback(const ros::TimerEvent& /*event*/) {
 
 void MapROS::depthPoseCallback(const sensor_msgs::ImageConstPtr& img,
                                const geometry_msgs::PoseStampedConstPtr& pose) {
+  static int callback_count = 0;
+  callback_count++;
+  
   camera_pos_(0) = pose->pose.position.x;
   camera_pos_(1) = pose->pose.position.y;
   camera_pos_(2) = pose->pose.position.z;
-  if (!map_->isInMap(camera_pos_))  // exceed mapped region
+  
+  ROS_INFO_THROTTLE(2.0, "DepthPoseCallback #%d: camera_pos=[%.2f,%.2f,%.2f], frame=%s, depth=%dx%d",
+                   callback_count, camera_pos_(0), camera_pos_(1), camera_pos_(2),
+                   pose->header.frame_id.c_str(), img->width, img->height);
+  
+  if (!map_->isInMap(camera_pos_)) {  // exceed mapped region
+    ROS_WARN_THROTTLE(2.0, "Camera position [%.2f,%.2f,%.2f] is OUTSIDE map bounds! Skipping depth fusion.",
+                     camera_pos_(0), camera_pos_(1), camera_pos_(2));
     return;
+  }
 
   camera_q_ = Eigen::Quaterniond(pose->pose.orientation.w, pose->pose.orientation.x,
                                  pose->pose.orientation.y, pose->pose.orientation.z);
@@ -138,6 +149,9 @@ void MapROS::depthPoseCallback(const sensor_msgs::ImageConstPtr& img,
   // generate point cloud, update map
   proessDepthImage();
   map_->inputPointCloud(point_cloud_, proj_points_cnt, camera_pos_);
+  
+  ROS_INFO_THROTTLE(2.0, "Fused %d depth points into occupancy map", proj_points_cnt);
+  
   if (local_updated_) {
     map_->clearAndInflateLocalMap();
     esdf_need_update_ = true;

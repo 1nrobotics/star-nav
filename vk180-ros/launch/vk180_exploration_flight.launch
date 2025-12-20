@@ -112,7 +112,7 @@
     
     <!-- VK180 topic remappings - Use PX4 fused odometry -->
     <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-    <!-- Use VK180 camera pose (computed from body pose + camera extrinsics) -->
+    <!-- Use VK180 republished body pose as PoseStamped (camera assumed at body center) -->
     <arg name="sensor_pose_topic" value="/vk180/camera_pose"/>
     <!-- Feed FUEL with depth image from VK180 stereo camera -->
     <arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
