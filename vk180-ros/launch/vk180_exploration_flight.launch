@@ -110,8 +110,8 @@
     
     <!-- VK180 topic remappings - Use PX4 fused odometry -->
     <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-    <!-- Use VK180 republished body pose as PoseStamped (camera assumed at body center) -->
-    <arg name="sensor_pose_topic" value="/vk180/camera_pose"/>
+    <!-- Use vision pose as sensor pose (virtual camera centered at body) -->
+    <arg name="sensor_pose_topic" value="/mavros/vision_pose/pose"/>
     <!-- Feed FUEL with depth image from VK180 stereo camera -->
     <arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
     <!-- Disable direct cloud callback to avoid double-fusing depth+cloud in MapROS -->

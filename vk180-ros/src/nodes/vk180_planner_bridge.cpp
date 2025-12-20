@@ -53,11 +53,8 @@ public:
         // Publishers for planner
         odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odom_raw", 10);  // Raw VIO before PX4 fusion
         vision_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);  // Vision pose to PX4 EKF2
-        depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/depth", 10);
         depth_image_rect_raw_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/depth/image_rect_raw", 10);  // For exploration planner
         camera_info_pub_ = nh_.advertise<sensor_msgs::CameraInfo>("vk180/depth/camera_info", 10);  // Camera intrinsics for planner
-        camera_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("vk180/camera_pose", 10);  // Body pose as PoseStamped for planner
-        disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
         pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("vk180/pointcloud", 10);
         image_left_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image_left", 10);
         image_right_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image_right", 10);
@@ -94,11 +91,8 @@ private:
     ros::NodeHandle nh_, pnh_;
     ros::Publisher odom_pub_;
     ros::Publisher vision_pose_pub_;
-    ros::Publisher depth_pub_;
     ros::Publisher depth_image_rect_raw_pub_;
     ros::Publisher camera_info_pub_;
-    ros::Publisher camera_pose_pub_;
-    ros::Publisher disparity_pub_;
     ros::Publisher pointcloud_pub_;
     ros::Publisher image_left_pub_;
     ros::Publisher image_right_pub_;
@@ -645,16 +639,6 @@ private:
         
         latest_odom_time_ = msg->header.stamp;
         has_odom_ = true;
-        
-        // Republish body pose as PoseStamped for planner (treating camera as body center)
-        geometry_msgs::PoseStamped camera_pose;
-        camera_pose.header = msg->header;  // Same timestamp and frame as MAVROS
-        camera_pose.pose = msg->pose.pose;
-        camera_pose_pub_.publish(camera_pose);
-        
-        ROS_INFO_THROTTLE(5.0, "Republished body pose as camera_pose in frame '%s': pos=[%.2f,%.2f,%.2f]",
-                         camera_pose.header.frame_id.c_str(),
-                         camera_pose.pose.position.x, camera_pose.pose.position.y, camera_pose.pose.position.z);
         
         ROS_INFO_ONCE("Receiving MAVROS fused odometry for point cloud transformation");
     }
