@@ -49,6 +49,18 @@ Visualization Manager:
       Reference Frame: <Fixed Frame>
       Show Trail: false
       Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /vk180/depth/image_rect_raw
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: projected_depth_mm
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: true
     - Alpha: 0.5
       Cell Size: 1
       Class: rviz/Grid

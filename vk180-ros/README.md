@@ -162,10 +162,27 @@ rostopic echo /vk180/odometry
 FUEL's `MapROS` depth pipeline expects a depth image (`sensor_msgs/Image`) in `16UC1` (millimeters) plus a pose stream. VK180 primarily provides a world-frame point cloud, so this repo adds a small projector node:
 
 - Node: `vk180_cloud_to_depth`
-- Subscribes: `/vk180/pointcloud` and a pose topic (e.g. `/mavros/vision_pose/pose`)
+- Subscribes: `/vk180/pointcloud` and a pose topic (recommended: `/mavros/local_position/pose`)
 - Publishes: `/vk180/depth/image_rect_raw` (`16UC1`, mm)
 
 This is wired into [vk180-ros/launch/vk180_exploration_flight.launch](vk180-ros/launch/vk180_exploration_flight.launch) so you can feed FUEL via `depth_topic:=/vk180/depth/image_rect_raw`.
+
+## RViz (recommended displays)
+
+For the full VK180 + FUEL exploration stack, the launch supports RViz:
+
+```bash
+roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=true
+```
+
+In RViz, keep:
+
+- **Fixed Frame**: `world`
+- **Depth Image**: `/vk180/depth/image_rect_raw` (projected from the VK180 cloud; `16UC1` mm)
+- **Mapping clouds**: `/sdf_map/occupancy_all`, `/sdf_map/occupancy_local_inflate`
+- **Planner markers**: `/planning_vis/trajectory`, `/planning_vis/frontier`, `/planning_vis/viewpoints`
+
+If you want a VK180-only visualization preset, [vk180-ros/config/vk180_planner_visualization.rviz](vk180-ros/config/vk180_planner_visualization.rviz) now also includes `projected_depth_mm` for `/vk180/depth/image_rect_raw`.
 
 ## Dependencies
 
