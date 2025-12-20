@@ -54,6 +54,13 @@
     <param name="max_depth" value="10.0"/>
     <param name="min_depth" value="0.4"/>
   </node>
+
+  <!-- ============================================ -->
+  <!-- 1b. PointCloud -> Depth Image Converter      -->
+  <!-- ============================================ -->
+  <!-- VK180 Planner Bridge now publishes depth directly to /vk180/depth/image_rect_raw -->
+  <!-- No need for separate cloud_to_depth node -->
+  <!-- ============================================ -->
   
   <!-- ============================================ -->
   <!-- 2. MAVROS - PX4 Communication               -->
@@ -98,18 +105,21 @@
     <!-- Exploration bounds (geofence) -->
     <arg name="box_min_x" value="-5.0"/>
     <arg name="box_min_y" value="-5.0"/>
-    <arg name="box_min_z" value="0.0"/>
+    <arg name="box_min_z" value="-2.0"/>
     <arg name="box_max_x" value="5.0"/>
     <arg name="box_max_y" value="5.0"/>
-    <arg name="box_max_z" value="2.0"/>
+    <arg name="box_max_z" value="3.0"/>
     
     <!-- VK180 topic remappings - Use PX4 fused odometry -->
     <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-    <arg name="sensor_pose_topic" value="/mavros/vision_pose/pose"/>
-    <arg name="depth_topic" value="/invalid_topic"/>  <!-- VK180 doesn't provide depth images -->
-    <arg name="cloud_topic" value="/vk180/pointcloud"/>
+    <!-- Use VK180 republished body pose as PoseStamped (camera assumed at body center) -->
+    <arg name="sensor_pose_topic" value="/vk180/camera_pose"/>
+    <!-- Feed FUEL with depth image from VK180 stereo camera -->
+    <arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
+    <!-- Disable direct cloud callback to avoid double-fusing depth+cloud in MapROS -->
+    <arg name="cloud_topic" value="/invalid_topic"/>
     
-    <!-- Camera intrinsics (not used for point cloud, but required by algorithm.xml) -->
+    <!-- Ideal camera model for simplicity (640x480, 90° FOV) -->
     <arg name="cx" value="320.0"/>
     <arg name="cy" value="240.0"/>
     <arg name="fx" value="320.0"/>

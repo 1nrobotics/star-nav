@@ -120,11 +120,22 @@ void MapROS::updateESDFCallback(const ros::TimerEvent& /*event*/) {
 
 void MapROS::depthPoseCallback(const sensor_msgs::ImageConstPtr& img,
                                const geometry_msgs::PoseStampedConstPtr& pose) {
+  static int callback_count = 0;
+  callback_count++;
+  
   camera_pos_(0) = pose->pose.position.x;
   camera_pos_(1) = pose->pose.position.y;
   camera_pos_(2) = pose->pose.position.z;
-  if (!map_->isInMap(camera_pos_))  // exceed mapped region
+  
+  ROS_INFO_THROTTLE(2.0, "DepthPoseCallback #%d: camera_pos=[%.2f,%.2f,%.2f], frame=%s, depth=%dx%d",
+                   callback_count, camera_pos_(0), camera_pos_(1), camera_pos_(2),
+                   pose->header.frame_id.c_str(), img->width, img->height);
+  
+  if (!map_->isInMap(camera_pos_)) {  // exceed mapped region
+    ROS_WARN_THROTTLE(2.0, "Camera position [%.2f,%.2f,%.2f] is OUTSIDE map bounds! Skipping depth fusion.",
+                     camera_pos_(0), camera_pos_(1), camera_pos_(2));
     return;
+  }
 
   camera_q_ = Eigen::Quaterniond(pose->pose.orientation.w, pose->pose.orientation.x,
                                  pose->pose.orientation.y, pose->pose.orientation.z);
@@ -138,6 +149,9 @@ void MapROS::depthPoseCallback(const sensor_msgs::ImageConstPtr& img,
   // generate point cloud, update map
   proessDepthImage();
   map_->inputPointCloud(point_cloud_, proj_points_cnt, camera_pos_);
+  
+  ROS_INFO_THROTTLE(2.0, "Fused %d depth points into occupancy map", proj_points_cnt);
+  
   if (local_updated_) {
     map_->clearAndInflateLocalMap();
     esdf_need_update_ = true;
@@ -183,22 +197,36 @@ void MapROS::proessDepthImage() {
   Eigen::Matrix3d camera_r = camera_q_.toRotationMatrix();
   Eigen::Vector3d pt_cur, pt_world;
   const double inv_factor = 1.0 / k_depth_scaling_factor_;
+  
+  int valid_depths = 0;
+  int zero_depths = 0;
+  int too_far = 0;
+  int too_close = 0;
 
   for (int v = depth_filter_margin_; v < rows - depth_filter_margin_; v += skip_pixel_) {
     row_ptr = depth_image_->ptr<uint16_t>(v) + depth_filter_margin_;
     for (int u = depth_filter_margin_; u < cols - depth_filter_margin_; u += skip_pixel_) {
-      depth = (*row_ptr) * inv_factor;
+      uint16_t depth_raw = *row_ptr;
+      depth = depth_raw * inv_factor;
       row_ptr = row_ptr + skip_pixel_;
 
       // // filter depth
       // if (depth > 0.01)
       //   depth += rand_noise_(eng_);
 
-      // TODO: simplify the logic here
-      if (*row_ptr == 0 || depth > depth_filter_maxdist_)
+      // Filter depth
+      if (depth_raw == 0) {
+        zero_depths++;
         depth = depth_filter_maxdist_;
-      else if (depth < depth_filter_mindist_)
+      } else if (depth > depth_filter_maxdist_) {
+        too_far++;
+        depth = depth_filter_maxdist_;
+      } else if (depth < depth_filter_mindist_) {
+        too_close++;
         continue;
+      } else {
+        valid_depths++;
+      }
 
       pt_cur(0) = (u - cx_) * depth / fx_;
       pt_cur(1) = (v - cy_) * depth / fy_;
@@ -210,6 +238,9 @@ void MapROS::proessDepthImage() {
       pt.z = pt_world[2];
     }
   }
+  
+  ROS_INFO_THROTTLE(2.0, "Depth processing: %d valid, %d zero, %d too_far, %d too_close, total projected: %d",
+                   valid_depths, zero_depths, too_far, too_close, proj_points_cnt);
 
   publishDepth();
 }
@@ -281,21 +312,21 @@ void MapROS::publishMapLocal() {
           pt.z = pos(2);
           cloud.push_back(pt);
         }
-        // else if (map_->md_->occupancy_buffer_inflate_[map_->toAddress(x, y, z)] == 1)
-        // {
-        //   // Inflated occupied cells
-        //   Eigen::Vector3d pos;
-        //   map_->indexToPos(Eigen::Vector3i(x, y, z), pos);
-        //   if (pos(2) > visualization_truncate_height_)
-        //     continue;
-        //   if (pos(2) < visualization_truncate_low_)
-        //     continue;
+        else if (map_->md_->occupancy_buffer_inflate_[map_->toAddress(x, y, z)] == 1)
+        {
+          // Inflated occupied cells
+          Eigen::Vector3d pos;
+          map_->indexToPos(Eigen::Vector3i(x, y, z), pos);
+          if (pos(2) > visualization_truncate_height_)
+            continue;
+          if (pos(2) < visualization_truncate_low_)
+            continue;
 
-        //   pt.x = pos(0);
-        //   pt.y = pos(1);
-        //   pt.z = pos(2);
-        //   cloud2.push_back(pt);
-        // }
+          pt.x = pos(0);
+          pt.y = pos(1);
+          pt.z = pos(2);
+          cloud2.push_back(pt);
+        }
       }
 
   cloud.width = cloud.points.size();

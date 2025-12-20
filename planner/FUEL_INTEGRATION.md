@@ -25,6 +25,7 @@ This document describes the integration of FUEL (FAST-Exploration Using LKH) pla
 ```
 - Odometry: PX4 EKF2 fused VIO (/mavros/local_position/odom)
 - Sensor: VK180 point cloud (/vk180/pointcloud)  
+- Depth (added): Projected depth image (/vk180/depth/image_rect_raw)
 - Topics: Remapped to match hardware
 ```
 
@@ -36,7 +37,8 @@ Created `vk180_fuel_integration.launch` with the following mappings:
 |-----------|-----------------|---------|
 | `/odom_world` | `/mavros/local_position/odom` | Fused odometry from PX4 EKF2 |
 | `/map_ros/cloud` | `/vk180/pointcloud` | Point cloud from VK180 |
-| `/map_ros/pose` | `/mavros/local_position/pose` | Camera pose |
+| `/map_ros/depth` | `/vk180/depth/image_rect_raw` | Depth image projected from VK180 point cloud |
+| `/map_ros/pose` | `/mavros/local_position/pose` | Pose used for depth/cloud integration (EKF2 fused) |
 | `/planning/pos_cmd` | `/planning/pos_cmd` | Commands to px4ctrl |
 
 ### 4. Sensor Configuration Changes
@@ -113,7 +115,7 @@ Modified from FUEL's aggressive simulation parameters:
 
 ### Complete System Launch
 ```bash
-roslaunch exploration_manager vk180_fuel_integration.launch
+roslaunch vk180_ros vk180_exploration_flight.launch
 ```
 
 This launches:
@@ -121,6 +123,34 @@ This launches:
 2. px4ctrl (flight controller)
 3. FUEL exploration node
 4. Trajectory server
+
+## RViz Visualization
+
+The VK180 integration launch already supports bringing up RViz:
+
+```bash
+roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=true
+```
+
+This loads the default config at [planner/plan_manage/config/traj.rviz](planner/plan_manage/config/traj.rviz).
+
+### What to visualize (minimum set)
+
+- **Fixed Frame**: `world` (the launch publishes `world->map` and `world->odom` static TFs)
+- **Depth image (input to mapping)**: `/vk180/depth/image_rect_raw`
+   - Encoding is `16UC1` (millimeters). RViz will show it as a normalized grayscale image.
+- **Local / global occupancy (what the planner thinks the world is)**:
+   - `/sdf_map/occupancy_all`
+   - `/sdf_map/occupancy_local_inflate`
+- **Planner outputs**:
+   - Markers: `/planning_vis/trajectory`, `/planning/position_cmd_vis`, `/planning_vis/frontier`, `/planning_vis/viewpoints`
+
+### Helpful (debug) visualizations
+
+- **Raw VK180 cloud**: `/vk180/pointcloud` (added to the default RViz config as `vk180_cloud`, disabled by default)
+- **Odometry**:
+   - `/mavros/local_position/odom` for motion consistency
+   - If the map/trajectory “swims”, verify you’re using `/mavros/local_position/pose` consistently for mapping/projection.
 
 ### Parameters You Can Adjust
 
