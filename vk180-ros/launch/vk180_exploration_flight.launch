@@ -58,32 +58,9 @@
   <!-- ============================================ -->
   <!-- 1b. PointCloud -> Depth Image Converter      -->
   <!-- ============================================ -->
-  <!-- Projects the (world-frame) VK180 point cloud into a RealSense-like depth image (16UC1, mm)
-       using the same pose topic that FUEL uses (/map_ros/pose).
-       Output is suitable for MapROS depth pipeline in FUEL.
-  -->
-  <node name="vk180_cloud_to_depth"
-        pkg="vk180_ros"
-        type="vk180_cloud_to_depth"
-        output="screen"
-        required="false">
-    <!-- Idealized intrinsics + resolution to match algorithm.xml defaults -->
-    <param name="width" value="640"/>
-    <param name="height" value="480"/>
-    <param name="fx" value="320.0"/>
-    <param name="fy" value="320.0"/>
-    <param name="cx" value="320.0"/>
-    <param name="cy" value="240.0"/>
-
-    <!-- Depth range should be consistent with map_ros/* filters -->
-    <param name="min_depth" value="0.2"/>
-    <param name="max_depth" value="5.0"/>
-
-    <!-- Subscribe to the world-frame cloud and the same pose that is remapped into /map_ros/pose -->
-    <remap from="cloud" to="/vk180/pointcloud"/>
-    <remap from="pose" to="/mavros/local_position/pose"/>
-    <remap from="depth" to="/vk180/depth/image_rect_raw"/>
-  </node>
+  <!-- VK180 Planner Bridge now publishes depth directly to /vk180/depth/image_rect_raw -->
+  <!-- No need for separate cloud_to_depth node -->
+  <!-- ============================================ -->
   
   <!-- ============================================ -->
   <!-- 2. MAVROS - PX4 Communication               -->
@@ -135,14 +112,14 @@
     
     <!-- VK180 topic remappings - Use PX4 fused odometry -->
     <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-    <!-- Use PX4 EKF2 fused pose to stay consistent with the fused odometry used for pointcloud/world -->
-    <arg name="sensor_pose_topic" value="/mavros/local_position/pose"/>
-    <!-- Feed FUEL with a depth image derived from VK180 point cloud -->
+    <!-- Use VK180 camera pose (computed from body pose + camera extrinsics) -->
+    <arg name="sensor_pose_topic" value="/vk180/camera_pose"/>
+    <!-- Feed FUEL with depth image from VK180 stereo camera -->
     <arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
     <!-- Disable direct cloud callback to avoid double-fusing depth+cloud in MapROS -->
     <arg name="cloud_topic" value="/invalid_topic"/>
     
-    <!-- Camera intrinsics (not used for point cloud, but required by algorithm.xml) -->
+    <!-- Ideal camera model for simplicity (640x480, 90° FOV) -->
     <arg name="cx" value="320.0"/>
     <arg name="cy" value="240.0"/>
     <arg name="fx" value="320.0"/>
