@@ -3,8 +3,12 @@
 // This node bridges VK180 sensor data (odometry, disparity, point clouds) to ROS for autonomous navigation.
 // Features:
 // - Publishes raw VIO odometry and vision pose to PX4 EKF2 for sensor fusion
-// - Generates combined point cloud from dual stereo cameras
+// - Generates combined point cloud from dual stereo cameras in world and body frames
 // - Distance filtering: Removes points closer than 40cm from drone center to avoid near-field artifacts
+// - Virtual body-centered camera: Projects body-frame points to depth image using FLU→camera transform
+//   * Body frame: X=forward, Y=left, Z=up (FLU convention)
+//   * Virtual camera frame: X=right, Y=down, Z=forward (standard camera convention)
+//   * Transform: cam_x=body_y, cam_y=-body_z, cam_z=body_x
 
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
@@ -742,11 +746,11 @@ private:
             has_right = false;
         }
         
-        // Create combined PCL point cloud
+        // Create combined PCL point cloud (world frame)
         pcl::PointCloud<pcl::PointXYZ>::Ptr combined_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         
-        // Also keep camera-frame points for depth image generation
-        pcl::PointCloud<pcl::PointXYZ>::Ptr camera_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        // Keep body-frame points for virtual camera depth image generation
+        pcl::PointCloud<pcl::PointXYZ>::Ptr body_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         
         // Get body_to_world transform
         Eigen::Matrix4d body_to_world;
@@ -761,7 +765,7 @@ private:
         if (has_left) {
             vkc::Shared<vkc::PointCloud> left_vk_pc = vkc::convertToPointCloud(left_disparity, left_image_data, pc_params_);
             int left_valid_points = processPointCloud(left_vk_pc, stereo1_l_extrinsics_, body_to_world, 
-                                                     combined_cloud, camera_cloud, "LEFT");
+                                                     combined_cloud, body_cloud, "LEFT");
             total_valid_points += left_valid_points;
         }
         
@@ -769,7 +773,7 @@ private:
         if (has_right) {
             vkc::Shared<vkc::PointCloud> right_vk_pc = vkc::convertToPointCloud(right_disparity, right_image_data, pc_params_);
             int right_valid_points = processPointCloud(right_vk_pc, stereo1_r_extrinsics_, body_to_world, 
-                                                      combined_cloud, camera_cloud, "RIGHT");
+                                                      combined_cloud, body_cloud, "RIGHT");
             total_valid_points += right_valid_points;
         }
         
@@ -794,11 +798,11 @@ private:
             ROS_ERROR("Exception publishing combined point cloud: %s", e.what());
         }
         
-        // Convert camera-frame point cloud to depth image for planner
-        if (stereo1_l_intrinsics_.is_valid && camera_cloud->points.size() > 0) {
-            convertCameraPointCloudToDepthImage(camera_cloud);
+        // Convert body-frame point cloud to depth image using virtual body-centered camera
+        if (stereo1_l_intrinsics_.is_valid && body_cloud->points.size() > 0) {
+            convertBodyPointCloudToDepthImage(body_cloud);
         } else {
-            ROS_WARN_THROTTLE(10.0, "Camera intrinsics not available or no camera points, skipping depth image generation");
+            ROS_WARN_THROTTLE(10.0, "Camera intrinsics not available or no body points, skipping depth image generation");
         }
     }
 
@@ -806,7 +810,7 @@ private:
                           const CameraExtrinsics& extrinsics,
                           const Eigen::Matrix4d& body_to_world,
                           pcl::PointCloud<pcl::PointXYZ>::Ptr& output_world_cloud,
-                          pcl::PointCloud<pcl::PointXYZ>::Ptr& output_camera_cloud,
+                          pcl::PointCloud<pcl::PointXYZ>::Ptr& output_body_cloud,
                           const std::string& camera_name) {
         auto pc_reader = vk_pointcloud.reader();
         auto points_data = pc_reader.getPoints().asBytes();
@@ -909,12 +913,12 @@ private:
             world_pt.z = world_point.z();
             output_world_cloud->points.push_back(world_pt);
             
-            // Add to camera frame point cloud for depth image
-            pcl::PointXYZ cam_pt;
-            cam_pt.x = x;
-            cam_pt.y = y;
-            cam_pt.z = z;
-            output_camera_cloud->points.push_back(cam_pt);
+            // Add to body frame point cloud for virtual camera depth image
+            pcl::PointXYZ body_pt;
+            body_pt.x = body_point_3d.x();
+            body_pt.y = body_point_3d.y();
+            body_pt.z = body_point_3d.z();
+            output_body_cloud->points.push_back(body_pt);
             
             valid_points++;
         }
@@ -930,13 +934,13 @@ private:
         return valid_points;
     }
 
-    void convertCameraPointCloudToDepthImage(const pcl::PointCloud<pcl::PointXYZ>::Ptr& camera_cloud) {
+    void convertBodyPointCloudToDepthImage(const pcl::PointCloud<pcl::PointXYZ>::Ptr& body_cloud) {
         // Create depth image (640x480, 16UC1 in millimeters)
         const int width = 640;
         const int height = 480;
         cv::Mat depth_image = cv::Mat::zeros(height, width, CV_16UC1);
         
-        // Camera intrinsics (ideal model)
+        // Virtual camera intrinsics (ideal model, same as stereo)
         const double fx = stereo1_l_intrinsics_.fx;
         const double fy = stereo1_l_intrinsics_.fy;
         const double cx = stereo1_l_intrinsics_.cx;
@@ -946,21 +950,32 @@ private:
         int behind_camera = 0;
         int out_of_bounds = 0;
         
-        // Project each camera-frame point to depth image
-        for (const auto& pt : camera_cloud->points) {
-            double xc = pt.x;
-            double yc = pt.y;
-            double zc = pt.z;
+        // Virtual camera at body center with FLU (Forward-Left-Up) frame:
+        // Body frame: X=forward, Y=left, Z=up
+        // Camera frame convention: X=right, Y=down, Z=forward
+        // Transform: cam_x = body_y, cam_y = -body_z, cam_z = body_x
+        
+        // Project each body-frame point through virtual camera
+        for (const auto& pt : body_cloud->points) {
+            // Body frame coordinates
+            double x_body = pt.x;  // forward
+            double y_body = pt.y;  // left
+            double z_body = pt.z;  // up
             
-            // Skip points behind camera or too close
-            if (zc <= 0.2) {
+            // Transform to virtual camera frame (FLU → camera convention)
+            double x_cam = y_body;   // body left → camera right
+            double y_cam = -z_body;  // body up → camera down (negated)
+            double z_cam = x_body;   // body forward → camera forward (depth)
+            
+            // Skip points behind virtual camera or too close
+            if (z_cam <= 0.2) {
                 behind_camera++;
                 continue;
             }
             
-            // Project to image plane
-            int u = static_cast<int>(std::round(fx * xc / zc + cx));
-            int v = static_cast<int>(std::round(fy * yc / zc + cy));
+            // Project to image plane using pinhole model
+            int u = static_cast<int>(std::round(fx * x_cam / z_cam + cx));
+            int v = static_cast<int>(std::round(fy * y_cam / z_cam + cy));
             
             // Check if projection is within image bounds
             if (u < 0 || u >= width || v < 0 || v >= height) {
@@ -969,7 +984,7 @@ private:
             }
             
             // Convert depth to millimeters
-            uint16_t depth_mm = static_cast<uint16_t>(std::min(65535.0, std::max(0.0, zc * 1000.0)));
+            uint16_t depth_mm = static_cast<uint16_t>(std::min(65535.0, std::max(0.0, z_cam * 1000.0)));
             
             // Keep closest depth (Z-buffer)
             uint16_t& existing_depth = depth_image.at<uint16_t>(v, u);
@@ -980,8 +995,8 @@ private:
             projected_points++;
         }
         
-        ROS_INFO_THROTTLE(5.0, "Depth image: %zu camera points, %d projected, %d behind camera, %d out of bounds",
-                         camera_cloud->points.size(), projected_points, behind_camera, out_of_bounds);
+        ROS_INFO_THROTTLE(5.0, "Virtual camera depth: %zu body points, %d projected, %d behind cam, %d out of bounds",
+                         body_cloud->points.size(), projected_points, behind_camera, out_of_bounds);
         
         if (projected_points == 0) {
             ROS_WARN_THROTTLE(2.0, "No points projected to depth image! Camera may not see any valid depth.");
