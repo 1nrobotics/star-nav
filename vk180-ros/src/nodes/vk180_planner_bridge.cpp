@@ -47,12 +47,6 @@ struct CameraExtrinsics {
     }
 };
 
-struct CameraIntrinsics {
-    double fx, fy, cx, cy;
-    double baseline;  // For stereo disparity to depth conversion
-    bool is_valid = false;
-};
-
 class VK180PlannerBridge {
 public:
     VK180PlannerBridge(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
@@ -121,11 +115,15 @@ private:
     
     std::unique_ptr<vkc::VisualKit> visualkit_;
     
-    // Camera calibration data
+    // Camera calibration data (extrinsics for transforming points to body frame)
     CameraExtrinsics stereo1_l_extrinsics_;
-    CameraIntrinsics stereo1_l_intrinsics_;
     CameraExtrinsics stereo1_r_extrinsics_;
-    CameraIntrinsics stereo1_r_intrinsics_;
+    
+    // Virtual camera intrinsics (ideal pinhole model for depth image generation)
+    static constexpr double VIRTUAL_CAM_FX = 320.0;
+    static constexpr double VIRTUAL_CAM_FY = 320.0;
+    static constexpr double VIRTUAL_CAM_CX = 320.0;
+    static constexpr double VIRTUAL_CAM_CY = 240.0;
     
     // Point cloud generation parameters
     vkc::PointCloudParams pc_params_;
@@ -545,25 +543,6 @@ private:
             has_left_disparity_ = true;
         }
         
-        // Extract intrinsics from disparity data if not done yet
-        if (!stereo1_l_intrinsics_.is_valid) {
-            auto disparity_reader = disparity.reader();
-            stereo1_l_intrinsics_.fx = disparity_reader.getFx();
-            stereo1_l_intrinsics_.fy = disparity_reader.getFy();
-            stereo1_l_intrinsics_.cx = disparity_reader.getCx();
-            stereo1_l_intrinsics_.cy = disparity_reader.getCy();
-            stereo1_l_intrinsics_.baseline = disparity_reader.getBaseline();
-            
-            // Override with ideal camera model for simplicity
-            stereo1_l_intrinsics_.fx = 320.0;
-            stereo1_l_intrinsics_.fy = 320.0;
-            stereo1_l_intrinsics_.cx = 320.0;
-            stereo1_l_intrinsics_.cy = 240.0;
-            stereo1_l_intrinsics_.is_valid = true;
-            
-            ROS_INFO("Initialized camera intrinsics: fx=fy=320.0, cx=320.0, cy=240.0 (ideal model)");
-        }
-        
         // Try to generate combined point cloud when both disparities available
         generateCombinedPointCloud();
     }
@@ -799,10 +778,10 @@ private:
         }
         
         // Convert body-frame point cloud to depth image using virtual body-centered camera
-        if (stereo1_l_intrinsics_.is_valid && body_cloud->points.size() > 0) {
+        if (body_cloud->points.size() > 0) {
             convertBodyPointCloudToDepthImage(body_cloud);
         } else {
-            ROS_WARN_THROTTLE(10.0, "Camera intrinsics not available or no body points, skipping depth image generation");
+            ROS_WARN_THROTTLE(10.0, "No body points available, skipping depth image generation");
         }
     }
 
@@ -940,11 +919,11 @@ private:
         const int height = 480;
         cv::Mat depth_image = cv::Mat::zeros(height, width, CV_16UC1);
         
-        // Virtual camera intrinsics (ideal model, same as stereo)
-        const double fx = stereo1_l_intrinsics_.fx;
-        const double fy = stereo1_l_intrinsics_.fy;
-        const double cx = stereo1_l_intrinsics_.cx;
-        const double cy = stereo1_l_intrinsics_.cy;
+        // Virtual camera intrinsics (ideal pinhole model)
+        const double fx = VIRTUAL_CAM_FX;
+        const double fy = VIRTUAL_CAM_FY;
+        const double cx = VIRTUAL_CAM_CX;
+        const double cy = VIRTUAL_CAM_CY;
         
         int projected_points = 0;
         int behind_camera = 0;
@@ -1131,10 +1110,6 @@ private:
     }
     
     void publishCameraInfo(const ros::Time& stamp) {
-        if (!stereo1_l_intrinsics_.is_valid) {
-            return;
-        }
-        
         sensor_msgs::CameraInfo camera_info;
         camera_info.header.stamp = stamp;
         camera_info.header.frame_id = "camera_link";
@@ -1149,10 +1124,10 @@ private:
         // Camera intrinsic matrix K = [fx  0 cx]
         //                              [ 0 fy cy]
         //                              [ 0  0  1]
-        camera_info.K[0] = stereo1_l_intrinsics_.fx;  // fx
-        camera_info.K[2] = stereo1_l_intrinsics_.cx;  // cx
-        camera_info.K[4] = stereo1_l_intrinsics_.fy;  // fy
-        camera_info.K[5] = stereo1_l_intrinsics_.cy;  // cy
+        camera_info.K[0] = VIRTUAL_CAM_FX;  // fx
+        camera_info.K[2] = VIRTUAL_CAM_CX;  // cx
+        camera_info.K[4] = VIRTUAL_CAM_FY;  // fy
+        camera_info.K[5] = VIRTUAL_CAM_CY;  // cy
         camera_info.K[8] = 1.0;
         
         // Rectification matrix (identity for ideal camera)
@@ -1163,16 +1138,15 @@ private:
         // Projection matrix P = [fx  0 cx  0]
         //                        [ 0 fy cy  0]
         //                        [ 0  0  1  0]
-        camera_info.P[0] = stereo1_l_intrinsics_.fx;
-        camera_info.P[2] = stereo1_l_intrinsics_.cx;
-        camera_info.P[5] = stereo1_l_intrinsics_.fy;
-        camera_info.P[6] = stereo1_l_intrinsics_.cy;
+        camera_info.P[0] = VIRTUAL_CAM_FX;
+        camera_info.P[2] = VIRTUAL_CAM_CX;
+        camera_info.P[5] = VIRTUAL_CAM_FY;
+        camera_info.P[6] = VIRTUAL_CAM_CY;
         camera_info.P[10] = 1.0;
         
         camera_info_pub_.publish(camera_info);
         ROS_INFO_THROTTLE(8.0, "Published camera_info with fx=%.1f, fy=%.1f, cx=%.1f, cy=%.1f",
-                         stereo1_l_intrinsics_.fx, stereo1_l_intrinsics_.fy,
-                         stereo1_l_intrinsics_.cx, stereo1_l_intrinsics_.cy);
+                         VIRTUAL_CAM_FX, VIRTUAL_CAM_FY, VIRTUAL_CAM_CX, VIRTUAL_CAM_CY);
     }
     
     void publishCameraTransform() {
