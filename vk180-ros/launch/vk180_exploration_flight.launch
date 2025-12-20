@@ -105,10 +105,10 @@
     <!-- Exploration bounds (geofence) -->
     <arg name="box_min_x" value="-5.0"/>
     <arg name="box_min_y" value="-5.0"/>
-    <arg name="box_min_z" value="0.0"/>
+    <arg name="box_min_z" value="-2.0"/>
     <arg name="box_max_x" value="5.0"/>
     <arg name="box_max_y" value="5.0"/>
-    <arg name="box_max_z" value="2.0"/>
+    <arg name="box_max_z" value="3.0"/>
     
     <!-- VK180 topic remappings - Use PX4 fused odometry -->
     <arg name="odometry_topic" value="/mavros/local_position/odom"/>
