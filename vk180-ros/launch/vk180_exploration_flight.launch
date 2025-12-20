@@ -56,11 +56,9 @@
   </node>
 
   <!-- ============================================ -->
-  <!-- 1b. PointCloud -> Depth Image Converter      -->
+  <!-- 1b. Depth Output                             -->
   <!-- ============================================ -->
-  <!-- VK180 Planner Bridge now publishes depth directly to /vk180/depth/image_rect_raw -->
-  <!-- No need for separate cloud_to_depth node -->
-  <!-- ============================================ -->
+  <!-- VK180 Planner Bridge publishes depth to /vk180/depth/image_rect_raw -->
   
   <!-- ============================================ -->
   <!-- 2. MAVROS - PX4 Communication               -->

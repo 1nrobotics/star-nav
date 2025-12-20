@@ -110,9 +110,4 @@ target_link_libraries(vk180_planner_bridge
     vilota::vk_sdk
 )
 
-## VK180 pointcloud -> depth image projection (for FUEL MapROS depth pipeline)
-add_executable(vk180_cloud_to_depth src/nodes/vk180_cloud_to_depth_node.cpp)
-target_link_libraries(vk180_cloud_to_depth
-  PRIVATE
-    ${catkin_LIBRARIES}
-)
+

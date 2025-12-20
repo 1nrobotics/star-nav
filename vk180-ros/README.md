@@ -157,16 +157,6 @@ rostopic echo /vk180/odometry
 /vk180/image_right       # Right camera RGB image
 ```
 
-## FUEL Depth Compatibility
-
-FUEL's `MapROS` depth pipeline expects a depth image (`sensor_msgs/Image`) in `16UC1` (millimeters) plus a pose stream. VK180 primarily provides a world-frame point cloud, so this repo adds a small projector node:
-
-- Node: `vk180_cloud_to_depth`
-- Subscribes: `/vk180/pointcloud` and a pose topic (recommended: `/mavros/local_position/pose`)
-- Publishes: `/vk180/depth/image_rect_raw` (`16UC1`, mm)
-
-This is wired into [vk180-ros/launch/vk180_exploration_flight.launch](vk180-ros/launch/vk180_exploration_flight.launch) so you can feed FUEL via `depth_topic:=/vk180/depth/image_rect_raw`.
-
 ## RViz (recommended displays)
 
 For the full VK180 + FUEL exploration stack, the launch supports RViz:
