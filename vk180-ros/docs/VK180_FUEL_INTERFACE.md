@@ -79,14 +79,38 @@ Complete data flow between VK180 vision sensor, PX4 flight controller, and FUEL 
 - **Rate**: ~10-20 Hz
 - **Critical**: Already in world frame, no further transform needed
 
+#### `/vk180/depth/image_rect_raw`
+- **Type**: `sensor_msgs/Image` (16UC1, millimeters)
+- **Frame**: `base_link` (body frame)
+- **Source**: VK180 point cloud converted to depth via virtual camera
+- **Processing**:
+  - Body-frame points projected using ideal pinhole model
+  - Virtual camera: fx=fy=cx=320, cy=240, resolution 640x480
+  - Uses compile-time constants (no runtime intrinsics extraction)
+- **Used by**: **FUEL planner** (`depth_topic`)
+- **Rate**: ~10-20 Hz
+- **Note**: Virtual camera centered at body origin
+
+#### `/vk180/depth/camera_info`
+- **Type**: `sensor_msgs/CameraInfo`
+- **Frame**: `base_link`
+- **Source**: Virtual camera intrinsics (ideal pinhole model)
+- **Parameters**: fx=fy=cx=320, cy=240, 640x480 resolution
+- **Used by**: FUEL planner for depth unprojection
+- **Rate**: Published with each depth image
+
 #### `/mavros/vision_pose/pose`
 - **Type**: `geometry_msgs/PoseStamped`
 - **Frame**: `odom` → `base_link`
 - **Source**: VK180 VIO converted to pose
-- **Purpose**: Vision input to PX4 EKF2 for sensor fusion
-- **Used by**: PX4 EKF2 (consumes via MAVROS)
+- **Purpose**: 
+  - Vision input to PX4 EKF2 for sensor fusion
+  - **Direct sensor pose input to FUEL planner** (`sensor_pose_topic`)
+- **Used by**: 
+  - PX4 EKF2 (consumes via MAVROS)
+  - **FUEL planner** (sensor pose)
 - **Rate**: ~50-100 Hz
-- **Critical**: Enables GPS-denied flight
+- **Critical**: Enables GPS-denied flight and represents body/camera pose
 
 ---
 
@@ -133,30 +157,38 @@ Complete data flow between VK180 vision sensor, PX4 flight controller, and FUEL 
 
 ---
 
-## Critical Topic Remappings in Launch File
+## Critical Topic Configuration in Launch File
 
 ```xml
-<!-- FUEL expects these hardcoded topic names: -->
-<remap from="/odom_world" to="/mavros/local_position/odom"/>
-<remap from="/map_ros/cloud" to="/vk180/pointcloud"/>
-<remap from="/map_ros/pose" to="/mavros/local_position/pose"/>
+<!-- FUEL planner topic configuration: -->
+<arg name="odometry_topic" value="/mavros/local_position/odom"/>
+<arg name="sensor_pose_topic" value="/mavros/vision_pose/pose"/>
+<arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
+<arg name="cloud_topic" value="/vk180/pointcloud"/>
 ```
 
-### Why These Remappings?
+### Topic Selection Rationale
 
-1. **`/odom_world` → `/mavros/local_position/odom`**
-   - FUEL's `fast_exploration_fsm.cpp` line 43: `odom_sub_ = node_.subscribe("/odom_world", ...)`
-   - Uses **fused** odometry (VIO + IMU + GPS) for best accuracy
+1. **`odometry_topic` → `/mavros/local_position/odom`**
+   - Uses **fused** odometry (VIO + IMU + GPS + Baro) from PX4 EKF2
+   - Most accurate pose estimate available
    - Not raw VIO (`/vk180/odom_raw`) because fusion is more robust
 
-2. **`/map_ros/cloud` → `/vk180/pointcloud`**
-   - FUEL's `map_ros.cpp` line 73: `cloud_sub_ = node_.subscribe<sensor_msgs::PointCloud2>("/map_ros/cloud", ...)`
-   - VK180 bridge already provides world-frame point cloud
-   - Distance filtered (no near-field artifacts)
+2. **`sensor_pose_topic` → `/mavros/vision_pose/pose`**
+   - Direct use of raw VIO pose (before PX4 fusion)
+   - Same data published to PX4 for vision input
+   - Represents body/virtual camera pose in odom frame
+   - Eliminates redundant `/vk180/camera_pose` republishing
 
-3. **`/map_ros/pose` → `/mavros/local_position/pose`**
-   - Used for camera pose in mapping
-   - Must match odometry source for consistency
+3. **`depth_topic` → `/vk180/depth/image_rect_raw`**
+   - Virtual camera depth from body-frame point cloud
+   - Ideal pinhole model (fx=fy=cx=320, cy=240)
+   - Body-centered projection eliminates camera extrinsics
+
+4. **`cloud_topic` → `/vk180/pointcloud`**
+   - World-frame point cloud from VK180 stereo
+   - Already transformed using MAVROS fused odometry
+   - Distance filtered (>0.4m from drone center)
 
 ---
 

@@ -149,30 +149,34 @@ rostopic echo /vk180/odometry
 ### Published Topics
 
 ```bash
-/vk180/odom              # Odometry for EGO planner
-/vk180/depth             # Depth images for obstacle mapping
-/vk180/disparity         # Disparity image
-/vk180/pointcloud        # Combined point cloud from both cameras
-/vk180/image_left        # Left camera RGB image
-/vk180/image_right       # Right camera RGB image
+/vk180/odom_raw                    # Raw VIO odometry (before PX4 fusion)
+/mavros/vision_pose/pose           # Vision pose to PX4 EKF2 (also used by planner)
+/vk180/depth/image_rect_raw        # Virtual camera depth in body frame (16UC1, mm)
+/vk180/depth/camera_info           # Virtual camera intrinsics (fx=fy=cx=320, cy=240)
+/vk180/pointcloud                  # World-frame point cloud from both stereo cameras
+/vk180/image_left                  # Left camera RGB image
+/vk180/image_right                 # Right camera RGB image
 ```
 
-## RViz (recommended displays)
+**Note**: Virtual camera located at body origin, eliminates need for camera extrinsics.
 
-For the full VK180 + FUEL exploration stack, the launch supports RViz:
+## RViz Visualization
+
+For the full VK180 + FUEL exploration stack:
 
 ```bash
-roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=true
+roslaunch vk180-ros vk180_exploration_flight.launch use_rviz:=true
 ```
 
-In RViz, keep:
+**Recommended displays:**
+- **Fixed Frame**: `world` (or `odom`)
+- **Depth Image**: `/vk180/depth/image_rect_raw` (16UC1, millimeters, body frame)
+- **Point Cloud**: `/vk180/pointcloud` (world frame)
+- **Mapping**: `/sdf_map/occupancy_all`, `/sdf_map/occupancy_local_inflate`
+- **Planner**: `/planning_vis/trajectory`, `/planning_vis/frontier`, `/planning_vis/viewpoints`
+- **Odometry**: `/mavros/local_position/odom` (PX4 fused odometry)
 
-- **Fixed Frame**: `world`
-- **Depth Image**: `/vk180/depth/image_rect_raw` (projected from the VK180 cloud; `16UC1` mm)
-- **Mapping clouds**: `/sdf_map/occupancy_all`, `/sdf_map/occupancy_local_inflate`
-- **Planner markers**: `/planning_vis/trajectory`, `/planning_vis/frontier`, `/planning_vis/viewpoints`
-
-If you want a VK180-only visualization preset, [vk180-ros/config/vk180_planner_visualization.rviz](vk180-ros/config/vk180_planner_visualization.rviz) now also includes `projected_depth_mm` for `/vk180/depth/image_rect_raw`.
+**Preset Config**: `vk180-ros/config/vk180_planner_visualization.rviz`
 
 ## Dependencies
 

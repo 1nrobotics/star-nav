@@ -58,10 +58,13 @@ FUEL Exploration Planner
 - Publish camera intrinsics (CameraInfo)
 
 **Published Topics:**
-- `/vk180/depth/image_rect_raw` - Depth image for planner (16UC1, mm)
-- `/vk180/camera_pose` - Camera pose in odom frame (PoseStamped)
-- `/vk180/depth/camera_info` - Camera intrinsics
-- `/vk180/pointcloud` - Combined point cloud in world frame
+- `/vk180/odom_raw` - Raw VIO odometry (nav_msgs::Odometry)
+- `/mavros/vision_pose/pose` - Vision pose to PX4 EKF2 (geometry_msgs::PoseStamped)
+- `/vk180/depth/image_rect_raw` - Depth image for planner (16UC1, mm, body frame)
+- `/vk180/depth/camera_info` - Virtual camera intrinsics (sensor_msgs::CameraInfo)
+- `/vk180/pointcloud` - Combined point cloud in world frame (sensor_msgs::PointCloud2)
+- `/vk180/image_left` - Left camera RGB (sensor_msgs::Image)
+- `/vk180/image_right` - Right camera RGB (sensor_msgs::Image)
 
 **Subscribed Topics:**
 - VK180 eCAL streams: `S1/stereo1_l`, `S1/stereo2_r`, `S1/stereo1_l/disparity`, etc.
@@ -73,46 +76,68 @@ FUEL Exploration Planner
 **Key Parameters:**
 ```xml
 <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-<arg name="sensor_pose_topic" value="/vk180/camera_pose"/>
+<arg name="sensor_pose_topic" value="/mavros/vision_pose/pose"/>
 <arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
 <arg name="cloud_topic" value="/invalid_topic"/>  <!-- Disabled to avoid double-fusion -->
 
-<!-- Ideal camera model -->
+<!-- Virtual camera intrinsics (ideal pinhole model, body-centered) -->
 <arg name="fx" value="320.0"/>
 <arg name="fy" value="320.0"/>
 <arg name="cx" value="320.0"/>
 <arg name="cy" value="240.0"/>
 ```
 
+**Key Changes from Previous Implementation:**
+- `sensor_pose_topic` uses `/mavros/vision_pose/pose` directly (raw VIO)
+- No longer republishes redundant `/vk180/camera_pose` topic
+- Depth image in body frame using virtual camera at body origin
+- No runtime camera intrinsics extraction (compile-time constants)
+
 ## Implementation Details
 
 ### 1. Depth Image Generation
-**Method:** `convertCameraPointCloudToDepthImage()`
+**Method:** `convertBodyPointCloudToDepthImage()`
 
 **Process:**
-1. Receive point cloud in camera frame from VK SDK
+1. Receive point cloud in **body frame** from VK SDK
 2. Apply distance filter (>0.4m) and FOV filter
-3. Project each point using pinhole camera model:
+3. Project each point using **virtual camera** at body origin:
    ```cpp
-   u = fx * x/z + cx
-   v = fy * y/z + cy
-   depth_mm = z * 1000
+   // Virtual camera transform: cam_x=body_y, cam_y=-body_z, cam_z=body_x
+   cam_x = body_y;
+   cam_y = -body_z;
+   cam_z = body_x;
+   
+   // Pinhole projection with compile-time constants
+   u = VIRTUAL_CAM_FX * cam_x/cam_z + VIRTUAL_CAM_CX;
+   v = VIRTUAL_CAM_FY * cam_y/cam_z + VIRTUAL_CAM_CY;
+   depth_mm = cam_z * 1000;
    ```
 4. Use Z-buffer to keep closest depth per pixel
 5. Publish as 640x480 16UC1 image
 
-**Frame:** `camera_link` (matches TF tree: odom → base_link → camera_link)
+**Frame:** `base_link` (body frame)
 
-### 2. Camera Pose Publishing
-**Method:** `mavrosOdomCallback()`
+**Key Simplifications:**
+- No camera intrinsics struct needed (compile-time constants)
+- Virtual camera centered at body origin
+- Eliminates camera extrinsics transformation
+
+### 2. Vision Pose Publishing
+**Method:** `publishOdometry()`
 
 **Process:**
-1. Receive MAVROS body pose in `odom` frame
-2. Republish as PoseStamped on `/vk180/camera_pose`
-3. Same timestamp and frame as MAVROS
-4. Camera offset from body center assumed negligible (for simplicity)
+1. Receive raw VIO data from VK180
+2. Publish to `/vk180/odom_raw` (nav_msgs::Odometry) for logging
+3. Publish to `/mavros/vision_pose/pose` (geometry_msgs::PoseStamped) for:
+   - PX4 EKF2 vision input
+   - FUEL planner sensor pose (direct use)
+4. Same timestamp and frame for consistency
 
-**Note:** Could apply `T_body_cam` transform for precise camera location, but current approach works well.
+**Simplification:** 
+- No separate `/vk180/camera_pose` republishing needed
+- Planner uses `/mavros/vision_pose/pose` directly
+- Represents body pose (virtual camera at body origin)
 
 ### 3. Coordinate Frames
 
@@ -121,13 +146,18 @@ FUEL Exploration Planner
 world (static)
   = odom (static identity TF)
     ← base_link (VK180 VIO + PX4 EKF2 fusion)
-      ← camera_link (VK180 extrinsics)
 ```
 
+**Virtual Camera Architecture:**
+- Camera located at body origin (no separate camera_link)
+- Virtual camera orientation: cam_x=body_y, cam_y=-body_z, cam_z=body_x
+- Depth image in `base_link` frame
+
 **Planner Requirements:**
-- **Camera pose frame_id:** `odom` (describes where camera is IN odom frame)
-- **Depth image frame_id:** `camera_link` (depth values are IN camera's frame)
-- **Planner transforms:** `world_point = camera_rotation * depth_point + camera_position`
+- **Sensor pose (body/camera):** `/mavros/vision_pose/pose` (odom → base_link)
+- **Odometry (fused):** `/mavros/local_position/odom` (odom → base_link)
+- **Depth image frame_id:** `base_link` (body frame)
+- **Point cloud frame_id:** `odom` (world frame)
 
 ### 4. Map Configuration Adjustments
 
@@ -208,9 +238,10 @@ height = 480     // Image height
 
 ### Verification Steps
 1. Check depth image: `rostopic hz /vk180/depth/image_rect_raw`
-2. Check camera pose: `rostopic echo /vk180/camera_pose`
-3. Check occupancy map: `rostopic hz /sdf_map/occupancy_local`
-4. Verify map contains camera: Look for "Camera position [x,y,z] is OUTSIDE map bounds" warning
+2. Check vision pose: `rostopic echo /mavros/vision_pose/pose`
+3. Check fused odometry: `rostopic echo /mavros/local_position/odom`
+4. Check occupancy map: `rostopic hz /sdf_map/occupancy_local`
+5. Verify depth frame: `rostopic echo /vk180/depth/image_rect_raw | grep frame_id` (should be `base_link`)
 
 ## Performance Considerations
 

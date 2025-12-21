@@ -24,14 +24,18 @@ PX4 Flight Controller
 ### 1. VK180 Planner Bridge
 - **Package**: `vk180_ros`
 - **Node**: `vk180_planner_bridge`
-- **Function**: Converts VK180 eCAL VIO odometry to ROS nav_msgs::Odometry
+- **Function**: Converts VK180 eCAL data to ROS topics for planning
 - **Published Topics**:
-  - `/vk180/odom` - Odometry from VK180 VIO (30 Hz)
-  - `/vk180/depth` - Depth image for obstacle avoidance
-  - `/vk180/pointcloud` - Combined stereo point cloud
-  - `/vk180/disparity` - Disparity image
+  - `/vk180/odom_raw` - Raw VIO odometry (before PX4 fusion)
+  - `/mavros/vision_pose/pose` - Vision pose to PX4 EKF2
+  - `/vk180/depth/image_rect_raw` - Virtual camera depth in body frame (16UC1, mm)
+  - `/vk180/depth/camera_info` - Virtual camera intrinsics
+  - `/vk180/pointcloud` - World-frame point cloud for mapping
   - `/vk180/image_left` - Left camera RGB
   - `/vk180/image_right` - Right camera RGB
+- **Subscribed Topics**:
+  - `/mavros/local_position/odom` - Fused odometry for point cloud transformation
+- **Note**: Uses virtual camera at body origin (fx=fy=cx=320, cy=240)
 
 ### 2. PX4 Controller (px4ctrl)
 - **Package**: `px4ctrl`

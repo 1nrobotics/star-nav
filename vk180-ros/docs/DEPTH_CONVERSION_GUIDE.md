@@ -28,96 +28,129 @@ catkin_make
 - Example depth point conversions
 - Integration guidance for planner
 
-### 2. Enhanced Planner Integration (`enhanced_planner_integration.cpp`)
+### 2. VK180 Planner Bridge (`vk180_planner_bridge.cpp`)
 
-**Purpose**: Complete VK180-to-ROS bridge with automatic depth frame transformation.
+**Purpose**: Complete VK180-to-ROS bridge with virtual body-centered camera for FUEL planner.
 
 **Key Features**:
-- Automatic extrinsics extraction from VK180 streams
-- Real-time disparity-to-depth conversion  
-- Camera-to-body frame transformation for all depth points
-- RealSense-compatible depth format (16UC1 millimeters)
-- Dual publishing: raw camera frame and transformed body frame
+- Virtual camera located at body origin (no camera extrinsics needed)
+- Body-frame point cloud converted to depth via ideal pinhole model
+- Compile-time camera intrinsics constants (fx=fy=cx=320, cy=240)
+- Direct vision pose publishing to PX4 EKF2
+- World-frame point cloud for mapping
 
 **Topics Published**:
-- `/vk180/odom` - Odometry for planner (nav_msgs/Odometry)
-- `/vk180/depth` - Body frame depth for planner (sensor_msgs/Image, 16UC1)
-- `/vk180/disparity` - Disparity image
-- `/vk180/pointcloud` - Combined point cloud from both cameras
-- `/vk180/image_left` - Left camera RGB image
-- `/vk180/image_right` - Right camera RGB image
+- `/vk180/odom_raw` - Raw VIO odometry (nav_msgs::Odometry)
+- `/mavros/vision_pose/pose` - Vision pose to PX4 EKF2 (geometry_msgs::PoseStamped)
+- `/vk180/depth/image_rect_raw` - Body frame depth (sensor_msgs::Image, 16UC1)
+- `/vk180/depth/camera_info` - Virtual camera intrinsics (sensor_msgs::CameraInfo)
+- `/vk180/pointcloud` - World-frame point cloud (sensor_msgs::PointCloud2)
+- `/vk180/image_left` - Left camera RGB image (sensor_msgs::Image)
+- `/vk180/image_right` - Right camera RGB image (sensor_msgs::Image)
+
+**Deprecated Topics** (removed in latest version):
+- `/vk180/depth` - No longer published
+- `/vk180/disparity` - No longer published
+- `/vk180/camera_pose` - Use `/mavros/vision_pose/pose` directly
 
 ## Coordinate Frame Transformation
 
-### Camera Frame to Body Frame
+### Virtual Camera at Body Origin
 
-The transformation converts 3D points from the stereo camera optical frame to the robot body frame:
+The current implementation uses a **virtual camera centered at the body frame origin** to simplify depth processing:
 
 ```cpp
-// Extract from VK180 sensor extrinsics
-Eigen::Vector3d body_position;     // Translation camera -> body
-Eigen::Quaterniond body_rotation;  // Rotation camera -> body
+// Virtual camera transform: cam_x=body_y, cam_y=-body_z, cam_z=body_x
+float cam_x = body_y;
+float cam_y = -body_z;
+float cam_z = body_x;
 
-// Transform 3D point
-Eigen::Vector3d camera_point(x, y, z);
-Eigen::Vector3d body_point = body_rotation * camera_point + body_position;
+// Project to image using compile-time constants
+const float VIRTUAL_CAM_FX = 320.0f;
+const float VIRTUAL_CAM_FY = 320.0f;
+const float VIRTUAL_CAM_CX = 320.0f;
+const float VIRTUAL_CAM_CY = 240.0f;
+
+int u = static_cast<int>(VIRTUAL_CAM_FX * cam_x / cam_z + VIRTUAL_CAM_CX);
+int v = static_cast<int>(VIRTUAL_CAM_FY * cam_y / cam_z + VIRTUAL_CAM_CY);
+uint16_t depth_mm = static_cast<uint16_t>(cam_z * 1000.0f);
 ```
+
+**Benefits:**
+- No camera extrinsics transformation needed
+- No runtime intrinsics extraction
+- Simpler coordinate system for planning
+- Depth image directly in body frame
 
 ### Depth Image Processing Pipeline
 
-1. **Disparity to Depth**: Convert stereo disparity to metric depth
+1. **VK180 SDK Output**: Receive point cloud in body frame from stereo processing
+
+2. **Distance Filtering**: Remove points too close to body center
    ```cpp
-   depth_m = (baseline * fx) / disparity
+   if (distance < 0.4m) continue;  // Skip near-field points
    ```
 
-2. **Pixel to 3D Camera Point**: Use camera intrinsics
+3. **Virtual Camera Projection**: Transform body point to virtual camera frame
    ```cpp
-   x_cam = (pixel_x - cx) * depth / fx
-   y_cam = (pixel_y - cy) * depth / fy  
-   z_cam = depth
+   cam_x = body_y;    // Virtual camera orientation
+   cam_y = -body_z;
+   cam_z = body_x;
    ```
 
-3. **Camera to Body Transform**: Apply extrinsics transformation
+4. **Pinhole Projection**: Project to 2D image
    ```cpp
-   body_point = R_cam_to_body * camera_point + t_cam_to_body
+   u = fx * cam_x/cam_z + cx;
+   v = fy * cam_y/cam_z + cy;
+   depth_mm = cam_z * 1000;  // Convert to millimeters
    ```
 
-4. **Body Frame Distance**: For occupancy mapping
-   ```cpp
-   body_distance = body_point.norm()  // Distance from robot center
-   ```
+5. **Z-Buffer**: Keep closest depth for each pixel (handle occlusions)
 
-## Integration with EGO Planner
+## Integration with FUEL Planner
 
-### Method 1: Direct Replacement (Recommended)
+### Launch Configuration
 
-Replace the RealSense depth input with VK180 body frame depth:
+The FUEL planner is configured to use VK180 topics directly:
 
-1. **Start Enhanced Integration**:
-   ```bash
-   roslaunch vk180_ros enhanced_planner_integration.launch
-   ```
+```bash
+roslaunch vk180-ros vk180_exploration_flight.launch
+```
 
-2. **Update Planner Launch**: Replace RealSense topics in planner launch file:
-   ```xml
-   <!-- Before (RealSense) -->
-   <remap from="/vk180/odom" to="/camera/odom/sample" />
-   <remap from="/vk180/depth" to="/camera/depth/image_rect_raw" />
-   
-   <!-- After (VK180 with body frame) -->
-   <!-- Topics already published correctly by enhanced_planner_integration -->
-   ```
+**Key Topic Mappings**:
+```xml
+<!-- Fused odometry from PX4 EKF2 -->
+<arg name="odometry_topic" value="/mavros/local_position/odom"/>
 
-3. **Frame Configuration**: The depth is already in body frame, so planner can use directly.
+<!-- Raw VIO pose (same as vision input to PX4) -->
+<arg name="sensor_pose_topic" value="/mavros/vision_pose/pose"/>
 
-### Method 2: TF-based Integration
+<!-- Body-frame depth from virtual camera -->
+<arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
 
-If planner expects camera frame depth with TF transforms:
+<!-- World-frame point cloud -->
+<arg name="cloud_topic" value="/vk180/pointcloud"/>
+```
 
-1. **Publish Camera Frame Depth**:
-   ```cpp
-   // Set use_body_frame_transform = false
-   ```
+### Virtual Camera Intrinsics
+
+Fixed parameters for the ideal pinhole model:
+```xml
+<arg name="fx" value="320.0"/>
+<arg name="fy" value="320.0"/>
+<arg name="cx" value="320.0"/>
+<arg name="cy" value="240.0"/>
+<arg name="max_vel" value="1.0"/>
+<arg name="max_acc" value="1.5"/>
+```
+
+### Frame Convention
+
+- **Depth image frame**: `base_link` (body frame)
+- **Sensor pose frame**: `odom` → `base_link` (body pose in world)
+- **Point cloud frame**: `odom` (world frame)
+
+This eliminates the need for camera-to-body TF transforms.
 
 2. **Provide TF Transform**: Camera optical frame to base_link transform from extrinsics.
 

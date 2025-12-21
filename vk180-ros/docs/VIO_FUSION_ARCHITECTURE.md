@@ -68,11 +68,22 @@ VK180 VIO → /vk180/odom_raw → vk180_mavros_vision_bridge → /mavros/vision_
 **Purpose:** Publish raw VK180 VIO data and sensor streams
 
 **Published Topics:**
-- `/vk180/odom_raw` - Raw VIO odometry
-- `/vk180/pointcloud` - Combined stereo point cloud
-- `/vk180/depth` - Depth image
-- `/vk180/image_left` - Left camera RGB
-- `/vk180/image_right` - Right camera RGB
+- `/vk180/odom_raw` - Raw VIO odometry (nav_msgs::Odometry)
+- `/mavros/vision_pose/pose` - Vision pose for PX4 EKF2 (geometry_msgs::PoseStamped)
+- `/vk180/depth/image_rect_raw` - Virtual camera depth in body frame (sensor_msgs::Image, 16UC1)
+- `/vk180/depth/camera_info` - Virtual camera intrinsics (sensor_msgs::CameraInfo)
+- `/vk180/pointcloud` - Combined stereo point cloud in world frame (sensor_msgs::PointCloud2)
+- `/vk180/image_left` - Left camera RGB (sensor_msgs::Image)
+- `/vk180/image_right` - Right camera RGB (sensor_msgs::Image)
+
+**Subscribed Topics:**
+- VK180 eCAL streams (S1/stereo1_l, S1/stereo2_r, disparity, etc.)
+- `/mavros/local_position/odom` - For point cloud transformation to world frame
+
+**Key Features:**
+- Publishes raw VIO to both `/vk180/odom_raw` and `/mavros/vision_pose/pose`
+- Virtual camera at body origin (no camera extrinsics needed)
+- Uses compile-time constants for camera intrinsics (fx=fy=cx=320, cy=240)
 
 ### vk180_mavros_vision_bridge
 **Purpose:** Convert VIO odometry to MAVROS vision pose format
