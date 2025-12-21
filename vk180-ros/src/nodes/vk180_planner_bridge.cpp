@@ -3,8 +3,12 @@
 // This node bridges VK180 sensor data (odometry, disparity, point clouds) to ROS for autonomous navigation.
 // Features:
 // - Publishes raw VIO odometry and vision pose to PX4 EKF2 for sensor fusion
-// - Generates combined point cloud from dual stereo cameras
+// - Generates combined point cloud from dual stereo cameras in world and body frames
 // - Distance filtering: Removes points closer than 40cm from drone center to avoid near-field artifacts
+// - Virtual body-centered camera: Projects body-frame points to depth image using FLU→camera transform
+//   * Body frame: X=forward, Y=left, Z=up (FLU convention)
+//   * Virtual camera frame: X=right, Y=down, Z=forward (standard camera convention)
+//   * Transform: cam_x=body_y, cam_y=-body_z, cam_z=body_x
 
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
@@ -43,23 +47,18 @@ struct CameraExtrinsics {
     }
 };
 
-struct CameraIntrinsics {
-    double fx, fy, cx, cy;
-    double baseline;  // For stereo disparity to depth conversion
-    bool is_valid = false;
-};
-
 class VK180PlannerBridge {
 public:
     VK180PlannerBridge(ros::NodeHandle& nh, ros::NodeHandle& pnh) : nh_(nh), pnh_(pnh) {
         // Publishers for planner
         odom_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/odom_raw", 10);  // Raw VIO before PX4 fusion
         vision_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);  // Vision pose to PX4 EKF2
-        depth_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/depth", 10);
-        disparity_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/disparity", 10);
+        depth_image_rect_raw_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/depth/image_rect_raw", 10);  // For exploration planner
+        camera_info_pub_ = nh_.advertise<sensor_msgs::CameraInfo>("vk180/depth/camera_info", 10);  // Camera intrinsics for planner
         pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("vk180/pointcloud", 10);
         image_left_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image_left", 10);
         image_right_pub_ = nh_.advertise<sensor_msgs::Image>("vk180/image_right", 10);
+        camera_extrinsic_pub_ = nh_.advertise<nav_msgs::Odometry>("vk180/camera_extrinsic", 10, true);  // Latched
         
         // Subscriber for MAVROS fused odometry (for point cloud transformation)
         mavros_odom_sub_ = nh_.subscribe("/mavros/local_position/odom", 10, 
@@ -79,6 +78,9 @@ public:
         ROS_INFO("  Subscribing to MAVROS fused odometry: /mavros/local_position/odom");
         ROS_INFO("  Using MAVROS odometry for point cloud transformation to world frame");
         
+        // Publish camera-to-body extrinsics for ego-planner depth processing
+        publishCameraExtrinsics();
+        
         initializePointCloudParams();
         initializeEcal();
     }
@@ -93,11 +95,12 @@ private:
     ros::NodeHandle nh_, pnh_;
     ros::Publisher odom_pub_;
     ros::Publisher vision_pose_pub_;
-    ros::Publisher depth_pub_;
-    ros::Publisher disparity_pub_;
+    ros::Publisher depth_image_rect_raw_pub_;
+    ros::Publisher camera_info_pub_;
     ros::Publisher pointcloud_pub_;
     ros::Publisher image_left_pub_;
     ros::Publisher image_right_pub_;
+    ros::Publisher camera_extrinsic_pub_;  // Camera-to-body extrinsics for ego-planner
     
     ros::Subscriber mavros_odom_sub_;
     
@@ -111,11 +114,15 @@ private:
     
     std::unique_ptr<vkc::VisualKit> visualkit_;
     
-    // Camera calibration data
+    // Camera calibration data (extrinsics for transforming points to body frame)
     CameraExtrinsics stereo1_l_extrinsics_;
-    CameraIntrinsics stereo1_l_intrinsics_;
     CameraExtrinsics stereo1_r_extrinsics_;
-    CameraIntrinsics stereo1_r_intrinsics_;
+    
+    // Virtual camera intrinsics (ideal pinhole model for depth image generation)
+    static constexpr double VIRTUAL_CAM_FX = 320.0;
+    static constexpr double VIRTUAL_CAM_FY = 320.0;
+    static constexpr double VIRTUAL_CAM_CX = 320.0;
+    static constexpr double VIRTUAL_CAM_CY = 240.0;
     
     // Point cloud generation parameters
     vkc::PointCloudParams pc_params_;
@@ -135,6 +142,7 @@ private:
     // Latest odometry for transforming point cloud to world frame
     std::mutex odom_mutex_;
     Eigen::Matrix4d body_to_world_transform_;
+    ros::Time latest_odom_time_;
     bool has_odom_ = false;
     
     void initializeEcal() {
@@ -634,211 +642,27 @@ private:
         body_to_world_transform_(1,3) = msg->pose.pose.position.y;
         body_to_world_transform_(2,3) = msg->pose.pose.position.z;
         
+        latest_odom_time_ = msg->header.stamp;
         has_odom_ = true;
         
         ROS_INFO_ONCE("Receiving MAVROS fused odometry for point cloud transformation");
-    }
-
-    void publishDepthForPlanner(const vkc::Disparity::Reader& disparity_data) {
-        static int publish_count = 0;
-        publish_count++;
-        
-        ROS_INFO_THROTTLE(5.0, "Processing disparity for depth conversion [%d]", publish_count);
-        
-        // Extract intrinsics from disparity data if not done yet
-        if (!stereo1_l_intrinsics_.is_valid) {
-            ROS_INFO("Extracting camera intrinsics from disparity data...");
-            stereo1_l_intrinsics_.fx = disparity_data.getFx();
-            stereo1_l_intrinsics_.fy = disparity_data.getFy();
-            stereo1_l_intrinsics_.cx = disparity_data.getCx();
-            stereo1_l_intrinsics_.cy = disparity_data.getCy();
-            stereo1_l_intrinsics_.baseline = disparity_data.getBaseline();
-            stereo1_l_intrinsics_.is_valid = true;
-            
-            ROS_INFO("Extracted stereo1_l intrinsics from disparity");
-            ROS_INFO("fx=%.1f, fy=%.1f, cx=%.1f, cy=%.1f, baseline=%.3f", 
-                     stereo1_l_intrinsics_.fx, stereo1_l_intrinsics_.fy,
-                     stereo1_l_intrinsics_.cx, stereo1_l_intrinsics_.cy,
-                     stereo1_l_intrinsics_.baseline);
-        }
-
-        if (!stereo1_l_extrinsics_.is_valid && use_body_frame_transform_) {
-            ROS_WARN_THROTTLE(5.0, "Extrinsics not yet available - using camera frame instead of body frame");
-            // Continue processing without body frame transform
-        }
-
-        ROS_INFO_THROTTLE(5.0, "Converting disparity to depth image...");
-        
-        // Convert disparity to depth
-        cv::Mat depth_image = convertDisparityToDepth(disparity_data);
-        
-        if (depth_image.empty()) {
-            ROS_ERROR("Failed to convert disparity to depth - empty depth image");
-            return;
-        }
-        
-        ROS_INFO_THROTTLE(5.0, "Publishing raw depth image (size: %dx%d)", depth_image.cols, depth_image.rows);
-        
-        if (use_body_frame_transform_ && stereo1_l_extrinsics_.is_valid) {
-            ROS_INFO_THROTTLE(5.0, "Transforming depth to body frame...");
-            // Transform depth points to body frame
-            cv::Mat body_frame_depth = transformDepthToBodyFrame(depth_image);
-            
-            if (body_frame_depth.empty()) {
-                ROS_ERROR("Failed to transform depth to body frame");
-                return;
-            }
-            
-            // Use body frame depth for planner
-            publishDepthImage(body_frame_depth, depth_pub_, base_frame_id_);
-        } else {
-            if (use_body_frame_transform_ && !stereo1_l_extrinsics_.is_valid) {
-                ROS_INFO_THROTTLE(5.0, "Body frame transform requested but extrinsics unavailable - using camera frame");
-            }
-            ROS_INFO_THROTTLE(5.0, "Publishing camera frame depth for planner");
-            // Use camera frame depth directly
-            publishDepthImage(depth_image, depth_pub_, "camera_optical_frame");
-        }
-        
-        ROS_INFO_THROTTLE(5.0, "Depth processing pipeline completed successfully [%d processed]", publish_count);
-    }
-
-    cv::Mat convertDisparityToDepth(const vkc::Disparity::Reader& disparity_data) {
-        static int conversion_count = 0;
-        conversion_count++;
-        
-        int width = disparity_data.getWidth();
-        int height = disparity_data.getHeight();
-        
-        ROS_INFO_THROTTLE(5.0, "Converting disparity to depth [%d] (size: %dx%d)", 
-                         conversion_count, width, height);
-        
-        // Get disparity values
-        auto disparity_values = disparity_data.getData();
-        auto encoding = disparity_data.getEncoding();
-        
-        if (!disparity_values.size()) {
-            ROS_ERROR("Empty disparity data received");
-            return cv::Mat();
-        }
-        
-        ROS_INFO_THROTTLE(5.0, "Disparity data size: %lu bytes, encoding: %d", 
-                         disparity_values.size(), static_cast<int>(encoding));
-        
-        // Interpret raw bytes based on encoding
-        const uint16_t* disp_data = nullptr;
-        int num_pixels = 0;
-        
-        if (encoding == vkc::Disparity::Encoding::DISPARITY16) {
-            disp_data = reinterpret_cast<const uint16_t*>(disparity_values.begin());
-            num_pixels = disparity_values.size() / sizeof(uint16_t);
-        } else {
-            ROS_ERROR("Unsupported disparity encoding: %d (expected DISPARITY16)", static_cast<int>(encoding));
-            return cv::Mat();
-        }
-        
-        if (num_pixels != width * height) {
-            ROS_WARN("Pixel count mismatch: got %d, expected %d", num_pixels, width * height);
-        }
-        
-        // Create depth image (16UC1 format in millimeters for planner compatibility)
-        cv::Mat depth_image(height, width, CV_16UC1);
-        
-        int valid_pixels = 0;
-        float min_disparity = FLT_MAX, max_disparity = -FLT_MAX;
-        float sum_disparity = 0.0f;
-        
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                int idx = y * width + x;
-                // For DISPARITY16: disparity value is stored as disparity*8
-                float disparity = static_cast<float>(disp_data[idx]) / 8.0f;
-                
-                if (disparity > 0) {
-                    valid_pixels++;
-                    sum_disparity += disparity;
-                    min_disparity = std::min(min_disparity, disparity);
-                    max_disparity = std::max(max_disparity, disparity);
-                    
-                    // Convert disparity to depth: depth = (baseline * fx) / disparity
-                    double depth_m = (stereo1_l_intrinsics_.baseline * stereo1_l_intrinsics_.fx) / disparity;
-                    
-                    // Clamp depth to valid range
-                    depth_m = std::max(min_depth_, std::min(max_depth_, depth_m));
-                    
-                    // Convert to millimeters (16UC1 format)
-                    uint16_t depth_mm = static_cast<uint16_t>(depth_m * 1000.0);
-                    depth_image.at<uint16_t>(y, x) = depth_mm;
-                } else {
-                    depth_image.at<uint16_t>(y, x) = 0;  // Invalid depth
-                }
-            }
-        }
-        
-        float avg_disparity = (valid_pixels > 0) ? sum_disparity / valid_pixels : 0.0f;
-        float depth_validity_ratio = static_cast<float>(valid_pixels) / (width * height);
-        
-        ROS_INFO_THROTTLE(5.0, "Disparity stats: valid=%d/%d (%.1f%%), range=[%.2f,%.2f], avg=%.2f", 
-                         valid_pixels, width * height, depth_validity_ratio * 100.0f,
-                         min_disparity, max_disparity, avg_disparity);
-        
-        if (valid_pixels == 0) {
-            ROS_WARN("No valid disparity pixels found - depth image will be empty");
-        }
-        
-        ROS_INFO_THROTTLE(5.0, "Depth conversion completed: %dx%d, validity=%.1f%%", 
-                         width, height, depth_validity_ratio * 100.0f);
-        
-        return depth_image;
-    }
-
-    cv::Mat transformDepthToBodyFrame(const cv::Mat& camera_depth) {
-        cv::Mat body_depth = camera_depth.clone();
-        
-        int width = camera_depth.cols;
-        int height = camera_depth.rows;
-        
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                uint16_t depth_mm = camera_depth.at<uint16_t>(y, x);
-                
-                if (depth_mm > 0) {
-                    // Convert pixel to 3D point in camera frame
-                    double depth_m = depth_mm / 1000.0;
-                    Eigen::Vector3d camera_point(
-                        (x - stereo1_l_intrinsics_.cx) * depth_m / stereo1_l_intrinsics_.fx,
-                        (y - stereo1_l_intrinsics_.cy) * depth_m / stereo1_l_intrinsics_.fy,
-                        depth_m
-                    );
-                    
-                    // Transform to body frame
-                    Eigen::Vector4d camera_point_h(camera_point.x(), camera_point.y(), camera_point.z(), 1.0);
-                    Eigen::Vector4d body_point_h = stereo1_l_extrinsics_.cam_to_body_transform * camera_point_h;
-                    Eigen::Vector3d body_point = body_point_h.head<3>();
-                    
-                    // For occupancy mapping, we typically want the distance from robot center
-                    double body_distance = body_point.norm();
-                    body_distance = std::max(min_depth_, std::min(max_depth_, body_distance));
-                    
-                    // Store transformed depth
-                    uint16_t transformed_depth_mm = static_cast<uint16_t>(body_distance * 1000.0);
-                    body_depth.at<uint16_t>(y, x) = transformed_depth_mm;
-                }
-            }
-        }
-        
-        return body_depth;
     }
 
     void generateCombinedPointCloud() {
         static int pointcloud_count = 0;
         pointcloud_count++;
         
-        // Check if publisher has subscribers
-        if (pointcloud_pub_.getNumSubscribers() == 0) {
-            ROS_INFO_THROTTLE(10.0, "No subscribers for point cloud topic");
+        // Check if any publisher has subscribers
+        bool has_pointcloud_subscribers = pointcloud_pub_.getNumSubscribers() > 0;
+        bool has_depth_subscribers = depth_image_rect_raw_pub_.getNumSubscribers() > 0;
+        
+        if (!has_pointcloud_subscribers && !has_depth_subscribers) {
+            ROS_INFO_THROTTLE(10.0, "No subscribers for point cloud or depth image topics");
             return;
         }
+        
+        ROS_INFO_THROTTLE(8.0, "Processing data (pointcloud subs: %d, depth subs: %d)", 
+                         pointcloud_pub_.getNumSubscribers(), depth_image_rect_raw_pub_.getNumSubscribers());
         
         // Need current MAVROS fused odometry pose to transform points to world frame
         if (!has_odom_) {
@@ -890,8 +714,11 @@ private:
             has_right = false;
         }
         
-        // Create combined PCL point cloud
+        // Create combined PCL point cloud (world frame)
         pcl::PointCloud<pcl::PointXYZ>::Ptr combined_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        
+        // Keep body-frame points for virtual camera depth image generation
+        pcl::PointCloud<pcl::PointXYZ>::Ptr body_cloud(new pcl::PointCloud<pcl::PointXYZ>);
         
         // Get body_to_world transform
         Eigen::Matrix4d body_to_world;
@@ -899,20 +726,22 @@ private:
             std::lock_guard<std::mutex> lock(odom_mutex_);
             body_to_world = body_to_world_transform_;
         }
-        
+
         int total_valid_points = 0;
         
         // Process left camera point cloud
         if (has_left) {
             vkc::Shared<vkc::PointCloud> left_vk_pc = vkc::convertToPointCloud(left_disparity, left_image_data, pc_params_);
-            int left_valid_points = processPointCloud(left_vk_pc, stereo1_l_extrinsics_, body_to_world, combined_cloud, "LEFT");
+            int left_valid_points = processPointCloud(left_vk_pc, stereo1_l_extrinsics_, body_to_world, 
+                                                     combined_cloud, body_cloud, "LEFT");
             total_valid_points += left_valid_points;
         }
         
         // Process right camera point cloud
         if (has_right) {
             vkc::Shared<vkc::PointCloud> right_vk_pc = vkc::convertToPointCloud(right_disparity, right_image_data, pc_params_);
-            int right_valid_points = processPointCloud(right_vk_pc, stereo1_r_extrinsics_, body_to_world, combined_cloud, "RIGHT");
+            int right_valid_points = processPointCloud(right_vk_pc, stereo1_r_extrinsics_, body_to_world, 
+                                                      combined_cloud, body_cloud, "RIGHT");
             total_valid_points += right_valid_points;
         }
         
@@ -936,12 +765,20 @@ private:
         } catch (const std::exception& e) {
             ROS_ERROR("Exception publishing combined point cloud: %s", e.what());
         }
+        
+        // Convert body-frame point cloud to depth image using virtual body-centered camera
+        if (body_cloud->points.size() > 0) {
+            convertBodyPointCloudToDepthImage(body_cloud);
+        } else {
+            ROS_WARN_THROTTLE(10.0, "No body points available, skipping depth image generation");
+        }
     }
 
     int processPointCloud(const vkc::Shared<vkc::PointCloud>& vk_pointcloud, 
                           const CameraExtrinsics& extrinsics,
                           const Eigen::Matrix4d& body_to_world,
-                          pcl::PointCloud<pcl::PointXYZ>::Ptr& output_cloud,
+                          pcl::PointCloud<pcl::PointXYZ>::Ptr& output_world_cloud,
+                          pcl::PointCloud<pcl::PointXYZ>::Ptr& output_body_cloud,
                           const std::string& camera_name) {
         auto pc_reader = vk_pointcloud.reader();
         auto points_data = pc_reader.getPoints().asBytes();
@@ -967,7 +804,7 @@ private:
         
         // FOV filter parameters (in radians)
         const double fov_horizontal_left = 40.0 * M_PI / 180.0;   // 40 degrees left
-        const double fov_horizontal_right = -50.0 * M_PI / 180.0; // 50 degrees right
+        const double fov_horizontal_right = -40.0 * M_PI / 180.0; // 50 degrees right
         const double fov_vertical_up = 10.0 * M_PI / 180.0;       // +10 degrees up
         const double fov_vertical_down = -60.0 * M_PI / 180.0;    // -60 degrees down
         
@@ -1028,7 +865,8 @@ private:
                 continue;
             }
             
-            // Point passes distance and FOV filters, transform to world frame
+            // Point passes distance and FOV filters
+            // Add to world frame point cloud
             Eigen::Vector4d world_point;
             if (extrinsics.is_valid) {
                 Eigen::Vector4d body_point_4d(body_point_3d.x(), body_point_3d.y(), body_point_3d.z(), 1.0);
@@ -1037,12 +875,19 @@ private:
                 world_point = body_to_world * camera_point;
             }
             
-            pcl::PointXYZ point;
-            point.x = world_point.x();
-            point.y = world_point.y();
-            point.z = world_point.z();
+            pcl::PointXYZ world_pt;
+            world_pt.x = world_point.x();
+            world_pt.y = world_point.y();
+            world_pt.z = world_point.z();
+            output_world_cloud->points.push_back(world_pt);
             
-            output_cloud->points.push_back(point);
+            // Add to body frame point cloud for virtual camera depth image
+            pcl::PointXYZ body_pt;
+            body_pt.x = body_point_3d.x();
+            body_pt.y = body_point_3d.y();
+            body_pt.z = body_point_3d.z();
+            output_body_cloud->points.push_back(body_pt);
+            
             valid_points++;
         }
         
@@ -1057,7 +902,89 @@ private:
         return valid_points;
     }
 
-    void publishDepthImage(const cv::Mat& depth_image, ros::Publisher& pub, const std::string& frame_id) {
+    void convertBodyPointCloudToDepthImage(const pcl::PointCloud<pcl::PointXYZ>::Ptr& body_cloud) {
+        // Create depth image (640x480, 16UC1 in millimeters)
+        const int width = 640;
+        const int height = 480;
+        cv::Mat depth_image = cv::Mat::zeros(height, width, CV_16UC1);
+        
+        // Virtual camera intrinsics (ideal pinhole model)
+        const double fx = VIRTUAL_CAM_FX;
+        const double fy = VIRTUAL_CAM_FY;
+        const double cx = VIRTUAL_CAM_CX;
+        const double cy = VIRTUAL_CAM_CY;
+        
+        int projected_points = 0;
+        int behind_camera = 0;
+        int out_of_bounds = 0;
+        
+        // Virtual camera at body center with FLU (Forward-Left-Up) frame:
+        // Body frame: X=forward, Y=left, Z=up
+        // Camera frame convention: X=right, Y=down, Z=forward
+        // Transform: cam_x = body_y, cam_y = -body_z, cam_z = body_x
+        
+        // Project each body-frame point through virtual camera
+        for (const auto& pt : body_cloud->points) {
+            // Body frame coordinates
+            double x_body = pt.x;  // forward
+            double y_body = pt.y;  // left
+            double z_body = pt.z;  // up
+            
+            // Transform to virtual camera frame (FLU → camera convention)
+            double x_cam = y_body;   // body left → camera right
+            double y_cam = -z_body;  // body up → camera down (negated)
+            double z_cam = x_body;   // body forward → camera forward (depth)
+            
+            // Skip points behind virtual camera or too close
+            if (z_cam <= 0.2) {
+                behind_camera++;
+                continue;
+            }
+            
+            // Project to image plane using pinhole model
+            int u = static_cast<int>(std::round(fx * x_cam / z_cam + cx));
+            int v = static_cast<int>(std::round(fy * y_cam / z_cam + cy));
+            
+            // Check if projection is within image bounds
+            if (u < 0 || u >= width || v < 0 || v >= height) {
+                out_of_bounds++;
+                continue;
+            }
+            
+            // Convert depth to millimeters
+            uint16_t depth_mm = static_cast<uint16_t>(std::min(65535.0, std::max(0.0, z_cam * 1000.0)));
+            
+            // Keep closest depth (Z-buffer)
+            uint16_t& existing_depth = depth_image.at<uint16_t>(v, u);
+            if (existing_depth == 0 || depth_mm < existing_depth) {
+                existing_depth = depth_mm;
+            }
+            
+            projected_points++;
+        }
+        
+        ROS_INFO_THROTTLE(5.0, "Virtual camera depth: %zu body points, %d projected, %d behind cam, %d out of bounds",
+                         body_cloud->points.size(), projected_points, behind_camera, out_of_bounds);
+        
+        if (projected_points == 0) {
+            ROS_WARN_THROTTLE(2.0, "No points projected to depth image! Camera may not see any valid depth.");
+        }
+        
+        // Get synchronized timestamp
+        ros::Time stamp;
+        {
+            std::lock_guard<std::mutex> lock(odom_mutex_);
+            stamp = latest_odom_time_;
+        }
+        
+        // Publish depth image (use camera_link to match TF and camera pose)
+        publishDepthImage(depth_image, depth_image_rect_raw_pub_, "camera_link", stamp);
+        
+        // Publish camera_info for planner
+        publishCameraInfo(stamp);
+    }
+
+    void publishDepthImage(const cv::Mat& depth_image, ros::Publisher& pub, const std::string& frame_id, const ros::Time& stamp = ros::Time::now()) {
         static std::map<std::string, int> pub_counts;
         pub_counts[frame_id]++;
         
@@ -1079,7 +1006,7 @@ private:
         }
         
         sensor_msgs::Image depth_msg;
-        depth_msg.header.stamp = ros::Time::now();
+        depth_msg.header.stamp = stamp;
         depth_msg.header.frame_id = frame_id;
         depth_msg.height = depth_image.rows;
         depth_msg.width = depth_image.cols;
@@ -1107,83 +1034,6 @@ private:
         }
     }
 
-    void publishDisparityImage(const vkc::Disparity::Reader& disparity_data) {
-        static int disparity_pub_count = 0;
-        disparity_pub_count++;
-        
-        int width = disparity_data.getWidth();
-        int height = disparity_data.getHeight();
-        
-        ROS_INFO_THROTTLE(3.0, "Publishing disparity image [%d] (size: %dx%d)", 
-                         disparity_pub_count, width, height);
-        
-        // Check if publisher has subscribers
-        if (disparity_pub_.getNumSubscribers() == 0) {
-            ROS_INFO_THROTTLE(10.0, "No subscribers for disparity topic");
-            return; // Skip processing if no one is listening
-        }
-        
-        ROS_INFO_THROTTLE(5.0, "%d subscriber(s) for disparity topic", 
-                         disparity_pub_.getNumSubscribers());
-        
-        // Get disparity values
-        auto disparity_values = disparity_data.getData();
-        
-        if (!disparity_values.size()) {
-            ROS_ERROR("Empty disparity data - cannot publish");
-            return;
-        }
-        
-        sensor_msgs::Image disparity_msg;
-        disparity_msg.header.stamp = ros::Time::now();
-        disparity_msg.header.frame_id = "camera_optical_frame";
-        disparity_msg.height = height;
-        disparity_msg.width = width;
-        disparity_msg.step = disparity_data.getStep();
-        
-        // Set encoding based on eCAL disparity encoding (same as ecal_ros_bridge_node.cpp)
-        auto encoding = disparity_data.getEncoding();
-        switch (encoding) {
-            case vkc::Disparity::Encoding::DISPARITY8:
-                disparity_msg.encoding = "mono8";
-                break;
-            case vkc::Disparity::Encoding::DISPARITY16:
-                disparity_msg.encoding = "mono16";
-                break;
-            case vkc::Disparity::Encoding::DEPTH16:
-                disparity_msg.encoding = "16UC1";
-                break;
-            case vkc::Disparity::Encoding::DEPTH32:
-                disparity_msg.encoding = "32FC1";
-                break;
-            case vkc::Disparity::Encoding::DISTANCE16:
-                disparity_msg.encoding = "16UC1";
-                break;
-            case vkc::Disparity::Encoding::DISTANCE32:
-                disparity_msg.encoding = "32FC1";
-                break;
-            case vkc::Disparity::Encoding::CONFIDENCE8:
-                disparity_msg.encoding = "mono8";
-                break;
-            default:
-                disparity_msg.encoding = "mono8";
-        }
-        
-        disparity_msg.is_bigendian = false;
-        
-        // Copy image data - same as ecal_ros_bridge_node.cpp
-        auto data = disparity_data.getData();
-        disparity_msg.data.resize(data.size());
-        std::memcpy(disparity_msg.data.data(), data.begin(), data.size());
-        
-        try {
-            disparity_pub_.publish(disparity_msg);
-            ROS_INFO_THROTTLE(8.0, "Successfully published disparity image");
-        } catch (const std::exception& e) {
-            ROS_ERROR("Exception publishing disparity image: %s", e.what());
-        }
-    }
-    
     void publishImageLeft(const cv::Mat& image) {
         static int image_pub_count = 0;
         image_pub_count++;
@@ -1246,6 +1096,94 @@ private:
         } catch (const std::exception& e) {
             ROS_ERROR("Exception publishing RIGHT RGB image: %s", e.what());
         }
+    }
+    
+    void publishCameraInfo(const ros::Time& stamp) {
+        sensor_msgs::CameraInfo camera_info;
+        camera_info.header.stamp = stamp;
+        camera_info.header.frame_id = "camera_link";
+        
+        camera_info.width = 640;
+        camera_info.height = 480;
+        camera_info.distortion_model = "plumb_bob";
+        
+        // Ideal camera model (no distortion)
+        camera_info.D.resize(5, 0.0);
+        
+        // Camera intrinsic matrix K = [fx  0 cx]
+        //                              [ 0 fy cy]
+        //                              [ 0  0  1]
+        camera_info.K[0] = VIRTUAL_CAM_FX;  // fx
+        camera_info.K[2] = VIRTUAL_CAM_CX;  // cx
+        camera_info.K[4] = VIRTUAL_CAM_FY;  // fy
+        camera_info.K[5] = VIRTUAL_CAM_CY;  // cy
+        camera_info.K[8] = 1.0;
+        
+        // Rectification matrix (identity for ideal camera)
+        camera_info.R[0] = 1.0;
+        camera_info.R[4] = 1.0;
+        camera_info.R[8] = 1.0;
+        
+        // Projection matrix P = [fx  0 cx  0]
+        //                        [ 0 fy cy  0]
+        //                        [ 0  0  1  0]
+        camera_info.P[0] = VIRTUAL_CAM_FX;
+        camera_info.P[2] = VIRTUAL_CAM_CX;
+        camera_info.P[5] = VIRTUAL_CAM_FY;
+        camera_info.P[6] = VIRTUAL_CAM_CY;
+        camera_info.P[10] = 1.0;
+        
+        camera_info_pub_.publish(camera_info);
+        ROS_INFO_THROTTLE(8.0, "Published camera_info with fx=%.1f, fy=%.1f, cx=%.1f, cy=%.1f",
+                         VIRTUAL_CAM_FX, VIRTUAL_CAM_FY, VIRTUAL_CAM_CX, VIRTUAL_CAM_CY);
+    }
+    
+    void publishCameraExtrinsics() {
+        // Publish camera-to-body extrinsics for ego-planner
+        // Virtual camera frame: X=right, Y=down, Z=forward (standard camera convention)
+        // Body frame (FLU): X=forward, Y=left, Z=up
+        // 
+        // Rotation matrix from camera to body:
+        // body_x = camera_z  →  [0  0  1]
+        // body_y = camera_x  →  [1  0  0]
+        // body_z = -camera_y →  [0 -1  0]
+        
+        nav_msgs::Odometry extrinsic_msg;
+        extrinsic_msg.header.stamp = ros::Time::now();
+        extrinsic_msg.header.frame_id = "camera_link";
+        extrinsic_msg.child_frame_id = "base_link";
+        
+        // Translation: camera is at body center
+        extrinsic_msg.pose.pose.position.x = 0.0;
+        extrinsic_msg.pose.pose.position.y = 0.0;
+        extrinsic_msg.pose.pose.position.z = 0.0;
+        
+        // Rotation from camera frame to body frame (FLU)
+        // This represents a 90° rotation about body Y-axis, then 90° about new X-axis
+        // Equivalent quaternion for the rotation matrix above:
+        Eigen::Matrix3d cam2body_rotation;
+        cam2body_rotation << 0,  0,  1,   // body_x = camera_z
+                             1,  0,  0,   // body_y = camera_x
+                             0, -1,  0;   // body_z = -camera_y
+        
+        Eigen::Quaterniond cam2body_q(cam2body_rotation);
+        
+        extrinsic_msg.pose.pose.orientation.w = cam2body_q.w();
+        extrinsic_msg.pose.pose.orientation.x = cam2body_q.x();
+        extrinsic_msg.pose.pose.orientation.y = cam2body_q.y();
+        extrinsic_msg.pose.pose.orientation.z = cam2body_q.z();
+        
+        camera_extrinsic_pub_.publish(extrinsic_msg);
+        
+        ROS_INFO("Published camera-to-body extrinsics for ego-planner:");
+        ROS_INFO("  Translation: [%.3f, %.3f, %.3f] (camera at body center)",
+                 extrinsic_msg.pose.pose.position.x,
+                 extrinsic_msg.pose.pose.position.y,
+                 extrinsic_msg.pose.pose.position.z);
+        ROS_INFO("  Rotation (quat): w=%.3f, x=%.3f, y=%.3f, z=%.3f",
+                 cam2body_q.w(), cam2body_q.x(), cam2body_q.y(), cam2body_q.z());
+        ROS_INFO("  Camera frame: X=right, Y=down, Z=forward");
+        ROS_INFO("  Body frame (FLU): X=forward, Y=left, Z=up");
     }
     
     void publishCameraTransform() {
