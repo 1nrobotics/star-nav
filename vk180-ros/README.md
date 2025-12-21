@@ -1,80 +1,53 @@
-# VK180 ROS Integration Package# VK180 ROS Bridge
+# VK180 ROS Integration Package
 
+Comprehensive ROS package for integrating VK180 hardware with EGO Planner for autonomous navigation with PX4.
 
+## Features
 
-Comprehensive ROS package for integrating VK180 hardware with EGO Planner for autonomous navigation.This package provides a ROS bridge for VK180 eCAL odometry and disparity data, converting eCAL messages to standard ROS topics.
+- **Dual Sensor Modalities**: Point cloud and virtual depth image for flexible obstacle detection
+- **VIO-IMU Fusion**: VK180 VIO integrated with PX4 EKF2 for robust state estimation
+- **Autonomous Planning**: EGO planner with collision-free trajectory generation
+- **Camera-to-Body Extrinsics**: Proper coordinate frame transforms for depth processing
+- **Complete Integration**: Single launch file for full autonomous flight system
 
+## Published Topics
 
+### Odometry
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/vk180/odom_raw` | `nav_msgs/Odometry` | Raw VIO odometry (30 Hz) |
+| `/mavros/vision_pose/pose` | `geometry_msgs/PoseStamped` | Vision pose to PX4 EKF2 |
+| `/mavros/local_position/odom` | `nav_msgs/Odometry` | Fused odometry (VIO+IMU, >50 Hz) |
 
-## 📁 Package Structure## Features
+### Sensor Data
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/vk180/pointcloud` | `sensor_msgs/PointCloud2` | World-frame point cloud (pcl::PointXYZ) |
+| `/vk180/depth/image_rect_raw` | `sensor_msgs/Image` | Virtual depth image (16UC1, mm, 640×480) |
+| `/vk180/depth/camera_info` | `sensor_msgs/CameraInfo` | Virtual camera intrinsics |
+| `/vk180/camera_extrinsic` | `nav_msgs/Odometry` | Camera-to-body transform (latched) |
+| `/vk180/image_left` | `sensor_msgs/Image` | Left RGB image (optional) |
+| `/vk180/image_right` | `sensor_msgs/Image` | Right RGB image (optional) |
 
+### Control & Planning
+| Topic | Type | Description |
+|-------|------|-------------|
+| `/drone_0_planning/pos_cmd` | `quadrotor_msgs::PositionCommand` | EGO planner trajectory |
+| `/mavros/setpoint_raw/attitude` | `mavros_msgs/AttitudeTarget` | px4ctrl output |
 
+## TF Frames
 
-```- **Odometry Bridge**: Converts eCAL `Odometry3d` messages to ROS `nav_msgs/Odometry`
+```
+world
+  └─ odom (static)
+      └─ base_link (dynamic, from MAVROS fused odom)
+          └─ camera_link (static, from VK180 extrinsics)
+```
 
-vk180-ros/- **Disparity Bridge**: Converts eCAL `Disparity` messages to ROS `sensor_msgs/Image` and `sensor_msgs/CameraInfo`
-
-├── 📂 src/                          # Source code- **Transform Publishing**: Optionally publishes TF transforms for odometry
-
-│   ├── 📂 nodes/                    # Main ROS nodes- **Configurable Topics**: Support for different eCAL topic names and frame IDs
-
-│   │   ├── enhanced_planner_integration.cpp  # Main VK180+EGO integration
-
-│   │   ├── ecal_ros_bridge_node.cpp          # Basic eCAL-ROS bridge## Published Topics
-
-│   │   └── AllTopicReceiver.cpp              # Development debugging tool
-
-│   └── 📂 utils/                    # Utility programs| Topic | Type | Description |
-
-│       ├── odom.cpp                 # Odometry stream testing|-------|------|-------------|
-
-│       ├── disparity.cpp            # Disparity stream testing  | `/vk180/odometry` | `nav_msgs/Odometry` | VIO odometry from eCAL |
-
-│       ├── sensor_extrinsics.cpp    # Camera calibration extraction| `/vk180/disparity/image` | `sensor_msgs/Image` | Disparity/depth image from eCAL |
-
-│       └── depth_conversion_test.cpp # Depth processing validation| `/vk180/disparity/camera_info` | `sensor_msgs/CameraInfo` | Camera intrinsics and stereo info |
-
-├── 📂 launch/                       # ROS launch files
-
-│   ├── vk180_ego_planner_integration.launch  # Complete integration## TF Frames
-
-│   ├── ecal_ros_bridge.launch               # Basic bridge only
-
-│   ├── enhanced_planner_integration.launch  # Enhanced node only| Frame | Description |
-
-│   └── planner_integration.launch           # Legacy integration|-------|-------------|
-
-├── 📂 config/                       # Configuration files| `odom` | Odometry reference frame |
-
-│   ├── vk180_planner_visualization.rviz     # RViz configuration| `base_link` | Robot base frame |
-
-│   └── bridge_config.yaml                   # Bridge parameters| `camera_link` | Camera frame |
-
-├── 📂 scripts/                      # Launch and utility scripts
-
-│   ├── launch_vk180_planner.sh      # Full TMUX-based launch (recommended)## Parameters
-
-│   ├── simple_launch.sh             # Simple testing launch
-
-│   ├── analyze_disparity.py         # Disparity data analysis| Parameter | Type | Default | Description |
-
-│   ├── visualize_disparity.py       # Disparity visualization|-----------|------|---------|-------------|
-
-│   ├── check_tf.py                  # Transform debugging| `odom_frame_id` | string | `"odom"` | Odometry frame ID |
-
-│   └── README.md                    # Script documentation| `base_frame_id` | string | `"base_link"` | Base frame ID |
-
-├── 📂 docs/                         # Documentation| `camera_frame_id` | string | `"camera_link"` | Camera frame ID |
-
-│   └── DEPTH_CONVERSION_GUIDE.md    # Depth processing guide| `ecal_odom_topic` | string | `"S1/vio_odom"` | eCAL odometry topic name |
-
-├── CMakeLists.txt                   # Build configuration| `ecal_disparity_topic` | string | `"S1/stereo1_l/disparity"` | eCAL disparity topic name |
-
-├── package.xml                      # ROS package manifest| `publish_tf` | bool | `true` | Whether to publish TF transforms |
-
-└── README.md                        # This file
-
-```## Usage
+**Coordinate Conventions**:
+- **World**: Fixed inertial frame (ENU)
+- **Body** (`base_link`): FLU (Forward-Left-Up)
+- **Camera** (`camera_link`): X=right, Y=down, Z=forward (standard camera)## Usage
 
 
 
@@ -84,321 +57,244 @@ vk180-ros/- **Disparity Bridge**: Converts eCAL `Disparity` messages to ROS `sen
 
 ### 1. Complete System Launch (Recommended)```bash
 
-```bashcd ~/catkin_ws
+## Quick Start
 
-# Launch with comprehensive TMUX interfacecatkin build vk180_ros
-
-cd /home/yc/catkin_ws/src/vk180-rossource devel/setup.bash
-
-./scripts/launch_vk180_planner.sh```
-
-```
-
-### 2. Launch the Bridge
-
-### 2. Simple Testing Launch
-
-```bash```bash
-
-# Quick testing without TMUX complexity# Basic launch
-
-cd /home/yc/catkin_ws/src/vk180-ros  roslaunch vk180_ros ecal_ros_bridge.launch
-
-./scripts/simple_launch.sh
-
-```# With custom parameters
-
-roslaunch vk180_ros ecal_ros_bridge.launch odom_frame_id:=map base_frame_id:=robot_base
-
-### 3. Component Testing```
+### 1. Build Package
 
 ```bash
-
-# Test individual components### 3. Using Configuration File
-
-rosrun vk180_ros sensor_extrinsics    # Check camera calibration
-
-rosrun vk180_ros depth_conversion_test # Validate depth processing```bash
-
-rosrun vk180_ros odom                 # Test VK180 odometry# Load parameters from config file
-
-rosrun vk180_ros disparity            # Test VK180 disparityrosparam load $(rospack find vk180_ros)/config/bridge_config.yaml /ecal_ros_bridge/
-
-```roslaunch vk180_ros ecal_ros_bridge.launch
-
+cd ~/catkin_ws
+catkin build vk180_ros
+source devel/setup.bash
 ```
 
-## 🎯 Key Features
-
-### 4. Monitor Topics
-
-### Enhanced Planner Integration Node
-
-- **VK180 Hardware Integration**: Direct eCAL communication with VK180```bash
-
-- **Real-time Depth Processing**: Disparity to depth conversion with coordinate transforms# List active topics
-
-- **EGO Planner Compatibility**: Seamless integration with trajectory planningrostopic list | grep vk180
-
-- **Multi-format Publishing**: Raw depth, transformed depth, and disparity streams
-
-- **Comprehensive Debugging**: Extensive logging and validation# Monitor odometry
-
-rostopic echo /vk180/odometry
-
-### Published Topics
+### 2. Launch Full Autonomous System
 
 ```bash
-/vk180/odom              # Odometry for EGO planner
-/vk180/depth             # Depth images for obstacle mapping
-/vk180/disparity         # Disparity image
-/vk180/pointcloud        # Combined point cloud from both cameras
-/vk180/image_left        # Left camera RGB image
-/vk180/image_right       # Right camera RGB image
+# Complete system with VIO, PX4, EGO planner
+roslaunch vk180_ros vk180_autonomous_flight.launch
 ```
+
+### 3. Monitor Topics
+
+```bash
+# List active topics
+rostopic list | grep vk180
+
+# Monitor odometry
+rostopic echo /vk180/odom_raw
+
+# Monitor depth image
+rostopic echo /vk180/depth/image_rect_raw
+
+# Verify camera extrinsics
+rostopic echo /vk180/camera_extrinsic
+```
+
+### 4. RViz Visualization
+
+```bash
+rviz -d $(rospack find vk180_ros)/config/vk180_planner_visualization.rviz
+```
+
+## Virtual Camera Specifications
+
+**Virtual Depth Camera** (body-centered):
+- Resolution: 640×480 pixels
+- Encoding: 16UC1 (uint16 millimeters)
+- Focal length: fx=fy=320.0 pixels
+- Principal point: cx=320.0, cy=240.0 pixels
+- Camera-to-body rotation: [[0,0,1], [1,0,0], [0,-1,0]]
+
+The virtual depth image represents the environment as seen from the drone body center, with camera orientation aligned to body frame through the published extrinsics.
 
 ## Dependencies
 
-### Subscribed eCAL Streams
-
-```bash### System Dependencies
-
-S1/vio_odom                 # VK180 visual-inertial odometry- VK180 SDK (vilota)
-
-S1/stereo1_l                # Left stereo camera for extrinsics- eCAL libraries
-
-S1/stereo1_l/disparity      # Stereo disparity data- CapnProto
-
-```
+### System Dependencies
+- VK180 SDK (Vilota)
+- eCAL (Eclipse Cyclone CAL)
+- CapnProto
 
 ### ROS Dependencies
-
-## 🔧 Configuration- roscpp
-
+- roscpp
 - nav_msgs
+- sensor_msgs
+- geometry_msgs
+- tf2_ros
+- quadrotor_msgs
+- mavros_msgs
 
-### Launch Parameters- sensor_msgs
+## Configuration
 
-```xml- geometry_msgs
+### Launch File Parameters
 
-<!-- Frame configuration -->- tf2_ros
-
-<param name="odom_frame_id" value="odom" />
-
-<param name="base_frame_id" value="base_link" />## Configuration Examples
-
-
-
-<!-- Depth processing -->### Different eCAL Topics
-
-<param name="use_body_frame_transform" value="true" />```yaml
-
-<param name="max_depth" value="8.0" />ecal_odom_topic: "S0/vio_odom"        # Use sensor S0 instead of S1
-
-<param name="min_depth" value="0.3" />ecal_disparity_topic: "S0/stereo1_l/disparity"
-
-``````
-
-
-
-### EGO Planner Integration### Custom Frame IDs
-
-```xml```yaml
-
-<!-- VK180 data topics -->odom_frame_id: "map"
+**vk180_autonomous_flight.launch** includes all necessary parameters:
 
 ```xml
-<arg name="odometry_topic" value="/vk180/odom"/>
-<arg name="depth_topic" value="/vk180/depth"/>
+<!-- Sensor topics -->
+<arg name="cloud_topic" value="/vk180/pointcloud"/>
+<arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
+<arg name="pose_topic" value="/mavros/local_position/odom"/>
+
+<!-- Virtual camera intrinsics -->
+<arg name="cx" value="320.0"/>
+<arg name="cy" value="240.0"/>
+<arg name="fx" value="320.0"/>
+<arg name="fy" value="320.0"/>
+
+<!-- Camera extrinsics -->
+<remap from="/vins_fusion/extrinsic" to="/vk180/camera_extrinsic"/>
 ```
 
-<!-- Camera intrinsics (auto-extracted from VK180) -->
+### Choosing Sensor Modality
 
-<arg name="cx" value="320.0"/>### Disable TF Publishing
+**Point Cloud Mode** (default):
+- More accurate 3D reconstruction
+- Better for sparse obstacles
+- Higher computational cost
+- Set: `sensor_pose_topic="/vk180/pointcloud"`
 
-<arg name="cy" value="240.0"/>```yaml
+**Depth Image Mode**:
+- Faster processing
+- Better for dense environments
+- Requires camera extrinsics
+- Set: `depth_topic="/vk180/depth/image_rect_raw"`
 
-<arg name="fx" value="400.0"/>publish_tf: false  # Useful when using robot_localization or other tf publishers
+Both modes can be used simultaneously for robust obstacle detection.
 
-<arg name="fy" value="400.0"/>```
+## Architecture
+
+### System Integration
 
 ```
+VK180 Hardware
+    ├─> eCAL Protocol
+    └─> vk180_planner_bridge Node
+            ├─> /vk180/odom_raw         → MAVROS vision_pose → PX4 EKF2
+            ├─> /vk180/pointcloud       → EGO Planner (occupancy grid)
+            ├─> /vk180/depth/image_rect_raw → EGO Planner (grid map)
+            ├─> /vk180/camera_extrinsic → EGO Planner (depth transform)
+            └─> /vk180/image_left/right → Visualization
 
-## Planner Integration
+PX4 Flight Controller
+    └─> MAVROS
+            └─> /mavros/local_position/odom → EGO Planner (pose feedback)
 
-## 🛠️ Development
+EGO Planner
+    └─> /drone_0_planning/pos_cmd → px4ctrl → /mavros/setpoint_raw/attitude
+```
 
-### EGO Planner Integration
+### Data Flow
+
+1. **VIO-IMU Fusion**: VK180 VIO + PX4 IMU → EKF2 → Fused odometry (>50 Hz)
+2. **Obstacle Detection**: Point cloud + depth image → Occupancy grid map
+3. **Trajectory Planning**: EGO planner generates collision-free paths
+4. **Control**: px4ctrl converts trajectories to attitude setpoints → PX4
+
+## Development
 
 ### Building
 
-```bashThe VK180 ROS bridge can directly integrate with EGO planner for real-time SLAM and path planning:
-
-cd /home/yc/catkin_ws
-
-catkin_make --pkg vk180_ros```bash
-
-# or# Launch VK180 + EGO Planner integration
-
-catkin build vk180_rosroslaunch vk180_ros planner_integration.launch
-
+```bash
+cd ~/catkin_ws
+catkin build vk180_ros
+# or
+catkin_make --pkg vk180_ros
 ```
 
-# Or launch bridge with planner support enabled
+### Testing Components
 
-### Testingroslaunch vk180_ros ecal_ros_bridge.launch publish_to_planner:=true
-
-```bash```
-
-# Run individual components
-
-**Integration Features:**
-
-- ✅ **Direct odometry feed**: VK180 VIO → `vk180/odom`
-- ✅ **Depth map conversion**: Disparity → depth in meters → `vk180/depth`  
-- ✅ **Synchronized processing**: Message filters sync depth + odometry
-- ✅ **Camera calibration**: Uses VK180 intrinsics for raycasting
-- ✅ **Occupancy mapping**: Real-time 3D grid map for obstacle avoidance
-
-**Published Topics for Planner:**
-
-| Topic | Type | Description |
-|-------|------|-------------|
-| `/vk180/odom` | `nav_msgs/Odometry` | VK180 VIO odometry |
-| `/vk180/depth` | `sensor_msgs/Image` | Depth image (16UC1, millimeters) |
-
-1. **New ROS Nodes**: Add to `src/nodes/`
-
-2. **Utility Programs**: Add to `src/utils/`**Camera Parameters:**
-
-3. **Launch Files**: Add to `launch/`- fx, fy: 198.603 pixels
-
-4. **Scripts**: Add to `scripts/`- cx, cy: 315.758, 189.992 pixels  
-
-5. **Documentation**: Add to `docs/`- Baseline: 7.77 cm
-
-- Resolution: 320×200 pixels
-
-## 📊 System Architecture
-
-### Integration Architecture
-
+```bash
+# Run individual test utilities
+rosrun vk180_ros sensor_extrinsics    # Check camera calibration
+rosrun vk180_ros depth_conversion_test # Validate depth processing
+rosrun vk180_ros odom                 # Test VK180 odometry stream
+rosrun vk180_ros disparity            # Test VK180 disparity stream
 ```
 
-VK180 Hardware```
+### Legacy Scripts
 
-     ↓ (eCAL)VK180 Hardware
+```bash
+# TMUX-based launch (legacy, for development)
+cd /home/yc/catkin_ws/src/vk180-ros
+./scripts/launch_vk180_planner.sh
 
-Enhanced Planner Integration Node    ↓ eCAL
+# Simple testing launch
+./scripts/simple_launch.sh
+```
 
-     ↓ (ROS Topics)eCAL ROS Bridge
+## Troubleshooting
 
-EGO Planner + RViz Visualization    ↓ ROS Topics
+### eCAL Connection Issues
 
-```EGO Planner (GridMap)
-
-    ↓ Occupancy Grid
-
-### Data FlowPath Planning & Control
-
-1. **VK180** publishes stereo odometry and disparity via eCAL```
-
-2. **Enhanced Integration Node** receives eCAL data and converts to ROS
-
-3. **Coordinate Transformation** from camera frame to robot body frame### eCAL Connection Issues
-
-4. **EGO Planner** consumes odometry and depth for path planning1. Ensure eCAL daemon is running: `ecal_daemon`
-
-5. **RViz** provides real-time visualization and control interface2. Check available eCAL topics: `ecal_info`
-
+1. Ensure eCAL daemon is running: `ecal_daemon`
+2. Check available eCAL topics: `ecal_info`
 3. Verify VK180 SDK installation: `/opt/vilota/`
-
-## 📈 Performance
 
 ### ROS Topics Not Publishing
 
-- **Odometry Rate**: ~30 Hz from VK1801. Check node status: `rosnode info /ecal_ros_bridge`
+1. Check node status: `rosnode info /vk180_planner_bridge`
+2. Verify eCAL topics are active: `ecal_mon`
+3. Check ROS master: `rostopic list`
+4. Verify camera extrinsics: `rostopic echo /vk180/camera_extrinsic`
 
-- **Disparity Rate**: ~30 Hz from VK180  2. Verify eCAL topics are active: `ecal_mon`
+### Planning Issues
 
-- **Depth Processing**: Real-time with ~10-12% valid pixels3. Check ROS master: `rostopic list`
+1. **Depth image not updating**: Check `/vk180/depth/image_rect_raw` and camera extrinsics
+2. **Point cloud empty**: Verify VK180 disparity stream is active
+3. **Poor trajectory quality**: Tune EGO planner parameters in launch file
+4. **Coordinate frame errors**: Verify TF tree with `rosrun tf view_frames`
 
-- **Planning Update**: Real-time obstacle avoidance
+### Build Issues
 
-- **Memory Usage**: Optimized Cap'n Proto handling### Build Issues
-
-1. Ensure VK180 SDK paths are correct in CMakeLists.txt
-
-## 🔍 Troubleshooting2. Check CapnProto installation
-
+1. Ensure VK180 SDK paths are correct in `CMakeLists.txt`
+2. Check CapnProto installation: `pkg-config --modversion capnp`
 3. Verify ROS dependencies: `rosdep install --from-paths . --ignore-src -r -y`
 
-### Common Issues
+## Performance
 
-1. **VK180 Not Connected**: Check hardware and eCAL SDK## Original Test Executables
+- **Odometry Rate**: 30 Hz (VK180 raw), >50 Hz (PX4 fused)
+- **Point Cloud Rate**: 10-30 Hz depending on scene
+- **Depth Image Rate**: 30 Hz
+- **Planning Update**: 10-20 Hz
+- **Memory Usage**: Optimized Cap'n Proto zero-copy handling
 
-2. **No Depth Data**: Verify stereo cameras and extrinsics extraction
+## Package Structure
 
-3. **Planning Failures**: Check odometry and depth topic ratesThe package also builds the original eCAL test executables:
+```
+vk180-ros/
+├── src/
+│   ├── nodes/
+│   │   ├── vk180_planner_bridge.cpp    # Main integration node
+│   │   ├── ecal_ros_bridge_node.cpp    # Legacy basic bridge
+│   │   └── AllTopicReceiver.cpp        # Development debugging
+│   └── utils/
+│       ├── odom.cpp                    # Odometry stream testing
+│       ├── disparity.cpp               # Disparity stream testing
+│       ├── sensor_extrinsics.cpp       # Camera calibration
+│       └── depth_conversion_test.cpp   # Depth validation
+├── launch/
+│   ├── vk180_autonomous_flight.launch  # Complete autonomous system
+│   ├── advanced_param_exp.xml          # EGO planner parameters
+│   └── ecal_ros_bridge.launch          # Legacy bridge
+├── config/
+│   └── vk180_planner_visualization.rviz
+├── scripts/
+│   ├── launch_vk180_planner.sh         # Legacy TMUX launch
+│   └── simple_launch.sh                # Legacy simple launch
+├── docs/
+│   ├── DEPTH_CONVERSION_GUIDE.md
+│   └── VK180_MAVROS_PX4CTRL_INTEGRATION.md
+├── CMakeLists.txt
+├── package.xml
+└── README.md
+```
 
-4. **RViz Issues**: Verify frame transforms and topic remapping- `receive` - All topic receiver
+## Additional Documentation
 
-- `odom` - Odometry-only receiver  
+- **VK180_MAVROS_PX4CTRL_INTEGRATION.md**: Complete system architecture and integration details
+- **DEPTH_CONVERSION_GUIDE.md**: Depth image processing and coordinate transforms
+- **scripts/README.md**: Utility scripts documentation
 
-### Debug Commands- `disparity` - Disparity-only receiver
+## License
 
-```bash- `sensor_extrinsics` - Extract and display sensor extrinsics from all streams
-
-# Check VK180 connectivity
-
-./devel/lib/vk180_ros/odom```bash
-
-# Run original test programs
-
-# Verify depth processingrosrun vk180_ros odom
-
-./devel/lib/vk180_ros/depth_conversion_testrosrun vk180_ros disparity
-
-rosrun vk180_ros receive
-
-# Check transforms
-
-rosrun tf tf_echo world base_link# Extract sensor extrinsics information
-
-rosrun vk180_ros sensor_extrinsics
-
-# Monitor system health```
-
-rostopic echo /rosout | grep ERROR
-
-```### Sensor Extrinsics Utility
-
-
-
-## 📝 DependenciesThe `sensor_extrinsics` utility automatically scans for available streams and extracts:
-
-- **Image Streams**: Body frame and IMU frame transforms from camera sensors
-
-- **ROS Noetic** (Ubuntu 20.04)- **Disparity Streams**: Stereo camera rotation matrices for frame alignment  
-
-- **VK180 eCAL SDK** (Vilota installation)- **Extrinsic Streams**: Dedicated sensor calibration data
-
-- **OpenCV** (camera processing)
-
-- **Eigen3** (coordinate transformations)This is useful for:
-
-- **EGO Planner** (path planning)- Understanding camera mounting orientations
-
-- Debugging coordinate frame transformations
-
-## 🤝 Contributing- Validating stereo camera calibration
-
-- Setting up proper TF transforms for ROS integration
-1. Follow the organized directory structure
-2. Add comprehensive documentation for new features
-3. Include appropriate launch files and test scripts
-4. Update this README for significant changes
-
-## 📄 License
-
-See main repository license.
+See individual package licenses. VK180 SDK is proprietary (Vilota).
