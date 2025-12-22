@@ -200,14 +200,14 @@ Visualization Manager:
               Axis: Z
               Channel Name: intensity
               Class: rviz/PointCloud2
-              Color: 29; 108; 212
-              Color Transformer: AxisColor
+              Color: 50; 150; 255
+              Color Transformer: FlatColor
               Decay Time: 0
               Enabled: true
               Invert Rainbow: false
               Max Color: 255; 255; 255
               Min Color: 0; 0; 0
-              Name: ego_map_inflate
+              Name: [EGO] map_inflate (blue)
               Position Transformer: XYZ
               Queue Size: 10
               Selectable: true
@@ -228,25 +228,25 @@ Visualization Manager:
               Axis: Z
               Channel Name: intensity
               Class: rviz/PointCloud2
-              Color: 255; 0; 0
+              Color: 255; 50; 50
               Color Transformer: FlatColor
               Decay Time: 0
-              Enabled: false
+              Enabled: true
               Invert Rainbow: false
               Max Color: 255; 255; 255
               Min Color: 0; 0; 0
-              Name: exploration_map_occupancy
+              Name: [EXPLORATION] occupancy (red)
               Position Transformer: XYZ
               Queue Size: 10
               Selectable: true
               Size (Pixels): 3
-              Size (m): 0.15000000596046448
+              Size (m): 0.12000000476837158
               Style: Boxes
               Topic: /exploration_node/grid_map/occupancy
               Unreliable: false
               Use Fixed Frame: true
               Use rainbow: true
-              Value: false
+              Value: true
             - Alpha: 1
               Autocompute Intensity Bounds: true
               Autocompute Value Bounds:
@@ -256,14 +256,14 @@ Visualization Manager:
               Axis: Z
               Channel Name: intensity
               Class: rviz/PointCloud2
-              Color: 255; 170; 0
+              Color: 255; 200; 0
               Color Transformer: FlatColor
               Decay Time: 0
-              Enabled: true
+              Enabled: false
               Invert Rainbow: false
               Max Color: 255; 255; 255
               Min Color: 0; 0; 0
-              Name: exploration_map_inflate
+              Name: [EXPLORATION] inflate (orange)
               Position Transformer: XYZ
               Queue Size: 10
               Selectable: true
@@ -274,7 +274,7 @@ Visualization Manager:
               Unreliable: false
               Use Fixed Frame: true
               Use rainbow: true
-              Value: true
+              Value: false
           Enabled: true
           Name: Mapping
         - Class: rviz/Group

@@ -43,6 +43,13 @@
         <param name="max_depth" value="10.0" />
         <param name="min_depth" value="0.4" />
         
+        <!-- Sensor Outputs for Exploration:
+             - /vk180/pointcloud: World-frame point cloud (pcl::PointXYZ)
+             - /vk180/depth/image_rect_raw: Virtual depth image (16UC1, millimeters)
+             - /vk180/depth/camera_info: Virtual camera intrinsics
+             - /vk180/camera_extrinsic: Camera-to-body transform for depth processing
+        -->
+        
         <!-- Note: 
              - Publishes /vk180/odom_raw (raw VIO before PX4 fusion)
              - Publishes /mavros/vision_pose/pose (vision input to PX4 EKF2)
@@ -175,7 +182,22 @@
         <param name="grid_map/p_max"  value="0.90" type="double"/>
         <param name="grid_map/p_occ"  value="0.80" type="double"/>
         <param name="grid_map/min_ray_length" value="0.3" type="double"/>
-        <param name="grid_map/max_ray_length" value="5.0" type="double"/>
+        <param name="grid_map/max_ray_length" value="10.0" type="double"/>
+        
+        <!-- Camera intrinsics for depth image processing (match VK180 virtual camera) -->
+        <param name="grid_map/cx" value="320.0" type="double"/>
+        <param name="grid_map/cy" value="240.0" type="double"/>
+        <param name="grid_map/fx" value="320.0" type="double"/>
+        <param name="grid_map/fy" value="320.0" type="double"/>
+        
+        <!-- Depth image filtering -->
+        <param name="grid_map/use_depth_filter" value="true" type="bool"/>
+        <param name="grid_map/depth_filter_tolerance" value="0.15" type="double"/>
+        <param name="grid_map/depth_filter_maxdist" value="10.0" type="double"/>
+        <param name="grid_map/depth_filter_mindist" value="0.3" type="double"/>
+        <param name="grid_map/depth_filter_margin" value="2" type="int"/>
+        <param name="grid_map/k_depth_scaling_factor" value="1000.0" type="double"/> <!-- 16UC1 in millimeters -->
+        <param name="grid_map/skip_pixel" value="2" type="int"/>  <!-- Process every 2nd pixel for speed -->
         
         <!-- Visualization and map parameters -->
         <param name="grid_map/visualization_truncate_height" value="1.8" type="double"/>
@@ -183,13 +205,19 @@
         <param name="grid_map/pose_type" value="2" type="int"/>  <!-- 2 = ODOMETRY -->
         <param name="grid_map/frame_id" value="world" type="string"/>
         
-        <!-- Enable pointcloud raycasting for exploration (marks free space) -->
-        <param name="grid_map/enable_pointcloud_raycasting" value="true" type="bool"/>
+        <!-- CRITICAL: Disable pointcloud raycasting when using depth images -->
+        <!-- Depth images provide better raycasting through projectDepthImage() -->
+        <param name="grid_map/enable_pointcloud_raycasting" value="false" type="bool"/>
         
         <!-- Topic remapping -->
         <!-- GridMap subscribes in the node's private namespace ("~grid_map/*") -->
         <remap from="~grid_map/odom" to="/mavros/local_position/odom"/>
-        <remap from="~grid_map/cloud" to="/vk180/pointcloud"/>
+        <remap from="~grid_map/depth" to="/vk180/depth/image_rect_raw"/>
+        <remap from="~grid_map/pose" to="/mavros/local_position/odom"/>  <!-- For depth+pose synchronization -->
+        <remap from="~grid_map/cloud" to="nouse"/>  <!-- Disabled: using depth image instead -->
+        
+        <!-- Camera extrinsics (global topic - hardcoded in grid_map.cpp) -->
+        <remap from="/vins_fusion/extrinsic" to="/vk180/camera_extrinsic"/>
         
     </node>
     
