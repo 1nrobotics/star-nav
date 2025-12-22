@@ -72,7 +72,7 @@
         
         <!-- Use PX4's fused odometry (VIO + IMU) instead of raw VIO -->
         <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-        <arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
+        <arg name="depth_topic" value="nouse"/>
         <arg name="camera_pose_topic" value="nouse2"/>
         <arg name="cloud_topic" value="/vk180/pointcloud"/>
         

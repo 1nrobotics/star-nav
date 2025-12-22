@@ -806,7 +806,7 @@ private:
         const double fov_horizontal_left = 40.0 * M_PI / 180.0;   // 40 degrees left
         const double fov_horizontal_right = -40.0 * M_PI / 180.0; // 50 degrees right
         const double fov_vertical_up = 10.0 * M_PI / 180.0;       // +10 degrees up
-        const double fov_vertical_down = -60.0 * M_PI / 180.0;    // -60 degrees down
+        const double fov_vertical_down = -30.0 * M_PI / 180.0;    // -60 degrees down
         
         unsigned char* pc_data = const_cast<unsigned char*>(points_data.begin());
         int valid_points = 0;
