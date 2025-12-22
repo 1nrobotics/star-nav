@@ -135,6 +135,7 @@ void GridMap::initMap(ros::NodeHandle &nh)
   // Also helps prevent the visualization from flickering when updates are intermittent.
   map_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy", 10, true);
   map_inf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy_inflate", 10, true);
+  depth_cloud_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/depth_cloud", 10, true);
 
   md_.occ_need_update_ = false;
   md_.local_updated_ = false;
@@ -647,6 +648,7 @@ void GridMap::visCallback(const ros::TimerEvent & /*event*/)
 
   publishMapInflate(true);
   publishMap();
+  publishDepth();
 }
 
 void GridMap::updateOccupancyCallback(const ros::TimerEvent & /*event*/)
@@ -1040,4 +1042,35 @@ void GridMap::depthOdomCallback(const sensor_msgs::ImageConstPtr &img,
 
   md_.occ_need_update_ = true;
   md_.flag_use_depth_fusion = true;
+}
+
+void GridMap::publishDepth()
+{
+  if (depth_cloud_pub_.getNumSubscribers() <= 0)
+    return;
+
+  pcl::PointXYZ pt;
+  pcl::PointCloud<pcl::PointXYZ> cloud;
+
+  // Publish the projected points from depth image
+  for (int i = 0; i < md_.proj_points_cnt; ++i)
+  {
+    Eigen::Vector3d pos = md_.proj_points_[i];
+    pt.x = pos(0);
+    pt.y = pos(1);
+    pt.z = pos(2);
+    cloud.push_back(pt);
+  }
+
+  cloud.width = cloud.points.size();
+  cloud.height = 1;
+  cloud.is_dense = true;
+  cloud.header.frame_id = mp_.frame_id_;
+  sensor_msgs::PointCloud2 cloud_msg;
+
+  if (!cloud.points.empty())
+  {
+    pcl::toROSMsg(cloud, cloud_msg);
+    depth_cloud_pub_.publish(cloud_msg);
+  }
 }
