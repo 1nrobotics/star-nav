@@ -921,7 +921,8 @@ private:
         // Virtual camera at body center with FLU (Forward-Left-Up) frame:
         // Body frame: X=forward, Y=left, Z=up
         // Camera frame convention: X=right, Y=down, Z=forward
-        // Transform: cam_x = body_y, cam_y = -body_z, cam_z = body_x
+        // Transform: cam_x = -body_y, cam_y = -body_z, cam_z = body_x
+        // This matches GridMap's expected cam2body: body_y = -camera_x
         
         // Project each body-frame point through virtual camera
         for (const auto& pt : body_cloud->points) {
@@ -931,7 +932,7 @@ private:
             double z_body = pt.z;  // up
             
             // Transform to virtual camera frame (FLU → camera convention)
-            double x_cam = y_body;   // body left → camera right
+            double x_cam = -y_body;  // body left → camera -right (flipped to match GridMap)
             double y_cam = -z_body;  // body up → camera down (negated)
             double z_cam = x_body;   // body forward → camera forward (depth)
             
@@ -1145,7 +1146,7 @@ private:
         // 
         // Rotation matrix from camera to body:
         // body_x = camera_z  →  [0  0  1]
-        // body_y = camera_x  →  [1  0  0]
+        // body_y = -camera_x →  [-1 0  0]  (flipped to match GridMap)
         // body_z = -camera_y →  [0 -1  0]
         
         nav_msgs::Odometry extrinsic_msg;
@@ -1159,11 +1160,11 @@ private:
         extrinsic_msg.pose.pose.position.z = 0.0;
         
         // Rotation from camera frame to body frame (FLU)
-        // This represents a 90° rotation about body Y-axis, then 90° about new X-axis
+        // This matches GridMap's expected transformation for RealSense-compatible depth
         // Equivalent quaternion for the rotation matrix above:
         Eigen::Matrix3d cam2body_rotation;
         cam2body_rotation << 0,  0,  1,   // body_x = camera_z
-                             1,  0,  0,   // body_y = camera_x
+                            -1,  0,  0,   // body_y = -camera_x (flipped)
                              0, -1,  0;   // body_z = -camera_y
         
         Eigen::Quaterniond cam2body_q(cam2body_rotation);

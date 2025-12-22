@@ -1052,6 +1052,22 @@ void GridMap::publishDepth()
   pcl::PointXYZ pt;
   pcl::PointCloud<pcl::PointXYZ> cloud;
 
+  // Debug: print camera transform
+  static int debug_counter = 0;
+  if (debug_counter++ % 100 == 0) {
+    ROS_INFO("[GridMap] Camera position: [%.2f, %.2f, %.2f]", 
+             md_.camera_pos_(0), md_.camera_pos_(1), md_.camera_pos_(2));
+    ROS_INFO("[GridMap] Camera rotation:\n  [%.3f, %.3f, %.3f]\n  [%.3f, %.3f, %.3f]\n  [%.3f, %.3f, %.3f]",
+             md_.camera_r_m_(0,0), md_.camera_r_m_(0,1), md_.camera_r_m_(0,2),
+             md_.camera_r_m_(1,0), md_.camera_r_m_(1,1), md_.camera_r_m_(1,2),
+             md_.camera_r_m_(2,0), md_.camera_r_m_(2,1), md_.camera_r_m_(2,2));
+    ROS_INFO("[GridMap] cam2body:\n  [%.3f, %.3f, %.3f, %.3f]\n  [%.3f, %.3f, %.3f, %.3f]\n  [%.3f, %.3f, %.3f, %.3f]",
+             md_.cam2body_(0,0), md_.cam2body_(0,1), md_.cam2body_(0,2), md_.cam2body_(0,3),
+             md_.cam2body_(1,0), md_.cam2body_(1,1), md_.cam2body_(1,2), md_.cam2body_(1,3),
+             md_.cam2body_(2,0), md_.cam2body_(2,1), md_.cam2body_(2,2), md_.cam2body_(2,3));
+    ROS_INFO("[GridMap] Publishing depth cloud with %d projected points", md_.proj_points_cnt);
+  }
+
   // Publish the projected points from depth image
   for (int i = 0; i < md_.proj_points_cnt; ++i)
   {
