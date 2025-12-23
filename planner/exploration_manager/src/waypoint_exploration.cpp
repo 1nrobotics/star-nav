@@ -153,7 +153,7 @@ void WaypointExploration::planToWaypointState() {
   goal_pub_.publish(goal);
   waypoint_start_time_ = ros::Time::now();
 
-  ROS_INFO("[WaypointExploration] Planning to waypoint %d: [%.2f, %.2f, %.2f] yaw=%.1f°",
+  ROS_INFO("[WaypointExploration] Planning to waypoint %d: [%.2f, %.2f, %.2f] yaw=%.1f deg",
            current_waypoint_idx_, target_pt_(0), target_pt_(1), target_pt_(2), 
            target_yaw_ * 180.0 / M_PI);
 
@@ -171,7 +171,7 @@ void WaypointExploration::execWaypointState() {
 
   // Log progress towards waypoint (throttled to 5Hz for debug)
   ROS_DEBUG_THROTTLE(5.0, "[WaypointExploration] Waypoint %d progress: "
-                     "Current [%.2f, %.2f, %.2f] Target [%.2f, %.2f, %.2f] | "
+                     "Current [%.2f, %.2f, %.2f] -> Target [%.2f, %.2f, %.2f] | "
                      "Distance: %.3f m (H:%.3f, V:%.3f) | Tolerance: 0.7 m",
                      current_waypoint_idx_,
                      odom_pos_(0), odom_pos_(1), odom_pos_(2),
@@ -233,9 +233,9 @@ void WaypointExploration::generateLawnmowerWaypoints() {
   int row_count = 0;
 
   while (current_y <= max_y) {
-    double yaw_angle = move_right ? 0.0 : M_PI;  // 0° for right, 180° for left
+    double yaw_angle = move_right ? 0.0 : M_PI;  // 0 deg for right, 180 deg for left
     
-    ROS_INFO("  Row %d: y=%.2f, direction=%s (yaw=%.1f°)", 
+    ROS_INFO("  Row %d: y=%.2f, direction=%s (yaw=%.1f deg)", 
              row_count, current_y, move_right ? "right" : "left", yaw_angle * 180.0 / M_PI);
     
     if (move_right) {
@@ -245,13 +245,13 @@ void WaypointExploration::generateLawnmowerWaypoints() {
       
       if (isValidWaypoint(start_wp)) {
         waypoints_.push_back(std::make_pair(start_wp, yaw_angle));
-        ROS_INFO("    Added start waypoint: [%.2f, %.2f, %.2f] yaw=%.1f°", 
+        ROS_INFO("    Added start waypoint: [%.2f, %.2f, %.2f] yaw=%.1f deg", 
                  start_wp(0), start_wp(1), start_wp(2), yaw_angle * 180.0 / M_PI);
       }
       
       if (isValidWaypoint(end_wp)) {
         waypoints_.push_back(std::make_pair(end_wp, yaw_angle));
-        ROS_INFO("    Added end waypoint: [%.2f, %.2f, %.2f] yaw=%.1f°", 
+        ROS_INFO("    Added end waypoint: [%.2f, %.2f, %.2f] yaw=%.1f deg", 
                  end_wp(0), end_wp(1), end_wp(2), yaw_angle * 180.0 / M_PI);
       }
     } else {
@@ -261,13 +261,13 @@ void WaypointExploration::generateLawnmowerWaypoints() {
       
       if (isValidWaypoint(start_wp)) {
         waypoints_.push_back(std::make_pair(start_wp, yaw_angle));
-        ROS_INFO("    Added start waypoint: [%.2f, %.2f, %.2f] yaw=%.1f°", 
+        ROS_INFO("    Added start waypoint: [%.2f, %.2f, %.2f] yaw=%.1f deg", 
                  start_wp(0), start_wp(1), start_wp(2), yaw_angle * 180.0 / M_PI);
       }
       
       if (isValidWaypoint(end_wp)) {
         waypoints_.push_back(std::make_pair(end_wp, yaw_angle));
-        ROS_INFO("    Added end waypoint: [%.2f, %.2f, %.2f] yaw=%.1f°", 
+        ROS_INFO("    Added end waypoint: [%.2f, %.2f, %.2f] yaw=%.1f deg", 
                  end_wp(0), end_wp(1), end_wp(2), yaw_angle * 180.0 / M_PI);
       }
     }
