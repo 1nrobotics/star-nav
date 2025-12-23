@@ -74,7 +74,7 @@ void WaypointExploration::fsmCallback(const ros::TimerEvent& e) {
 
 void WaypointExploration::initState() {
   if (!have_odom_) {
-    ROS_WARN("[WaypointExploration] Waiting for odometry...");
+    ROS_WARN_THROTTLE(5.0, "[WaypointExploration] Waiting for odometry...");
     return;
   }
 
