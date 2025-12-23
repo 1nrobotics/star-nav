@@ -11,7 +11,7 @@ void WaypointExploration::init(ros::NodeHandle& nh) {
   nh.param("exploration/center_z", exploration_center_(2), 1.5);
   nh.param("exploration/width", exploration_width_, 10.0);
   nh.param("exploration/height", exploration_height_, 10.0);
-  nh.param("exploration/altitude", exploration_altitude_, 1.5);
+  nh.param("exploration/altitude", exploration_altitude_, 1.0);
   nh.param("exploration/line_spacing", line_spacing_, 0.5);
   nh.param("fsm/waypoint_timeout", waypoint_timeout_, 30.0);
   nh.param("fsm/max_exploration_time", max_exploration_time_, 600.0);
@@ -169,14 +169,14 @@ void WaypointExploration::execWaypointState() {
   double dz = odom_pos_(2) - target_pt_(2);
   double horizontal_dist = sqrt(dx*dx + dy*dy);
 
-  // Log progress towards waypoint (throttled to 1Hz)
-  ROS_INFO_THROTTLE(1.0, "[WaypointExploration] Waypoint %d progress: "
-                    "Current [%.2f, %.2f, %.2f] → Target [%.2f, %.2f, %.2f] | "
-                    "Distance: %.3f m (H:%.3f, V:%.3f) | Tolerance: 0.7 m",
-                    current_waypoint_idx_,
-                    odom_pos_(0), odom_pos_(1), odom_pos_(2),
-                    target_pt_(0), target_pt_(1), target_pt_(2),
-                    dist_to_goal, horizontal_dist, fabs(dz));
+  // Log progress towards waypoint (throttled to 5Hz for debug)
+  ROS_DEBUG_THROTTLE(5.0, "[WaypointExploration] Waypoint %d progress: "
+                     "Current [%.2f, %.2f, %.2f] Target [%.2f, %.2f, %.2f] | "
+                     "Distance: %.3f m (H:%.3f, V:%.3f) | Tolerance: 0.7 m",
+                     current_waypoint_idx_,
+                     odom_pos_(0), odom_pos_(1), odom_pos_(2),
+                     target_pt_(0), target_pt_(1), target_pt_(2),
+                     dist_to_goal, horizontal_dist, fabs(dz));
 
   // Check if reached waypoint (increased tolerance for simulation)
   if (dist_to_goal < 0.7) {  // Increased from 0.5m to 0.7m for simulation

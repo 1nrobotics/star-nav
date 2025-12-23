@@ -10,10 +10,10 @@
     <!-- Waypoint Exploration Parameters -->
     <param name="exploration/center_x" value="0.0" type="double"/>
     <param name="exploration/center_y" value="0.0" type="double"/>
-    <param name="exploration/center_z" value="1.5" type="double"/>
+    <param name="exploration/center_z" value="1.0" type="double"/>
     <param name="exploration/width" value="10.0" type="double"/>
     <param name="exploration/height" value="10.0" type="double"/>
-    <param name="exploration/altitude" value="1.5" type="double"/>
+    <param name="exploration/altitude" value="1.0" type="double"/>
     <param name="exploration/line_spacing" value="1.0" type="double"/>
     <param name="fsm/waypoint_timeout" value="30.0" type="double"/>
     

@@ -126,10 +126,10 @@
         <!-- Waypoint Mode Parameters -->
         <param name="exploration/center_x" value="$(arg exploration_center_x)" type="double"/>
         <param name="exploration/center_y" value="$(arg exploration_center_y)" type="double"/>
-        <param name="exploration/center_z" value="1.5" type="double"/>
+        <param name="exploration/center_z" value="1.0" type="double"/>
         <param name="exploration/width" value="$(arg exploration_width)" type="double"/>
         <param name="exploration/height" value="$(arg exploration_height)" type="double"/>
-        <param name="exploration/altitude" value="1.5" type="double"/>
+        <param name="exploration/altitude" value="1.0" type="double"/>
         <param name="exploration/line_spacing" value="$(arg line_spacing)" type="double"/>
     </node>
 
