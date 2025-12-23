@@ -151,6 +151,7 @@
         <param name="exploration/center_z" value="1.5" type="double"/>
         <param name="exploration/width" value="8.0" type="double"/>  <!-- Rectangle width -->
         <param name="exploration/height" value="8.0" type="double"/> <!-- Rectangle height -->
+        <param name="exploration/altitude" value="1.5" type="double"/> <!-- Waypoint altitude -->
         <param name="exploration/line_spacing" value="0.5" type="double"/> <!-- Distance between lines -->
         
         <!-- Map Parameters (MUST MATCH EGO planner for consistency) -->

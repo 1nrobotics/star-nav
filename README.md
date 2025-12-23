@@ -1,6 +1,7 @@
 ## Sim test
 roslaunch ego_planner single_run_in_sim.launch
 roslaunch ego_planner exploration_sim.launch
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
 
 ## Release image (developer only)
 docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
@@ -48,10 +49,10 @@ pose:
 # In RViz, add these displays:
 # 1. MarkerArray - Topic: /exploration/frontiers
 # 2. PointCloud2 - Topic: /exploration/frontier_cells
-# 3. Pose - Topic: /move_base_simple/goal
+# 3. Pose - Topic: /move_base_simple/goal (direct EGO planner control)
 # 4. PointCloud2 - Topic: /vk180/pointcloud (map)
 
-# Trigger exploration manually
+# Trigger waypoint exploration
 rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
 
 # FSM returns to WAIT_TRIGGER

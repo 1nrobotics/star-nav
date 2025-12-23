@@ -4,6 +4,7 @@
 #include <Eigen/Eigen>
 #include <iostream>
 #include <vector>
+#include <string>
 #include <memory>
 #include <ros/ros.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -11,10 +12,11 @@
 #include <std_msgs/String.h>
 #include <std_msgs/Empty.h>
 #include <nav_msgs/Odometry.h>
-#include <plan_env/grid_map.h>
+#include <tf/tf.h>
 
 using std::shared_ptr;
 using std::vector;
+using std::string;
 
 namespace exploration_manager {
 
@@ -23,7 +25,7 @@ public:
   WaypointExploration() {}
   ~WaypointExploration() {}
 
-  void init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_map);
+  void init(ros::NodeHandle& nh);
   void startExploration();
   void stopExploration();
 
@@ -54,7 +56,7 @@ private:
   void finishState();
 
   // Utility functions
-  void transitState(EXPL_STATE new_state, string pos_call);
+  void transitState(EXPL_STATE new_state, std::string pos_call);
   void visualizeState();
 
   // Waypoint generation
@@ -70,9 +72,6 @@ private:
   ros::Subscriber trigger_sub_;
   ros::Subscriber finish_sub_;
 
-  // Map
-  shared_ptr<GridMap> grid_map_;
-
   // State
   EXPL_STATE state_;
   bool exploration_triggered_;
@@ -84,11 +83,12 @@ private:
   Eigen::Vector3d odom_vel_;
   Eigen::Quaterniond odom_orient_;
 
-  // Waypoints
-  vector<Eigen::Vector3d> waypoints_;
+  // Waypoints (position + yaw angle)
+  vector<std::pair<Eigen::Vector3d, double>> waypoints_;
   bool have_waypoints_;
   int current_waypoint_idx_;
   Eigen::Vector3d target_pt_;
+  double target_yaw_;
   ros::Time waypoint_start_time_;
   double waypoint_timeout_;
 
@@ -102,7 +102,7 @@ private:
   double replan_time_;
 
   // State strings for visualization
-  vector<string> state_str_;
+  std::vector<std::string> state_str_;
 };
 
 } // namespace exploration_manager

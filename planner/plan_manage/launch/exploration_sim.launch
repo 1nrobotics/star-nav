@@ -3,6 +3,8 @@
     <!-- Exploration System Simulation               -->
     <!-- Based on single_run_in_sim.launch           -->
     <!-- ============================================ -->
+    <!-- Trigger exploration: rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}" -->
+    <!-- 2D Nav Goal in RViz goes to EGO planner directly -->
 
     <!-- Arguments -->
     <arg name="drone_id" default="0"/>
@@ -108,6 +110,12 @@
     <!-- 4. Exploration Manager         -->
     <!-- ============================== -->
     <node pkg="exploration_manager" type="exploration_node" name="exploration_node" output="screen">
+        
+        <!-- Remap odometry for simulation -->
+        <remap from="/mavros/local_position/odom" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>
+        
+        <!-- Simulation mode -->
+        <param name="use_sim" value="true" />
 
         <!-- FSM Parameters -->
         <param name="fsm/fsm_exec_dt" value="0.1" type="double"/>
@@ -121,54 +129,8 @@
         <param name="exploration/center_z" value="1.5" type="double"/>
         <param name="exploration/width" value="$(arg exploration_width)" type="double"/>
         <param name="exploration/height" value="$(arg exploration_height)" type="double"/>
+        <param name="exploration/altitude" value="1.5" type="double"/>
         <param name="exploration/line_spacing" value="$(arg line_spacing)" type="double"/>
-
-        <!-- Map Parameters -->
-        <param name="grid_map/resolution" value="0.15" type="double"/>
-        <param name="grid_map/map_size_x" value="$(arg map_size_x)" type="double"/>
-        <param name="grid_map/map_size_y" value="$(arg map_size_y)" type="double"/>
-        <param name="grid_map/map_size_z" value="$(arg map_size_z)" type="double"/>
-        <param name="grid_map/local_update_range_x" value="15.0" type="double"/>
-        <param name="grid_map/local_update_range_y" value="15.0" type="double"/>
-        <param name="grid_map/local_update_range_z" value="3.0" type="double"/>
-        <param name="grid_map/obstacles_inflation" value="0.2" type="double"/>
-
-        <!-- Occupancy parameters -->
-        <param name="grid_map/p_hit"  value="0.65" type="double"/>
-        <param name="grid_map/p_miss" value="0.35" type="double"/>
-        <param name="grid_map/p_min"  value="0.12" type="double"/>
-        <param name="grid_map/p_max"  value="0.90" type="double"/>
-        <param name="grid_map/p_occ"  value="0.80" type="double"/>
-        <param name="grid_map/min_ray_length" value="0.3" type="double"/>
-        <param name="grid_map/max_ray_length" value="10.0" type="double"/>
-
-        <!-- Camera intrinsics -->
-        <param name="grid_map/cx" value="320.0" type="double"/>
-        <param name="grid_map/cy" value="240.0" type="double"/>
-        <param name="grid_map/fx" value="320.0" type="double"/>
-        <param name="grid_map/fy" value="320.0" type="double"/>
-
-        <!-- Depth processing -->
-        <param name="grid_map/use_depth_filter" value="true" type="bool"/>
-        <param name="grid_map/depth_filter_tolerance" value="0.15" type="double"/>
-        <param name="grid_map/depth_filter_maxdist" value="10.0" type="double"/>
-        <param name="grid_map/depth_filter_mindist" value="0.3" type="double"/>
-        <param name="grid_map/depth_filter_margin" value="2" type="int"/>
-        <param name="grid_map/k_depth_scaling_factor" value="1000.0" type="double"/>
-        <param name="grid_map/skip_pixel" value="2" type="int"/>
-
-        <!-- Visualization -->
-        <param name="grid_map/visualization_truncate_height" value="1.8" type="double"/>
-        <param name="grid_map/show_occ_time" value="false" type="bool"/>
-        <param name="grid_map/pose_type" value="2" type="int"/>
-        <param name="grid_map/frame_id" value="world" type="string"/>
-        <param name="grid_map/enable_pointcloud_raycasting" value="false" type="bool"/>
-
-        <!-- Topic remapping -->
-        <remap from="~grid_map/odom" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>
-        <remap from="~grid_map/depth" to="/drone_$(arg drone_id)_pcl_render_node/depth"/>
-        <remap from="~grid_map/pose" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>
-        <remap from="~grid_map/cloud" to="/drone_$(arg drone_id)_pcl_render_node/cloud"/>
     </node>
 
     <!-- ============================== -->
