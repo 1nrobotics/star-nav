@@ -1,3 +1,7 @@
+## Sim test
+roslaunch ego_planner single_run_in_sim.launch
+roslaunch ego_planner exploration_sim.launch
+
 ## Release image (developer only)
 docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
 ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
