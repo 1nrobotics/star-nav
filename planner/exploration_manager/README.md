@@ -1,11 +1,10 @@
 # Exploration Manager
 
-Dual-mode autonomous exploration for the VK180 + PX4 + EGO Planner system.
+Simple waypoint-based autonomous exploration for the VK180 + PX4 + EGO Planner system.
 
 ## Overview
 
 This package provides autonomous exploration capabilities for real drones using:
-- **Frontier-based Exploration**: Identifies boundaries between known free space and unknown areas
 - **Waypoint-based Exploration**: Simple lawnmower pattern in a rectangular area
 - **EGO Planner Integration**: Uses existing trajectory planner for safe navigation
 - **Hardware Compatibility**: Works with VK180 vision sensor and PX4 flight controller
@@ -56,17 +55,14 @@ Waypoint 10: (center_x - 2, center_y - 1, center_z) →
 exploration_manager/
 ├── include/
 │   └── exploration_manager/
-│       ├── frontier_finder.h       # Frontier detection
-│       ├── waypoint_generator.h    # Waypoint generation
-│       └── exploration_fsm.h       # Exploration state machine
+│       ├── waypoint_exploration.h    # Main exploration class
+│       └── waypoint_generator.h      # Waypoint generation utilities
 ├── src/
-│   ├── frontier_finder.cpp         # Frontier implementation
-│   ├── waypoint_generator.cpp      # Waypoint implementation
-│   ├── exploration_fsm.cpp         # FSM implementation
-│   └── exploration_node.cpp        # Main node
+│   ├── waypoint_exploration.cpp      # Main exploration implementation
+│   ├── waypoint_generator.cpp        # Waypoint generation implementation
+│   └── exploration_node.cpp          # Main node
 ├── launch/
-│   ├── exploration.launch          # Exploration only
-│   └── vk180_exploration.launch    # Complete system launch
+│   └── vk180_exploration.launch      # Complete system launch
 ├── CMakeLists.txt
 └── package.xml
 ```

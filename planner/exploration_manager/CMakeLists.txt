@@ -51,11 +51,10 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/../path_searching/include
 )
 
-## Exploration Manager Library
+## Waypoint Exploration Library
 add_library(exploration_manager
-  src/frontier_finder.cpp
+  src/waypoint_exploration.cpp
   src/waypoint_generator.cpp
-  src/exploration_fsm.cpp
 )
 
 target_link_libraries(exploration_manager

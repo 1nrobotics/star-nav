@@ -81,10 +81,10 @@ Visualization Manager:
               Value: true
             - Class: rviz/MarkerArray
               Enabled: true
-              Marker Topic: /exploration/frontiers
-              Name: exploration_frontiers
+              Marker Topic: /exploration/waypoints
+              Name: exploration_waypoints
               Namespaces:
-                frontiers: true
+                waypoints: true
               Queue Size: 100
               Value: true
             - Alpha: 1

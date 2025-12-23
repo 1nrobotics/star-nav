@@ -144,7 +144,6 @@
         <param name="fsm/replan_time" value="0.05" type="double"/>
         <param name="fsm/max_exploration_time" value="600.0" type="double"/> <!-- 10 minutes -->
         <param name="fsm/waypoint_timeout" value="30.0" type="double"/> <!-- Timeout per waypoint -->
-        <param name="fsm/exploration_mode" value="waypoint" type="string"/> <!-- "frontier" or "waypoint" -->
         
         <!-- Waypoint Mode Parameters -->
         <param name="exploration/center_x" value="0.0" type="double"/>
@@ -153,24 +152,6 @@
         <param name="exploration/width" value="8.0" type="double"/>  <!-- Rectangle width -->
         <param name="exploration/height" value="8.0" type="double"/> <!-- Rectangle height -->
         <param name="exploration/line_spacing" value="0.5" type="double"/> <!-- Distance between lines -->
-        
-        <!-- Frontier Mode Parameters (kept for reference) -->
-        <!-- <param name="fsm/frontier_search_interval" value="60.0" type="double"/> -->
-        <!-- <param name="exploration/frontier_cluster_min_size" value="0.8" type="double"/> -->
-        <!-- <param name="exploration/frontier_search_radius" value="5.0" type="double"/> -->
-        <!-- <param name="exploration/frontier_min_cells" value="30" type="int"/> -->
-        <!-- <param name="exploration/viewpoint_distance" value="2.0" type="double"/> -->
-        <!-- <param name="exploration/viewpoint_num" value="6" type="int"/> -->
-        
-        <!-- Geofence Parameters (shared) -->
-        <param name="exploration/use_geofence" value="true" type="bool"/>
-        <param name="exploration/max_exploration_radius" value="10.0" type="double"/>
-        <param name="exploration/exploration_center_x" value="0.0" type="double"/>
-        <param name="exploration/exploration_center_y" value="0.0" type="double"/>
-        <param name="exploration/exploration_center_z" value="1.5" type="double"/>
-        
-        <!-- Explored Region Tracking (frontier mode only) -->
-        <param name="exploration/explored_cell_expiry_time" value="0.0" type="double"/>
         
         <!-- Map Parameters (MUST MATCH EGO planner for consistency) -->
         <param name="grid_map/resolution" value="0.15" type="double"/>  <!-- Match EGO planner -->
