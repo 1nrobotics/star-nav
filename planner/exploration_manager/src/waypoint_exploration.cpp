@@ -162,20 +162,26 @@ void WaypointExploration::planToWaypointState() {
 
 void WaypointExploration::execWaypointState() {
   double dist_to_goal = (odom_pos_ - target_pt_).norm();
+  
+  // Detailed distance analysis
+  double dx = odom_pos_(0) - target_pt_(0);
+  double dy = odom_pos_(1) - target_pt_(1);
+  double dz = odom_pos_(2) - target_pt_(2);
+  double horizontal_dist = sqrt(dx*dx + dy*dy);
 
   // Log progress towards waypoint (throttled to 1Hz)
   ROS_INFO_THROTTLE(1.0, "[WaypointExploration] Waypoint %d progress: "
                     "Current [%.2f, %.2f, %.2f] → Target [%.2f, %.2f, %.2f] | "
-                    "Distance: %.2f m | Tolerance: 0.5 m",
+                    "Distance: %.3f m (H:%.3f, V:%.3f) | Tolerance: 0.7 m",
                     current_waypoint_idx_,
                     odom_pos_(0), odom_pos_(1), odom_pos_(2),
                     target_pt_(0), target_pt_(1), target_pt_(2),
-                    dist_to_goal);
+                    dist_to_goal, horizontal_dist, fabs(dz));
 
-  // Check if reached waypoint
-  if (dist_to_goal < 0.5) {  // 0.5m tolerance
-    ROS_INFO("[WaypointExploration] ✓ Reached waypoint %d! Distance: %.2f m",
-             current_waypoint_idx_, dist_to_goal);
+  // Check if reached waypoint (increased tolerance for simulation)
+  if (dist_to_goal < 0.7) {  // Increased from 0.5m to 0.7m for simulation
+    ROS_INFO("[WaypointExploration] ✓ Reached waypoint %d! Final distance: %.3f m (H:%.3f, V:%.3f)",
+             current_waypoint_idx_, dist_to_goal, horizontal_dist, fabs(dz));
     current_waypoint_idx_++;
     transitState(PLAN_TO_WAYPOINT, "execWaypointState");
     return;
@@ -184,8 +190,8 @@ void WaypointExploration::execWaypointState() {
   // Check timeout
   double elapsed = (ros::Time::now() - waypoint_start_time_).toSec();
   if (elapsed > waypoint_timeout_) {
-    ROS_WARN("[WaypointExploration] ✗ Waypoint %d timeout (%.1fs)! Distance: %.2f m. Moving to next waypoint.",
-             current_waypoint_idx_, elapsed, dist_to_goal);
+    ROS_WARN("[WaypointExploration] ✗ Waypoint %d timeout (%.1fs)! Distance: %.3f m (H:%.3f, V:%.3f). Moving to next waypoint.",
+             current_waypoint_idx_, elapsed, dist_to_goal, horizontal_dist, fabs(dz));
     current_waypoint_idx_++;
     transitState(PLAN_TO_WAYPOINT, "execWaypointState");
     return;
