@@ -54,6 +54,7 @@ include_directories(
 ## Exploration Manager Library
 add_library(exploration_manager
   src/frontier_finder.cpp
+  src/waypoint_generator.cpp
   src/exploration_fsm.cpp
 )
 

@@ -12,19 +12,31 @@ void ExplorationFSM::init(ros::NodeHandle& nh) {
   nh.param("fsm/fsm_exec_dt", fsm_exec_dt_, 0.1);
   nh.param("fsm/replan_time", replan_time_, 0.05);
   nh.param("fsm/max_exploration_time", max_exploration_time_, 600.0); // 10 min default
-  // How often to re-run frontier search while executing a trajectory.
-  // Note: reaching the goal triggers a new SEARCH_FRONTIER immediately regardless of this interval.
-  nh.param("fsm/frontier_search_interval", frontier_search_interval_, 60.0);
+  nh.param("fsm/waypoint_timeout", waypoint_timeout_, 30.0); // Timeout for each waypoint
+  
+  // Choose exploration mode
+  string mode_str;
+  nh.param("fsm/exploration_mode", mode_str, string("frontier"));
+  if (mode_str == "waypoint") {
+    exploration_mode_ = WAYPOINT_MODE;
+    ROS_INFO("[ExplorationFSM] Using WAYPOINT exploration mode");
+  } else {
+    exploration_mode_ = FRONTIER_MODE;
+    nh.param("fsm/frontier_search_interval", frontier_search_interval_, 60.0);
+    ROS_INFO("[ExplorationFSM] Using FRONTIER exploration mode");
+  }
   
   // Initialize modules
   frontier_finder_.reset(new FrontierFinder);
+  waypoint_generator_.reset(new WaypointGenerator);
   grid_map_.reset(new GridMap);
   
   // Initialize grid map
   grid_map_->initMap(nh);
   
-  // Initialize frontier finder with grid map
+  // Initialize exploration modules
   frontier_finder_->init(nh, grid_map_);
+  waypoint_generator_->init(nh, grid_map_);
   
   // Store target for tracking
   target_pt_ = Eigen::Vector3d::Zero();
@@ -34,8 +46,10 @@ void ExplorationFSM::init(ros::NodeHandle& nh) {
   last_state_ = EXPL_STATE::INIT;
   have_odom_ = false;
   have_frontier_ = false;
+  have_waypoints_ = false;
   exploration_triggered_ = false;
   replan_count_ = 0;
+  current_waypoint_idx_ = 0;
   
   // Subscribers
   odom_sub_ = nh.subscribe("/mavros/local_position/odom", 10, 
@@ -75,10 +89,25 @@ void ExplorationFSM::fsmCallback(const ros::TimerEvent& e) {
     case SEARCH_FRONTIER:
       searchFrontierState();
       break;
+    case GENERATE_WAYPOINTS:
+      generateWaypointsState();
+      break;
     case PLAN_TO_FRONTIER:
       planToFrontierState();
       break;
+    case PLAN_TO_WAYPOINT:
+      planToWaypointState();
+      break;
     case EXEC_TRAJ:
+      execTrajState();
+      break;
+    case EXEC_WAYPOINT:
+      execWaypointState();
+      break;
+    case FINISH:
+      finishState();
+      break;
+  }
       execTrajState();
       break;
     case FINISH:
@@ -88,8 +117,8 @@ void ExplorationFSM::fsmCallback(const ros::TimerEvent& e) {
 }
 
 void ExplorationFSM::transitState(EXPL_STATE new_state, string pos_call) {
-  string state_str[6] = {"INIT", "WAIT_TRIGGER", "SEARCH_FRONTIER", 
-                         "PLAN_TO_FRONTIER", "EXEC_TRAJ", "FINISH"};
+  string state_str[9] = {"INIT", "WAIT_TRIGGER", "SEARCH_FRONTIER", "GENERATE_WAYPOINTS",
+                         "PLAN_TO_FRONTIER", "PLAN_TO_WAYPOINT", "EXEC_TRAJ", "EXEC_WAYPOINT", "FINISH"};
   int pre_s = int(state_);
   state_ = new_state;
   ROS_INFO("[ExplorationFSM] [%s]: %s -> %s", pos_call.c_str(), 
@@ -121,7 +150,11 @@ void ExplorationFSM::triggerCallback(const geometry_msgs::PoseStampedConstPtr& m
     exploration_start_time_ = ros::Time::now();
     
     if (state_ == WAIT_TRIGGER) {
-      transitState(SEARCH_FRONTIER, "triggerCallback");
+      if (exploration_mode_ == FRONTIER_MODE) {
+        transitState(SEARCH_FRONTIER, "triggerCallback");
+      } else {
+        transitState(GENERATE_WAYPOINTS, "triggerCallback");
+      }
     }
   }
 }
@@ -149,8 +182,110 @@ void ExplorationFSM::waitTriggerState() {
       return;
     }
     
-    transitState(SEARCH_FRONTIER, "waitTriggerState");
+    if (exploration_mode_ == FRONTIER_MODE) {
+      transitState(SEARCH_FRONTIER, "waitTriggerState");
+    } else {
+      transitState(GENERATE_WAYPOINTS, "waitTriggerState");
+    }
   }
+}
+
+void ExplorationFSM::generateWaypointsState() {
+  // Check if exploration time exceeded
+  if ((ros::Time::now() - exploration_start_time_).toSec() > max_exploration_time_) {
+    ROS_WARN("[ExplorationFSM] Max exploration time reached!");
+    transitState(FINISH, "generateWaypointsState");
+    return;
+  }
+  
+  // Generate waypoints in lawnmower pattern
+  waypoint_generator_->generateWaypoints(odom_pos_);
+  waypoints_ = waypoint_generator_->getWaypoints();
+  
+  if (waypoints_.empty()) {
+    ROS_WARN("[ExplorationFSM] No valid waypoints generated!");
+    transitState(FINISH, "generateWaypointsState");
+    return;
+  }
+  
+  have_waypoints_ = true;
+  current_waypoint_idx_ = 0;
+  
+  ROS_INFO("[ExplorationFSM] Generated %lu waypoints, starting with waypoint 0", waypoints_.size());
+  transitState(PLAN_TO_WAYPOINT, "generateWaypointsState");
+}
+
+void ExplorationFSM::planToWaypointState() {
+  if (!have_waypoints_ || current_waypoint_idx_ >= waypoints_.size()) {
+    ROS_INFO("[ExplorationFSM] All waypoints completed!");
+    transitState(FINISH, "planToWaypointState");
+    return;
+  }
+  
+  // Get current waypoint
+  target_pt_ = waypoints_[current_waypoint_idx_];
+  
+  ROS_INFO("[ExplorationFSM] Planning to waypoint %d/%lu at (%.2f, %.2f, %.2f)", 
+           current_waypoint_idx_, waypoints_.size(),
+           target_pt_(0), target_pt_(1), target_pt_(2));
+  
+  // Publish target as 2D Nav Goal to trigger EGO planner FSM
+  geometry_msgs::PoseStamped goal;
+  goal.header.stamp = ros::Time::now();
+  goal.header.frame_id = "world";
+  goal.pose.position.x = target_pt_(0);
+  goal.pose.position.y = target_pt_(1);
+  goal.pose.position.z = target_pt_(2);
+  goal.pose.orientation.w = 1.0;
+  goal_pub_.publish(goal);
+  
+  waypoint_start_time_ = ros::Time::now();
+  replan_count_ = 0;
+  transitState(EXEC_WAYPOINT, "planToWaypointState");
+}
+
+void ExplorationFSM::execWaypointState() {
+  // Check if waypoint reached
+  double dist_to_goal = (odom_pos_ - target_pt_).norm();
+  
+  if (dist_to_goal < 0.5) {
+    ROS_INFO("[ExplorationFSM] Reached waypoint %d!", current_waypoint_idx_);
+    current_waypoint_idx_++;
+    
+    // Check if all waypoints completed
+    if (current_waypoint_idx_ >= waypoints_.size()) {
+      ROS_INFO("[ExplorationFSM] All waypoints completed!");
+      transitState(FINISH, "execWaypointState");
+      return;
+    }
+    
+    // Move to next waypoint
+    ros::Duration(1.0).sleep(); // Brief pause
+    transitState(PLAN_TO_WAYPOINT, "execWaypointState");
+    return;
+  }
+  
+  // Check for timeout
+  double elapsed = (ros::Time::now() - waypoint_start_time_).toSec();
+  if (elapsed > waypoint_timeout_) {
+    ROS_WARN("[ExplorationFSM] Waypoint %d timeout (%.1fs)! Moving to next waypoint.", 
+             current_waypoint_idx_, elapsed);
+    current_waypoint_idx_++;
+    
+    // Check if all waypoints completed
+    if (current_waypoint_idx_ >= waypoints_.size()) {
+      ROS_INFO("[ExplorationFSM] All waypoints completed (with timeouts)!");
+      transitState(FINISH, "execWaypointState");
+      return;
+    }
+    
+    // Move to next waypoint
+    transitState(PLAN_TO_WAYPOINT, "execWaypointState");
+    return;
+  }
+  
+  // Note: Collision checking and replanning is handled by EGO planner FSM
+  // This exploration FSM just manages waypoint progression
 }
 
 void ExplorationFSM::searchFrontierState() {
@@ -279,8 +414,8 @@ void ExplorationFSM::finishState() {
 
 void ExplorationFSM::visualizeExplorationState() {
   std_msgs::String state_msg;
-  string state_str[6] = {"INIT", "WAIT_TRIGGER", "SEARCH_FRONTIER", 
-                         "PLAN_TO_FRONTIER", "EXEC_TRAJ", "FINISH"};
+  string state_str[9] = {"INIT", "WAIT_TRIGGER", "SEARCH_FRONTIER", "GENERATE_WAYPOINTS",
+                         "PLAN_TO_FRONTIER", "PLAN_TO_WAYPOINT", "EXEC_TRAJ", "EXEC_WAYPOINT", "FINISH"};
   state_msg.data = state_str[int(state_)];
   state_pub_.publish(state_msg);
 }

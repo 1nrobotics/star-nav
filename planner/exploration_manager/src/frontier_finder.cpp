@@ -55,7 +55,7 @@ void FrontierFinder::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_map) {
   ROS_DEBUG("  - Search radius: %.2f m", frontier_search_radius_);
   ROS_DEBUG("  - Geofence: %s", use_geofence_ ? "ENABLED" : "DISABLED");
   if (use_geofence_)
-    ROS_DEBUG("  - Max exploration radius: %.2f m from [%.1f, %.1f, %.1f]",
+    ROS_DEBUG("  - Max exploration radius: %.1f m from [%.1f, %.1f, %.1f]",
              max_exploration_radius_, exploration_center_(0), exploration_center_(1), exploration_center_(2));
   ROS_DEBUG("  - Explored region tracking: %s", 
            explored_cell_expiry_time_ > 0 ? "ENABLED (with expiry)" : "ENABLED (permanent)");
@@ -99,7 +99,7 @@ bool FrontierFinder::isNeighborUnknown(const Eigen::Vector3d& pos) {
         Eigen::Vector3d neighbor = pos + Eigen::Vector3d(dx, dy, dz) * resolution_;
         
         if (grid_map_->getOccupancy(neighbor) == -1) {
-          return true; // Has unknown neighbor
+          return true; // Found unknown neighbor
         }
       }
     }

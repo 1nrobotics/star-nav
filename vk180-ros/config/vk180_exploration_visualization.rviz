@@ -187,6 +187,14 @@ Visualization Manager:
               Topic: /drone_0_odom_visualization/path
               Unreliable: false
               Value: true
+            - Class: rviz/MarkerArray
+              Enabled: true
+              Marker Topic: /exploration/waypoints
+              Name: exploration_waypoints
+              Namespaces:
+                waypoints: true
+              Queue Size: 100
+              Value: true
           Enabled: true
           Name: Planning
         - Class: rviz/Group

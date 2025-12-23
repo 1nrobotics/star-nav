@@ -9,6 +9,7 @@
 #include <Eigen/Eigen>
 
 #include "exploration_manager/frontier_finder.h"
+#include "exploration_manager/waypoint_generator.h"
 #include <plan_manage/planner_manager.h>
 
 namespace exploration_manager {
@@ -17,9 +18,17 @@ enum EXPL_STATE {
   INIT,
   WAIT_TRIGGER,
   SEARCH_FRONTIER,
+  GENERATE_WAYPOINTS,
   PLAN_TO_FRONTIER,
+  PLAN_TO_WAYPOINT,
   EXEC_TRAJ,
+  EXEC_WAYPOINT,
   FINISH
+};
+
+enum EXPL_MODE {
+  FRONTIER_MODE,
+  WAYPOINT_MODE
 };
 
 class ExplorationFSM {
@@ -40,7 +49,7 @@ private:
   void finishCallback(const std_msgs::EmptyConstPtr& msg);
   
   // Exploration logic
-  bool findAndPlanToFrontier();
+  bool findAndPlanToWaypoint();
   bool replanFromCurrentState();
   void visualizeExplorationState();
   
@@ -48,13 +57,20 @@ private:
   void initState();
   void waitTriggerState();
   void searchFrontierState();
+  void generateWaypointsState();
   void planToFrontierState();
+  void planToWaypointState();
   void execTrajState();
+  void execWaypointState();
   void finishState();
 
   // Modules
   shared_ptr<FrontierFinder> frontier_finder_;
+  shared_ptr<WaypointGenerator> waypoint_generator_;
   shared_ptr<GridMap> grid_map_; // Shared with EGO planner
+  
+  // Exploration mode
+  EXPL_MODE exploration_mode_;
   
   // ROS
   ros::NodeHandle nh_;
@@ -73,9 +89,19 @@ private:
   bool have_odom_;
   
   // Exploration state
+  // Frontier mode
   Frontier current_frontier_;
-  Eigen::Vector3d target_pt_; // Current target point
   bool have_frontier_;
+  double frontier_search_interval_;
+  ros::Time last_frontier_search_time_;
+  
+  // Waypoint mode
+  vector<Eigen::Vector3d> waypoints_;
+  int current_waypoint_idx_;
+  bool have_waypoints_;
+  
+  // Common
+  Eigen::Vector3d target_pt_; // Current target point
   bool exploration_triggered_;
   int replan_count_;
   
@@ -83,9 +109,9 @@ private:
   double fsm_exec_dt_;
   double replan_time_;
   double max_exploration_time_;
-  double frontier_search_interval_;
+  double waypoint_timeout_; // Timeout for each waypoint
   
-  ros::Time last_frontier_search_time_;
+  ros::Time waypoint_start_time_;
   ros::Time exploration_start_time_;
 };
 
