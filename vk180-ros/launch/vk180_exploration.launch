@@ -250,7 +250,7 @@
     <!-- 8. RViz Visualization (Optional) -->
     <!-- ============================== -->
     <node name="rviz" pkg="rviz" type="rviz" 
-          args="-d $(find vk180_ros)/config/vk180_exploration_visualization.rviz" 
+          args="-d $(find vk180_ros)/config/vk180_planner_visualization.rviz" 
           if="$(arg use_rviz)" />
     
 </launch>

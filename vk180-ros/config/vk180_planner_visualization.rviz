@@ -135,6 +135,14 @@ Visualization Manager:
               Topic: /drone_0_odom_visualization/path
               Unreliable: false
               Value: true
+            - Class: rviz/MarkerArray
+              Enabled: true
+              Marker Topic: /exploration/waypoints
+              Name: exploration_waypoints
+              Namespaces:
+                waypoints: true
+              Queue Size: 100
+              Value: true
           Enabled: true
           Name: Planning
         - Class: rviz/Group
@@ -255,7 +263,7 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /vk180/depth/image_rect_raw
       Max Value: 1
       Median window: 5
@@ -267,7 +275,7 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /vk180/image_left
       Max Value: 1
       Median window: 5
@@ -279,7 +287,7 @@ Visualization Manager:
       Unreliable: false
       Value: true
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /vk180/image_right
       Max Value: 1
       Median window: 5
