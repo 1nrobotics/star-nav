@@ -1,8 +1,3 @@
-## Sim test
-roslaunch ego_planner single_run_in_sim.launch
-roslaunch ego_planner exploration_sim.launch
-rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
-
 ## Release image (developer only)
 docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
 ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
@@ -10,6 +5,11 @@ ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
 docker tag 1nrobotics/star-nav:release vcmman/star-nav:release-jetson-v0.2
 docker login
 docker push vcmman/star-nav:release-jetson-v0.2
+
+## Sim test
+roslaunch ego_planner single_run_in_sim.launch
+roslaunch ego_planner exploration_sim.launch
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
 
 ## Field Test Release
 # start everything
@@ -50,7 +50,7 @@ pose:
 # 1. MarkerArray - Topic: /exploration/frontiers
 # 2. PointCloud2 - Topic: /exploration/frontier_cells
 # 3. Pose - Topic: /move_base_simple/goal (direct EGO planner control)
-# 4. PointCloud2 - Topic: /vk180/pointcloud (map)
+# 4. PointCloud2 - Topic: /vk180/depth/image_rect_raw (depth map, for real flight)
 
 # Trigger waypoint exploration
 rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
@@ -85,11 +85,15 @@ cd src/star-nav
 
 docker exec -it star_nav bash
 tmux
-roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=false 
+roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=false 
 ctrl-b-%
 rostopic echo /mavros/local_position/odom
 rostopic echo /mavros/setpoint_raw/attitude
 
+# Trigger exploration
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
+
+# Or send manual goal (note: flight height is hardcoded to 1.0m in ego-planner)
 rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "header:
   seq: 0
   stamp:
@@ -100,7 +104,7 @@ pose:
   position:
     x: 1.0
     y: 0.0
-    z: 2
+    z: 1.0
   orientation:
     x: 0.0
     y: 0.0

@@ -11,17 +11,27 @@
     <arg name="fcu_url_real" default="/dev/ttyUSB0:921600" />
     <arg name="gcs_url" default="udp-b://@" />
     <arg name="use_body_frame_transform" default="true" />
+    <arg name="takeoff_height" default="1.5" />
+    <arg name="use_rc" default="true" />
     <arg name="drone_id" default="0"/>
     <arg name="use_rviz" default="false"/>
     
     <!-- Map Parameters -->
     <arg name="map_size_x" default="50"/>
     <arg name="map_size_y" default="50"/>
-    <arg name="map_size_z" default="5.0"/>
+    <arg name="map_size_z" default="3.0"/>
     
     <!-- Planning Parameters -->
     <arg name="max_vel" default="0.8" />
     <arg name="max_acc" default="1.0" />
+    <arg name="flight_type" default="1" /> <!-- 1=2D Nav Goal, 2=Waypoints -->
+    
+    <!-- Exploration Parameters -->
+    <arg name="exploration_center_x" default="0.0"/>
+    <arg name="exploration_center_y" default="0.0"/>
+    <arg name="exploration_width" default="20.0"/>
+    <arg name="exploration_height" default="20.0"/>
+    <arg name="line_spacing" default="2.0"/>
     
     <!-- ============================== -->
     <!-- 1. VK180 Vision Sensor Bridge  -->
@@ -40,8 +50,8 @@
         <!-- Depth Processing Parameters -->
         <param name="use_body_frame_transform" value="$(arg use_body_frame_transform)" />
         <param name="subscribe_to_image_stream" value="true" />
-        <param name="max_depth" value="10.0" />
-        <param name="min_depth" value="0.4" />
+        <param name="max_depth" value="8.0" />
+        <param name="min_depth" value="0.3" />
         
         <!-- Sensor Outputs for Exploration:
              - /vk180/pointcloud: World-frame point cloud (pcl::PointXYZ)
@@ -83,15 +93,15 @@
         
         <!-- Use PX4's fused odometry (VIO + IMU) instead of raw VIO -->
         <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-        <arg name="depth_topic" value="nouse1"/>
+        <arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
         <arg name="camera_pose_topic" value="nouse2"/>
-        <arg name="cloud_topic" value="/vk180/pointcloud"/>
+        <arg name="cloud_topic" value="nouse"/>
         
         <!-- Camera Intrinsics (not used for point cloud mapping) -->
         <arg name="cx" value="320.0"/>
         <arg name="cy" value="240.0"/>
-        <arg name="fx" value="400.0"/>
-        <arg name="fy" value="400.0"/>
+        <arg name="fx" value="320.0"/>
+        <arg name="fy" value="320.0"/>
         
         <!-- Planning Parameters -->
         <arg name="max_vel" value="$(arg max_vel)" />
@@ -101,7 +111,7 @@
         
         <!-- Flight Mode: 1 = MANUAL_TARGET (accepts /move_base_simple/goal) -->
         <!-- exploration_manager publishes frontier goals to this topic -->
-        <arg name="flight_type" value="1" />
+        <arg name="flight_type" value="$(arg flight_type)" />
         
         <!-- Preset waypoints (not used in MANUAL_TARGET mode) -->
         <arg name="point_num" value="0" />
@@ -139,6 +149,9 @@
     <!-- ============================== -->
     <node pkg="exploration_manager" type="exploration_node" name="exploration_node" output="screen">
         
+        <!-- Simulation mode -->
+        <param name="use_sim" value="false" />
+
         <!-- FSM Parameters -->
         <param name="fsm/fsm_exec_dt" value="0.1" type="double"/>
         <param name="fsm/replan_time" value="0.05" type="double"/>
@@ -146,69 +159,13 @@
         <param name="fsm/waypoint_timeout" value="30.0" type="double"/> <!-- Timeout per waypoint -->
         
         <!-- Waypoint Mode Parameters -->
-        <param name="exploration/center_x" value="0.0" type="double"/>
-        <param name="exploration/center_y" value="0.0" type="double"/>
+        <param name="exploration/center_x" value="$(arg exploration_center_x)" type="double"/>
+        <param name="exploration/center_y" value="$(arg exploration_center_y)" type="double"/>
         <param name="exploration/center_z" value="1.0" type="double"/>
-        <param name="exploration/width" value="8.0" type="double"/>  <!-- Rectangle width -->
-        <param name="exploration/height" value="8.0" type="double"/> <!-- Rectangle height -->
+        <param name="exploration/width" value="$(arg exploration_width)" type="double"/>  <!-- Rectangle width -->
+        <param name="exploration/height" value="$(arg exploration_height)" type="double"/> <!-- Rectangle height -->
         <param name="exploration/altitude" value="1.0" type="double"/> <!-- Waypoint altitude -->
-        <param name="exploration/line_spacing" value="0.5" type="double"/> <!-- Distance between lines -->
-        
-        <!-- Map Parameters (MUST MATCH EGO planner for consistency) -->
-        <param name="grid_map/resolution" value="0.15" type="double"/>  <!-- Match EGO planner -->
-        <param name="grid_map/map_size_x" value="$(arg map_size_x)" type="double"/>
-        <param name="grid_map/map_size_y" value="$(arg map_size_y)" type="double"/>
-        <param name="grid_map/map_size_z" value="$(arg map_size_z)" type="double"/>
-        <!-- IMPORTANT: Must be >= max_exploration_radius to avoid forgetting old map data -->
-        <param name="grid_map/local_update_range_x" value="30.0" type="double"/>
-        <param name="grid_map/local_update_range_y" value="30.0" type="double"/>
-        <param name="grid_map/local_update_range_z" value="5.0" type="double"/>
-        <param name="grid_map/obstacles_inflation" value="0.2" type="double"/>  <!-- Match EGO planner -->
-        
-        <!-- Occupancy probability parameters (match EGO planner) -->
-        <param name="grid_map/p_hit"  value="0.65" type="double"/>
-        <param name="grid_map/p_miss" value="0.35" type="double"/>
-        <param name="grid_map/p_min"  value="0.12" type="double"/>
-        <param name="grid_map/p_max"  value="0.90" type="double"/>
-        <param name="grid_map/p_occ"  value="0.80" type="double"/>
-        <param name="grid_map/min_ray_length" value="0.3" type="double"/>
-        <param name="grid_map/max_ray_length" value="10.0" type="double"/>
-        
-        <!-- Camera intrinsics for depth image processing (match VK180 virtual camera) -->
-        <param name="grid_map/cx" value="320.0" type="double"/>
-        <param name="grid_map/cy" value="240.0" type="double"/>
-        <param name="grid_map/fx" value="320.0" type="double"/>
-        <param name="grid_map/fy" value="320.0" type="double"/>
-        
-        <!-- Depth image filtering -->
-        <param name="grid_map/use_depth_filter" value="true" type="bool"/>
-        <param name="grid_map/depth_filter_tolerance" value="0.15" type="double"/>
-        <param name="grid_map/depth_filter_maxdist" value="10.0" type="double"/>
-        <param name="grid_map/depth_filter_mindist" value="0.3" type="double"/>
-        <param name="grid_map/depth_filter_margin" value="2" type="int"/>
-        <param name="grid_map/k_depth_scaling_factor" value="1000.0" type="double"/> <!-- 16UC1 in millimeters -->
-        <param name="grid_map/skip_pixel" value="2" type="int"/>  <!-- Process every 2nd pixel for speed -->
-        
-        <!-- Visualization and map parameters -->
-        <param name="grid_map/visualization_truncate_height" value="1.8" type="double"/>
-        <param name="grid_map/show_occ_time" value="false" type="bool"/>
-        <param name="grid_map/pose_type" value="2" type="int"/>  <!-- 2 = ODOMETRY -->
-        <param name="grid_map/frame_id" value="world" type="string"/>
-        
-        <!-- CRITICAL: Disable pointcloud raycasting when using depth images -->
-        <!-- Depth images provide better raycasting through projectDepthImage() -->
-        <param name="grid_map/enable_pointcloud_raycasting" value="false" type="bool"/>
-        
-        <!-- Topic remapping -->
-        <!-- GridMap subscribes in the node's private namespace ("~grid_map/*") -->
-        <remap from="~grid_map/odom" to="/mavros/local_position/odom"/>
-        <remap from="~grid_map/depth" to="/vk180/depth/image_rect_raw"/>
-        <remap from="~grid_map/pose" to="/mavros/local_position/odom"/>  <!-- For depth+pose synchronization -->
-        <remap from="~grid_map/cloud" to="nouse"/>  <!-- Disabled: using depth image instead -->
-        
-        <!-- Camera extrinsics (global topic - hardcoded in grid_map.cpp) -->
-        <remap from="/vins_fusion/extrinsic" to="/vk180/camera_extrinsic"/>
-        
+        <param name="exploration/line_spacing" value="$(arg line_spacing)" type="double"/> <!-- Distance between lines -->
     </node>
     
     <!-- ============================== -->
