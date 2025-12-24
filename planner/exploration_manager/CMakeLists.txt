@@ -15,7 +15,6 @@ find_package(catkin REQUIRED COMPONENTS
   visualization_msgs
   pcl_ros
   pcl_conversions
-  plan_env
   traj_utils
   bspline_opt
   quadrotor_msgs
@@ -35,7 +34,6 @@ catkin_package(
     sensor_msgs
     visualization_msgs
     pcl_ros
-    plan_env
     traj_utils
     bspline_opt
     quadrotor_msgs
@@ -54,7 +52,6 @@ include_directories(
 ## Waypoint Exploration Library
 add_library(exploration_manager
   src/waypoint_exploration.cpp
-  src/waypoint_generator.cpp
 )
 
 target_link_libraries(exploration_manager

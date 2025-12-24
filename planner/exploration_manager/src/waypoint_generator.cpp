@@ -12,7 +12,7 @@ void WaypointGenerator::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_map)
   nh.param("exploration/center_z", exploration_center_(2), 1.5);
   nh.param("exploration/width", exploration_width_, 10.0);
   nh.param("exploration/height", exploration_height_, 10.0);
-  nh.param("exploration/altitude", exploration_altitude_, 1.5);
+  nh.param("exploration/altitude", exploration_altitude_, 1.0);
   nh.param("exploration/line_spacing", line_spacing_, 0.5);
 
   // Get map resolution

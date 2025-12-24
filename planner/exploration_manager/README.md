@@ -55,11 +55,9 @@ Waypoint 10: (center_x - 2, center_y - 1, center_z) →
 exploration_manager/
 ├── include/
 │   └── exploration_manager/
-│       ├── waypoint_exploration.h    # Main exploration class
-│       └── waypoint_generator.h      # Waypoint generation utilities
+│       └── waypoint_exploration.h    # Main exploration class with integrated waypoint generation
 ├── src/
-│   ├── waypoint_exploration.cpp      # Main exploration implementation
-│   ├── waypoint_generator.cpp        # Waypoint generation implementation
+│   ├── waypoint_exploration.cpp      # Main exploration implementation with waypoint generation
 │   └── exploration_node.cpp          # Main node
 ├── launch/
 │   └── vk180_exploration.launch      # Complete system launch
@@ -135,22 +133,17 @@ The system supports two exploration modes:
 
 ### Trigger Exploration
 
-Use RViz 2D Nav Goal to trigger exploration:
+Use command line to trigger exploration:
 
 ```bash
-# In RViz, click "2D Nav Goal" and place anywhere on the map
-# Exploration will start automatically
-```
-
-Or use command line:
-
-```bash
-# Trigger exploration
-rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "{header: {frame_id: 'odom'}, pose: {position: {x: 0, y: 0, z: 1}}}"
+# Trigger exploration (any pose data, just needs to be published)
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{header: {frame_id: 'world'}, pose: {position: {x: 0, y: 0, z: 1}, orientation: {w: 1}}}"
 
 # Stop exploration manually
 rostopic pub /exploration/finish std_msgs/Empty "{}"
 ```
+
+**Note**: 2D Nav Goal in RViz now goes directly to the EGO planner. Use the command above to trigger waypoint-based exploration.
 
 ### RViz Visualization
 
@@ -279,7 +272,7 @@ The exploration FSM has the following states:
 ### Subscribed
 - `/mavros/local_position/odom` (nav_msgs/Odometry): Fused odometry from PX4
 - `/vk180/pointcloud` (sensor_msgs/PointCloud2): Point cloud from VK180
-- `/move_base_simple/goal` (geometry_msgs/PoseStamped): Trigger exploration
+- `/exploration/trigger` (geometry_msgs/PoseStamped): Trigger exploration
 - `/exploration/finish` (std_msgs/Empty): Manual finish command
 
 ### Published
@@ -373,7 +366,7 @@ Key adaptations:
 ### Drone doesn't move
 - Check FSM state: `rostopic echo /exploration/state`
 - Verify odometry: `rostopic echo /mavros/local_position/odom`
-- Check if exploration triggered: Send 2D Nav Goal in RViz
+- Check if exploration triggered: `rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"`
 - Monitor PX4 controller: `rostopic echo /mavros/state`
 
 ### Erratic behavior

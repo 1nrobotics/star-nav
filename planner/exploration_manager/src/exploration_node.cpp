@@ -1,7 +1,6 @@
 #include <ros/ros.h>
 #include <memory>
 #include "exploration_manager/waypoint_exploration.h"
-#include "plan_env/grid_map.h"
 
 using namespace exploration_manager;
 
@@ -14,13 +13,9 @@ int main(int argc, char** argv) {
   ROS_INFO("       Waypoint Exploration Node        ");
   ROS_INFO("========================================");
 
-  // Create grid map
-  auto grid_map = std::make_shared<GridMap>();
-  grid_map->initMap(nh_global);
-
   // Create waypoint exploration
   auto waypoint_exploration = std::make_shared<WaypointExploration>();
-  waypoint_exploration->init(nh_global, grid_map);
+  waypoint_exploration->init(nh);
 
   ROS_INFO("Waypoint exploration initialized");
 

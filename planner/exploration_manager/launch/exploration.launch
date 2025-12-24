@@ -7,6 +7,16 @@
   <!-- Exploration Node -->
   <node pkg="exploration_manager" type="exploration_node" name="exploration_node" output="screen">
     
+    <!-- Waypoint Exploration Parameters -->
+    <param name="exploration/center_x" value="0.0" type="double"/>
+    <param name="exploration/center_y" value="0.0" type="double"/>
+    <param name="exploration/center_z" value="1.0" type="double"/>
+    <param name="exploration/width" value="10.0" type="double"/>
+    <param name="exploration/height" value="10.0" type="double"/>
+    <param name="exploration/altitude" value="1.0" type="double"/>
+    <param name="exploration/line_spacing" value="1.0" type="double"/>
+    <param name="fsm/waypoint_timeout" value="30.0" type="double"/>
+    
     <!-- FSM Parameters -->
     <param name="fsm/fsm_exec_dt" value="0.1" type="double"/>
     <param name="fsm/replan_time" value="0.05" type="double"/>

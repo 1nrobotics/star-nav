@@ -2,9 +2,8 @@
 
 namespace exploration_manager {
 
-void WaypointExploration::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_map) {
+void WaypointExploration::init(ros::NodeHandle& nh) {
   nh_ = nh;
-  grid_map_ = grid_map;
 
   // Load parameters
   nh.param("exploration/center_x", exploration_center_(0), 0.0);
@@ -12,11 +11,20 @@ void WaypointExploration::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_ma
   nh.param("exploration/center_z", exploration_center_(2), 1.5);
   nh.param("exploration/width", exploration_width_, 10.0);
   nh.param("exploration/height", exploration_height_, 10.0);
-  nh.param("exploration/altitude", exploration_altitude_, 1.5);
+  nh.param("exploration/altitude", exploration_altitude_, 1.0);
   nh.param("exploration/line_spacing", line_spacing_, 0.5);
   nh.param("fsm/waypoint_timeout", waypoint_timeout_, 30.0);
   nh.param("fsm/max_exploration_time", max_exploration_time_, 600.0);
   nh.param("fsm/replan_time", replan_time_, 0.05);
+
+  ROS_INFO("[WaypointExploration] Loaded parameters:");
+  ROS_INFO("  exploration/center: [%.2f, %.2f, %.2f]", exploration_center_(0), exploration_center_(1), exploration_center_(2));
+  ROS_INFO("  exploration/size: %.2f x %.2f m", exploration_width_, exploration_height_);
+  ROS_INFO("  exploration/altitude: %.2f m", exploration_altitude_);
+  ROS_INFO("  exploration/line_spacing: %.2f m", line_spacing_);
+  ROS_INFO("  fsm/waypoint_timeout: %.2f s", waypoint_timeout_);
+  ROS_INFO("  fsm/max_exploration_time: %.2f s", max_exploration_time_);
+  ROS_INFO("  fsm/replan_time: %.2f s", replan_time_);
 
   // Initialize state
   state_ = INIT;
@@ -26,7 +34,7 @@ void WaypointExploration::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_ma
   current_waypoint_idx_ = 0;
 
   // State strings
-  state_str_ = {"INIT", "WAIT_TRIGGER", "GENERATE_WAYPOINTS", "PLAN_TO_WAYPOINT", "EXEC_WAYPOINT", "FINISH"};
+  state_str_.assign({"INIT", "WAIT_TRIGGER", "GENERATE_WAYPOINTS", "PLAN_TO_WAYPOINT", "EXEC_WAYPOINT", "FINISH"});
 
   // Publishers
   goal_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
@@ -34,7 +42,7 @@ void WaypointExploration::init(ros::NodeHandle& nh, shared_ptr<GridMap>& grid_ma
 
   // Subscribers
   odom_sub_ = nh.subscribe("/mavros/local_position/odom", 10, &WaypointExploration::odometryCallback, this);
-  trigger_sub_ = nh.subscribe("/move_base_simple/goal", 10, &WaypointExploration::triggerCallback, this);
+  trigger_sub_ = nh.subscribe("/exploration/trigger", 10, &WaypointExploration::triggerCallback, this);
   finish_sub_ = nh.subscribe("/exploration/finish", 10, &WaypointExploration::finishCallback, this);
 
   // FSM timer
@@ -121,33 +129,59 @@ void WaypointExploration::planToWaypointState() {
     return;
   }
 
-  // Get next waypoint
-  target_pt_ = waypoints_[current_waypoint_idx_];
+  // Get next waypoint (position + yaw)
+  auto& waypoint = waypoints_[current_waypoint_idx_];
+  target_pt_ = waypoint.first;
+  target_yaw_ = waypoint.second;
 
-  // Publish goal
+  // Publish goal with position and orientation
   geometry_msgs::PoseStamped goal;
   goal.header.frame_id = "world";
   goal.header.stamp = ros::Time::now();
   goal.pose.position.x = target_pt_(0);
   goal.pose.position.y = target_pt_(1);
   goal.pose.position.z = target_pt_(2);
-  goal.pose.orientation.w = 1.0;
+  
+  // Set orientation from yaw angle
+  tf::Quaternion q;
+  q.setRPY(0, 0, target_yaw_);
+  goal.pose.orientation.x = q.x();
+  goal.pose.orientation.y = q.y();
+  goal.pose.orientation.z = q.z();
+  goal.pose.orientation.w = q.w();
 
   goal_pub_.publish(goal);
   waypoint_start_time_ = ros::Time::now();
 
-  ROS_INFO("[WaypointExploration] Planning to waypoint %d: [%.2f, %.2f, %.2f]",
-           current_waypoint_idx_, target_pt_(0), target_pt_(1), target_pt_(2));
+  ROS_INFO("[WaypointExploration] Planning to waypoint %d: [%.2f, %.2f, %.2f] yaw=%.1f deg",
+           current_waypoint_idx_, target_pt_(0), target_pt_(1), target_pt_(2), 
+           target_yaw_ * 180.0 / M_PI);
 
   transitState(EXEC_WAYPOINT, "planToWaypointState");
 }
 
 void WaypointExploration::execWaypointState() {
   double dist_to_goal = (odom_pos_ - target_pt_).norm();
+  
+  // Detailed distance analysis
+  double dx = odom_pos_(0) - target_pt_(0);
+  double dy = odom_pos_(1) - target_pt_(1);
+  double dz = odom_pos_(2) - target_pt_(2);
+  double horizontal_dist = sqrt(dx*dx + dy*dy);
 
-  // Check if reached waypoint
-  if (dist_to_goal < 0.5) {  // 0.5m tolerance
-    ROS_INFO("[WaypointExploration] Reached waypoint %d!", current_waypoint_idx_);
+  // Log progress towards waypoint (throttled to 5Hz for debug)
+  ROS_DEBUG_THROTTLE(5.0, "[WaypointExploration] Waypoint %d progress: "
+                     "Current [%.2f, %.2f, %.2f] -> Target [%.2f, %.2f, %.2f] | "
+                     "Distance: %.3f m (H:%.3f, V:%.3f) | Tolerance: 0.7 m",
+                     current_waypoint_idx_,
+                     odom_pos_(0), odom_pos_(1), odom_pos_(2),
+                     target_pt_(0), target_pt_(1), target_pt_(2),
+                     dist_to_goal, horizontal_dist, fabs(dz));
+
+  // Check if reached waypoint (increased tolerance for simulation)
+  if (dist_to_goal < 0.7) {  // Increased from 0.5m to 0.7m for simulation
+    ROS_INFO("[WaypointExploration] ✓ Reached waypoint %d! Final distance: %.3f m (H:%.3f, V:%.3f)",
+             current_waypoint_idx_, dist_to_goal, horizontal_dist, fabs(dz));
     current_waypoint_idx_++;
     transitState(PLAN_TO_WAYPOINT, "execWaypointState");
     return;
@@ -156,8 +190,8 @@ void WaypointExploration::execWaypointState() {
   // Check timeout
   double elapsed = (ros::Time::now() - waypoint_start_time_).toSec();
   if (elapsed > waypoint_timeout_) {
-    ROS_WARN("[WaypointExploration] Waypoint %d timeout (%.1fs)! Moving to next waypoint.",
-             current_waypoint_idx_, elapsed);
+    ROS_WARN("[WaypointExploration] ✗ Waypoint %d timeout (%.1fs)! Distance: %.3f m (H:%.3f, V:%.3f). Moving to next waypoint.",
+             current_waypoint_idx_, elapsed, dist_to_goal, horizontal_dist, fabs(dz));
     current_waypoint_idx_++;
     transitState(PLAN_TO_WAYPOINT, "execWaypointState");
     return;
@@ -178,6 +212,10 @@ void WaypointExploration::finishState() {
 void WaypointExploration::generateLawnmowerWaypoints() {
   waypoints_.clear();
 
+  ROS_INFO("[WaypointExploration] Generating lawnmower waypoints (endpoints only):");
+  ROS_INFO("  Center: [%.2f, %.2f, %.2f]", exploration_center_(0), exploration_center_(1), exploration_center_(2));
+  ROS_INFO("  Size: %.2f x %.2f m", exploration_width_, exploration_height_);
+
   // Calculate rectangle bounds
   double half_width = exploration_width_ / 2.0;
   double half_height = exploration_height_ / 2.0;
@@ -187,58 +225,75 @@ void WaypointExploration::generateLawnmowerWaypoints() {
   double min_y = exploration_center_(1) - half_height;
   double max_y = exploration_center_(1) + half_height;
 
-  // Generate lawnmower pattern
+  ROS_INFO("  Bounds: x[%.2f, %.2f], y[%.2f, %.2f]", min_x, max_x, min_y, max_y);
+
+  // Generate lawnmower pattern - only endpoints with yaw angles
   bool move_right = true;
   double current_y = min_y;
+  int row_count = 0;
 
   while (current_y <= max_y) {
+    double yaw_angle = move_right ? 0.0 : M_PI;  // 0 deg for right, 180 deg for left
+    
+    ROS_INFO("  Row %d: y=%.2f, direction=%s (yaw=%.1f deg)", 
+             row_count, current_y, move_right ? "right" : "left", yaw_angle * 180.0 / M_PI);
+    
     if (move_right) {
-      // Move from left to right
-      for (double x = min_x; x <= max_x; x += line_spacing_) {
-        Eigen::Vector3d wp(x, current_y, exploration_altitude_);
-        if (isValidWaypoint(wp)) {
-          waypoints_.push_back(wp);
-        }
+      // Move from left to right: start at min_x, end at max_x
+      Eigen::Vector3d start_wp(min_x, current_y, exploration_altitude_);
+      Eigen::Vector3d end_wp(max_x, current_y, exploration_altitude_);
+      
+      if (isValidWaypoint(start_wp)) {
+        waypoints_.push_back(std::make_pair(start_wp, yaw_angle));
+        ROS_INFO("    Added start waypoint: [%.2f, %.2f, %.2f] yaw=%.1f deg", 
+                 start_wp(0), start_wp(1), start_wp(2), yaw_angle * 180.0 / M_PI);
+      }
+      
+      if (isValidWaypoint(end_wp)) {
+        waypoints_.push_back(std::make_pair(end_wp, yaw_angle));
+        ROS_INFO("    Added end waypoint: [%.2f, %.2f, %.2f] yaw=%.1f deg", 
+                 end_wp(0), end_wp(1), end_wp(2), yaw_angle * 180.0 / M_PI);
       }
     } else {
-      // Move from right to left
-      for (double x = max_x; x >= min_x; x -= line_spacing_) {
-        Eigen::Vector3d wp(x, current_y, exploration_altitude_);
-        if (isValidWaypoint(wp)) {
-          waypoints_.push_back(wp);
-        }
+      // Move from right to left: start at max_x, end at min_x
+      Eigen::Vector3d start_wp(max_x, current_y, exploration_altitude_);
+      Eigen::Vector3d end_wp(min_x, current_y, exploration_altitude_);
+      
+      if (isValidWaypoint(start_wp)) {
+        waypoints_.push_back(std::make_pair(start_wp, yaw_angle));
+        ROS_INFO("    Added start waypoint: [%.2f, %.2f, %.2f] yaw=%.1f deg", 
+                 start_wp(0), start_wp(1), start_wp(2), yaw_angle * 180.0 / M_PI);
+      }
+      
+      if (isValidWaypoint(end_wp)) {
+        waypoints_.push_back(std::make_pair(end_wp, yaw_angle));
+        ROS_INFO("    Added end waypoint: [%.2f, %.2f, %.2f] yaw=%.1f deg", 
+                 end_wp(0), end_wp(1), end_wp(2), yaw_angle * 180.0 / M_PI);
       }
     }
 
     // Move to next row
     current_y += line_spacing_;
     move_right = !move_right;  // Alternate direction
+    row_count++;
+    
+    // Prevent infinite loop
+    if (row_count > 100) {
+      ROS_ERROR("[WaypointExploration] Too many rows generated, breaking!");
+      break;
+    }
   }
 
-  ROS_INFO("[WaypointExploration] Generated %lu waypoints in lawnmower pattern", waypoints_.size());
+  ROS_INFO("[WaypointExploration] Generated %lu waypoints (endpoint-only lawnmower pattern)", waypoints_.size());
 }
 
 bool WaypointExploration::isValidWaypoint(const Eigen::Vector3d& pos) {
-  // Check if position is in free space
-  if (grid_map_->getInflateOccupancy(pos) != 0) {
-    return false; // Occupied or unknown
-  }
-
-  // Check if within map bounds
-  Eigen::Vector3d map_min, map_max;
-  grid_map_->getRegion(map_min, map_max);
-
-  if (pos(0) < map_min(0) || pos(0) > map_max(0) ||
-      pos(1) < map_min(1) || pos(1) > map_max(1) ||
-      pos(2) < map_min(2) || pos(2) > map_max(2)) {
-    return false;
-  }
-
+  // Simplified: always consider waypoints valid since we don't use grid map validation
   return true;
 }
 
-void WaypointExploration::transitState(EXPL_STATE new_state, string pos_call) {
-  string state_str = state_str_[int(state_)];
+void WaypointExploration::transitState(EXPL_STATE new_state, std::string pos_call) {
+  std::string state_str = state_str_[int(state_)];
   state_ = new_state;
   ROS_INFO("[WaypointExploration] %s -> %s (%s)", state_str.c_str(), state_str_[int(new_state)].c_str(), pos_call.c_str());
 }
