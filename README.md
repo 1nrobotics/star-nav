@@ -2,9 +2,9 @@
 docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
 ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
 
-docker tag 1nrobotics/star-nav:release vcmman/star-nav:release-jetson-v0.2
+docker tag 1nrobotics/star-nav:release vcmman/star-nav:release-jetson-v0.4
 docker login
-docker push vcmman/star-nav:release-jetson-v0.2
+docker push vcmman/star-nav:release-jetson-v0.4
 
 ## Sim test
 roslaunch ego_planner single_run_in_sim.launch
