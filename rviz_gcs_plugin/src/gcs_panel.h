@@ -4,7 +4,9 @@
 #include <rviz/panel.h>
 #include <ros/ros.h>
 #include <std_msgs/Empty.h>
+#include <std_msgs/String.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <visualization_msgs/MarkerArray.h>
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -31,12 +33,18 @@ private Q_SLOTS:
 
 private:
   void odomCallback(const nav_msgs::OdometryConstPtr& msg);
+  void waypointsCallback(const visualization_msgs::MarkerArray::ConstPtr& msg);
+  void goalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
+  void paramsCallback(const std_msgs::String::ConstPtr& msg);
 
   ros::NodeHandle nh_;
   ros::Publisher trigger_pub_;
   ros::Publisher finish_pub_;
   ros::Publisher goal_pub_;
   ros::Subscriber odom_sub_;
+  ros::Subscriber waypoints_sub_;
+  ros::Subscriber goal_sub_;
+  ros::Subscriber params_sub_;
 
   QPushButton* start_button_;
   QPushButton* stop_button_;
@@ -45,6 +53,8 @@ private:
   QLabel* status_label_;
   QLabel* params_label_;
   QLabel* odom_label_;
+  QLabel* waypoints_label_;
+  QLabel* goal_label_;
 };
 
 } // namespace rviz_gcs_plugin

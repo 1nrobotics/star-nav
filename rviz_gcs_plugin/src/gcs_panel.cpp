@@ -17,6 +17,9 @@ GCSPanel::GCSPanel(QWidget* parent)
 
   // Subscriber
   odom_sub_ = nh_.subscribe("/mavros/local_position/odom", 10, &GCSPanel::odomCallback, this);
+  waypoints_sub_ = nh_.subscribe("/exploration/waypoints", 10, &GCSPanel::waypointsCallback, this);
+  goal_sub_ = nh_.subscribe("/move_base_simple/goal", 10, &GCSPanel::goalCallback, this);
+  params_sub_ = nh_.subscribe("/exploration/parameters", 1, &GCSPanel::paramsCallback, this);
 
   // Layout
   QVBoxLayout* layout = new QVBoxLayout;
@@ -25,18 +28,10 @@ GCSPanel::GCSPanel(QWidget* parent)
   stop_button_ = new QPushButton("Stop Exploration");
   goal_button_ = new QPushButton("Send Goal (Click in Map)");
   status_label_ = new QLabel("Status: Ready");
-  params_label_ = new QLabel("Params: Loading...");
+  params_label_ = new QLabel("Params: Waiting for exploration node...");
   odom_label_ = new QLabel("Odom: No data");
-
-  // Read exploration params
-  double center_x = 0.0, center_y = 0.0, width = 20.0, height = 20.0, spacing = 2.0;
-  nh_.getParam("/exploration_node/exploration/center_x", center_x);
-  nh_.getParam("/exploration_node/exploration/center_y", center_y);
-  nh_.getParam("/exploration_node/exploration/width", width);
-  nh_.getParam("/exploration_node/exploration/height", height);
-  nh_.getParam("/exploration_node/exploration/line_spacing", spacing);
-  params_label_->setText(QString("Center: (%.1f, %.1f) Size: %.1fx%.1f Spacing: %.1f")
-                         .arg(center_x).arg(center_y).arg(width).arg(height).arg(spacing));
+  waypoints_label_ = new QLabel("Waypoints: 0");
+  goal_label_ = new QLabel("Goal: None");
 
   layout->addWidget(start_button_);
   layout->addWidget(stop_button_);
@@ -44,6 +39,8 @@ GCSPanel::GCSPanel(QWidget* parent)
   layout->addWidget(status_label_);
   layout->addWidget(params_label_);
   layout->addWidget(odom_label_);
+  layout->addWidget(waypoints_label_);
+  layout->addWidget(goal_label_);
 
   setLayout(layout);
 
@@ -97,7 +94,26 @@ void GCSPanel::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
   double x = msg->pose.pose.position.x;
   double y = msg->pose.pose.position.y;
   double z = msg->pose.pose.position.z;
-  odom_label_->setText(QString("Odom: (%.2f, %.2f, %.2f)").arg(x).arg(y).arg(z));
+  odom_label_->setText(QString("Odom: (%1, %2, %3)").arg(x, 0, 'f', 2).arg(y, 0, 'f', 2).arg(z, 0, 'f', 2));
+}
+
+void GCSPanel::waypointsCallback(const visualization_msgs::MarkerArray::ConstPtr& msg)
+{
+  int count = msg->markers.size();
+  waypoints_label_->setText(QString("Waypoints: %1").arg(count));
+}
+
+void GCSPanel::goalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg)
+{
+  double x = msg->pose.position.x;
+  double y = msg->pose.position.y;
+  double z = msg->pose.position.z;
+  goal_label_->setText(QString("Goal: (%1, %2, %3)").arg(x, 0, 'f', 1).arg(y, 0, 'f', 1).arg(z, 0, 'f', 1));
+}
+
+void GCSPanel::paramsCallback(const std_msgs::String::ConstPtr& msg)
+{
+  params_label_->setText(QString::fromStdString(msg->data));
 }
 
 void GCSPanel::load(const rviz::Config& config)

@@ -26,6 +26,14 @@ void WaypointExploration::init(ros::NodeHandle& nh) {
   ROS_INFO("  fsm/max_exploration_time: %.2f s", max_exploration_time_);
   ROS_INFO("  fsm/replan_time: %.2f s", replan_time_);
 
+  // Publish parameters for GCS
+  std_msgs::String params_msg;
+  char buffer[256];
+  sprintf(buffer, "Center: (%.1f, %.1f) Size: %.1fx%.1f Spacing: %.1f",
+          exploration_center_(0), exploration_center_(1), exploration_width_, exploration_height_, line_spacing_);
+  params_msg.data = buffer;
+  params_pub_.publish(params_msg);
+
   // Initialize state
   state_ = INIT;
   exploration_triggered_ = false;
@@ -39,6 +47,7 @@ void WaypointExploration::init(ros::NodeHandle& nh) {
   // Publishers
   goal_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
   state_pub_ = nh.advertise<std_msgs::String>("/exploration/state", 10);
+  params_pub_ = nh.advertise<std_msgs::String>("/exploration/parameters", 1, true); // latched
 
   // Subscribers
   odom_sub_ = nh.subscribe("/mavros/local_position/odom", 10, &WaypointExploration::odometryCallback, this);
