@@ -5,10 +5,12 @@
     <!-- ============================================ -->
     <!-- Trigger exploration: rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}" -->
     <!-- 2D Nav Goal in RViz goes to EGO planner directly -->
+    <!-- Launch RViz separately: exploration_rviz -->
 
     <!-- Arguments -->
     <arg name="drone_id" default="0"/>
     <arg name="obj_num" default="10" />
+    <arg name="use_rviz" default="false"/>
 
     <!-- Map Parameters -->
     <arg name="map_size_x" default="50.0"/>
@@ -138,7 +140,7 @@
     <!-- ============================== -->
     <node name="rviz" pkg="rviz" type="rviz"
           args="-d $(find vk180_ros)/config/vk180_planner_visualization.rviz"
-          required="true" />
+          if="$(arg use_rviz)" />
 
     <!-- ============================== -->
     <!-- 6. Simulator                   -->

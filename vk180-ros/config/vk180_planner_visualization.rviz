@@ -15,6 +15,8 @@ Panels:
         - /Odometry1/Shape1
       Splitter Ratio: 0.43611112236976624
     Tree Height: 770
+  - Class: rviz_gcs_plugin/GCSPanel
+    Name: GCS Control
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -352,8 +354,8 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz/ThirdPersonFollower
-      Distance: 20.078195571899414
+      Class: rviz/Orbit
+      Distance: 20.0
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -361,17 +363,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.8982930183410645
-        Y: -0.8066434264183044
-        Z: 2.657055574672995e-06
+        X: 0.0
+        Y: 0.0
+        Z: 0.0
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5352017879486084
+      Pitch: -1.5707963267948966
       Target Frame: <Fixed Frame>
-      Yaw: 5.966079235076904
+      Yaw: 0.0
     Saved:
       - Class: rviz/FPS
         Enable Stereo Rendering:

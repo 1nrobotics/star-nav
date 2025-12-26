@@ -1,0 +1,52 @@
+#ifndef GCS_PANEL_H
+#define GCS_PANEL_H
+
+#include <rviz/panel.h>
+#include <ros/ros.h>
+#include <std_msgs/Empty.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QPushButton>
+#include <nav_msgs/Odometry.h>
+
+namespace rviz_gcs_plugin
+{
+
+class GCSPanel : public rviz::Panel
+{
+Q_OBJECT
+public:
+  GCSPanel(QWidget* parent = 0);
+  virtual ~GCSPanel();
+
+  virtual void load(const rviz::Config& config);
+  virtual void save(rviz::Config config) const;
+
+private Q_SLOTS:
+  void onStartExploration();
+  void onStopExploration();
+  void onSendGoal();
+
+private:
+  void odomCallback(const nav_msgs::OdometryConstPtr& msg);
+
+  ros::NodeHandle nh_;
+  ros::Publisher trigger_pub_;
+  ros::Publisher finish_pub_;
+  ros::Publisher goal_pub_;
+  ros::Subscriber odom_sub_;
+
+  QPushButton* start_button_;
+  QPushButton* stop_button_;
+  QPushButton* goal_button_;
+
+  QLabel* status_label_;
+  QLabel* params_label_;
+  QLabel* odom_label_;
+};
+
+} // namespace rviz_gcs_plugin
+
+#endif // GCS_PANEL_H

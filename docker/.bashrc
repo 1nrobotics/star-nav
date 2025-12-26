@@ -51,7 +51,9 @@ alias vk180_odom='rostopic echo /vk180/odom_raw'
 
 # EGO Planner simulation aliases
 alias planner_single_sim='roslaunch ego_planner single_run_in_sim.launch'
-alias planner_exploration_sim='roslaunch ego_planner exploration_sim.launch'
+alias exploration_sim='roslaunch vk180_ros exploration_sim.launch'
+alias exploration_sim_rviz='roslaunch vk180_ros exploration_sim.launch use_rviz:=true'
+alias exploration_rviz='rosrun rviz rviz -d $(rospack find vk180_ros)/config/vk180_planner_visualization.rviz'
 alias exploration_trigger='rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"'
 
 
@@ -90,14 +92,13 @@ echo "  - ego_planner (Autonomous Navigation Planner)"
 echo "  - utils (quadrotor_msgs, uav_utils, DecompROS, etc.)"
 echo ""
 echo "Quick commands:"
-echo "  nav_launch      - Start VK180 autonomous navigation"
+echo "  nav_launch      - Start VK180 autonomous navigation without rviz"
 echo "  nav_launch_rviz - Start VK180 autonomous navigation with rviz"
-echo "  exploration_launch - Start VK180 exploration flight"
-echo "  explore_launch_rviz - Start VK180 exploration flight with rviz"
-echo "  nav_launch_sim  - Start with PX4 SITL simulation"
 echo "  planner_single_sim - Launch planner single run in simulation"
-echo "  planner_exploration_sim - Launch planner exploration simulation"
-echo "  exploration_trigger - Trigger exploration"
+echo "  explore_launch - Start VK180 exploration flight with rviz"
+echo "  explore_launch_rviz - Start VK180 exploration flight with rviz"
+echo "  exploration_sim - Launch planner exploration simulation without rviz"
+echo "  exploration_sim_rviz - Launch planner exploration simulation with rviz"
 echo "  planner_status  - Monitor planner execution state"
 echo "  planner_cmd     - Monitor planner traj pos cmd"
 echo "  px4_cmd         - Monitor PX4 ctrl cmd"

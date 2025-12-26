@@ -8,8 +8,16 @@ docker push vcmman/star-nav:release-jetson-v0.2
 
 ## Sim test
 roslaunch ego_planner single_run_in_sim.launch
-roslaunch ego_planner exploration_sim.launch
+roslaunch vk180_ros exploration_sim.launch
+rosrun rviz rviz -d $(rospack find vk180_ros)/config/vk180_planner_visualization.rviz
 rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
+
+roslaunch vk180_ros vk180_exploration_flight.launch \
+  exploration_center_x:=5.0 \
+  exploration_center_y:=2.0 \
+  exploration_width:=30.0 \
+  exploration_height:=25.0 \
+  line_spacing:=1.5
 
 ## Field Test Release
 # start everything
