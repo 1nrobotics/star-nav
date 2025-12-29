@@ -49,6 +49,35 @@ Waypoint 10: (center_x - 2, center_y - 1, center_z) →
 - **Safe**: No complex frontier analysis
 - **Configurable**: Easy parameter tuning
 
+## Heading Control
+
+The drone's heading (yaw) during exploration is controlled through a multi-stage process:
+
+### Goal Orientation Setting
+When planning to each waypoint, the exploration manager calculates the desired heading as:
+```
+angle_to_target = atan2(target_y - current_y, target_x - current_x)
+target_yaw = current_drone_yaw + angle_to_target
+```
+
+This sets the orientation in the `geometry_msgs/PoseStamped` goal published to `/move_base_simple/goal`.
+
+### EGO Planner Behavior
+**Important**: The EGO planner ignores the orientation field in the goal message. It only uses the 3D position for trajectory planning.
+
+### Actual Flight Heading
+During flight, the drone's heading is controlled by the **trajectory server** (`traj_server`), which:
+- Computes yaw based on the trajectory direction
+- Uses a look-ahead mechanism to determine the direction of motion
+- Publishes yaw commands in `quadrotor_msgs::PositionCommand` to the PX4 controller
+- Makes the drone face the direction it's moving (forward-facing flight)
+
+### Result
+- The goal orientation serves documentation/visualization purposes
+- Actual flight heading follows the trajectory path direction
+- Creates natural forward-facing behavior during exploration
+- Heading adapts continuously as the drone follows curved trajectories
+
 ## Architecture
 
 ```
