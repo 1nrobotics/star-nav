@@ -142,17 +142,8 @@ void WaypointExploration::planToWaypointState() {
   auto& waypoint = waypoints_[current_waypoint_idx_];
   target_pt_ = waypoint.first;
   
-  // Calculate yaw as angle from current position to waypoint + current drone heading
-  double dx = target_pt_(0) - odom_pos_(0);
-  double dy = target_pt_(1) - odom_pos_(1);
-  double angle_to_target = atan2(dy, dx);
-  
-  // Get current drone yaw
-  double roll, pitch, current_yaw;
-  tf::Quaternion current_q(odom_orient_.x(), odom_orient_.y(), odom_orient_.z(), odom_orient_.w());
-  tf::Matrix3x3(current_q).getRPY(roll, pitch, current_yaw);
-  
-  target_yaw_ = current_yaw + angle_to_target;
+  // Set heading to 0 (facing positive X direction)
+  target_yaw_ = 0.0;
 
   // Publish goal with position and orientation
   geometry_msgs::PoseStamped goal;
@@ -200,7 +191,7 @@ void WaypointExploration::execWaypointState() {
 
   // Check if reached waypoint (increased tolerance for simulation)
   if (dist_to_goal < 0.7) {  // Increased from 0.5m to 0.7m for simulation
-    ROS_INFO("[WaypointExploration] ✓ Reached waypoint %d! Final distance: %.3f m (H:%.3f, V:%.3f)",
+    ROS_INFO("[WaypointExploration] SUCCESS: Reached waypoint %d! Final distance: %.3f m (H:%.3f, V:%.3f)",
              current_waypoint_idx_, dist_to_goal, horizontal_dist, fabs(dz));
     current_waypoint_idx_++;
     transitState(PLAN_TO_WAYPOINT, "execWaypointState");
@@ -210,7 +201,7 @@ void WaypointExploration::execWaypointState() {
   // Check timeout
   double elapsed = (ros::Time::now() - waypoint_start_time_).toSec();
   if (elapsed > waypoint_timeout_) {
-    ROS_WARN("[WaypointExploration] ✗ Waypoint %d timeout (%.1fs)! Distance: %.3f m (H:%.3f, V:%.3f). Moving to next waypoint.",
+    ROS_WARN("[WaypointExploration] TIMEOUT: Waypoint %d timeout (%.1fs)! Distance: %.3f m (H:%.3f, V:%.3f). Moving to next waypoint.",
              current_waypoint_idx_, elapsed, dist_to_goal, horizontal_dist, fabs(dz));
     current_waypoint_idx_++;
     transitState(PLAN_TO_WAYPOINT, "execWaypointState");

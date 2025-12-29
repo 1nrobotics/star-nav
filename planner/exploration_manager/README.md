@@ -54,11 +54,12 @@ Waypoint 10: (center_x - 2, center_y - 1, center_z) →
 The drone's heading (yaw) during exploration is controlled through a multi-stage process:
 
 ### Goal Orientation Setting
-When planning to each waypoint, the exploration manager calculates the desired heading as:
+When planning to each waypoint, the exploration manager sets a fixed heading:
 ```
-angle_to_target = atan2(target_y - current_y, target_x - current_x)
-target_yaw = current_drone_yaw + angle_to_target
+target_yaw = 0.0  // Facing positive X direction (east)
 ```
+
+This provides a consistent orientation for all waypoints, ensuring predictable drone behavior during exploration.
 
 This sets the orientation in the `geometry_msgs/PoseStamped` goal published to `/move_base_simple/goal`.
 
