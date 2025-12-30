@@ -1,3 +1,9 @@
+## Local build
+Extract: tar -xzf star-nav-modified.tar.gz
+catkin_make
+Source: source catkin_ws/devel/setup.bash
+Run launch files or modify other packages as needed.
+
 ## Release image (developer only)
 docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
 ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
