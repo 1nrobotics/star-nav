@@ -67,7 +67,7 @@ namespace ego_planner
     {
       trigger_sub_ = nh.subscribe("/traj_start_trigger", 1, &EGOReplanFSM::triggerCallback, this);
 
-      ROS_INFO("Wait for 1 second.");
+      ROS_DEBUG("Wait for 1 second.");
       int count = 0;
       while (ros::ok() && count++ < 1000)
       {
@@ -413,7 +413,12 @@ namespace ego_planner
     static string state_str[8] = {"INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ", "EMERGENCY_STOP", "SEQUENTIAL_START"};
     int pre_s = int(exec_state_);
     exec_state_ = new_state;
-    ROS_INFO("[EGO FSM]: %s -> %s", state_str[pre_s].c_str(), state_str[int(new_state)].c_str());
+
+    // Throttle FSM state change logging to reduce verbosity
+    static int state_change_count = 0;
+    if (++state_change_count % 10 == 0) {  // Log every 10th state change
+      ROS_DEBUG("[EGO FSM]: %s -> %s", state_str[pre_s].c_str(), state_str[int(new_state)].c_str());
+    }
   }
 
   std::pair<int, EGOReplanFSM::FSM_EXEC_STATE> EGOReplanFSM::timesOfConsecutiveStateCalls()
@@ -425,7 +430,7 @@ namespace ego_planner
   {
     static string state_str[8] = {"INIT", "WAIT_TARGET", "GEN_NEW_TRAJ", "REPLAN_TRAJ", "EXEC_TRAJ", "EMERGENCY_STOP", "SEQUENTIAL_START"};
 
-    ROS_INFO("[EGO FSM]: state: %s", state_str[int(exec_state_)].c_str());
+    ROS_DEBUG("[EGO FSM]: state: %s", state_str[int(exec_state_)].c_str());
   }
 
   void EGOReplanFSM::execFSMCallback(const ros::TimerEvent &e)
@@ -440,7 +445,7 @@ namespace ego_planner
       if (!have_odom_)
         ROS_INFO("[EGO FSM]: no odom.");
       if (!have_target_)
-        ROS_INFO("[EGO FSM]: waiting for goal or trigger.");
+        ROS_DEBUG("[EGO FSM]: waiting for goal or trigger.");
       fsm_num = 0;
     }
 
