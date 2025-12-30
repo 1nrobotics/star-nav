@@ -1,0 +1,9 @@
+<library path="lib/librviz_gcs_plugin">
+  <class name="rviz_gcs_plugin/GCSPanel"
+         type="rviz_gcs_plugin::GCSPanel"
+         base_class_type="rviz::Panel">
+    <description>
+      A panel for controlling exploration missions.
+    </description>
+  </class>
+</library>

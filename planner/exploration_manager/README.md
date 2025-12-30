@@ -11,43 +11,71 @@ This package provides autonomous exploration capabilities for real drones using:
 
 ## Waypoint Algorithm
 
-The waypoint-based exploration uses a simple but effective lawnmower pattern:
+The waypoint-based exploration uses a modified lawnmower pattern with a custom coordinate system:
+
+### Coordinate System
+- **X-axis**: Forward (positive) / Backward (negative)
+- **Y-axis**: Left (positive) / Right (negative)
+- **Z-axis**: Up (positive) / Down (negative)
 
 ### Algorithm Overview
-1. **Rectangle Definition**: Define exploration area as a rectangle centered at (center_x, center_y) with specified width and height
-2. **Line Generation**: Create parallel lines spaced by `line_spacing` distance
-3. **Alternating Direction**: Alternate direction on each line (left-to-right, right-to-left)
-4. **Height Consistency**: All waypoints maintain constant altitude (center_z)
-5. **Sequential Execution**: Visit waypoints in order, moving to next after timeout or completion
+1. **Start Position**: Forward-left corner of the exploration rectangle
+2. **Scan Pattern**: Alternating left-to-right and right-to-left scans
+3. **Row Movement**: Move backward by `line_spacing` distance after each scan
+4. **Return Home**: Final waypoint returns to exploration center
+5. **Sequential Execution**: Visit waypoints in order until completion
 
 ### Parameters
 - `center_x`, `center_y`, `center_z`: Rectangle center and flight altitude
-- `width`, `height`: Rectangle dimensions
-- `line_spacing`: Distance between parallel lines
+- `width`, `height`: Rectangle dimensions (forward/backward × left/right)
+- `line_spacing`: Distance between parallel scan lines
 - `waypoint_timeout`: Maximum time to spend at each waypoint
 
-### Example Pattern
-For a 4m x 4m rectangle with 1m line spacing:
+### Example Pattern (10m × 8m area, 2m spacing)
 ```
-Waypoint 1: (center_x - 2, center_y - 2, center_z)  ←
-Waypoint 2: (center_x - 1, center_y - 2, center_z)  ←
-Waypoint 3: (center_x + 0, center_y - 2, center_z)  ←
-Waypoint 4: (center_x + 1, center_y - 2, center_z)  ←
-Waypoint 5: (center_x + 2, center_y - 2, center_z)  ←
-Waypoint 6: (center_x + 2, center_y - 1, center_z)  →
-Waypoint 7: (center_x + 1, center_y - 1, center_z)  →
-Waypoint 8: (center_x + 0, center_y - 1, center_z)  →
-Waypoint 9: (center_x - 1, center_y - 1, center_z)  →
-Waypoint 10: (center_x - 2, center_y - 1, center_z) →
-...continues for all lines
+Start: Forward-Left (max_x, max_y)
+Row 0: Left→Right scan at forward position
+Row 1: Right→Left scan, move backward by 2m
+Row 2: Left→Right scan, move backward by 2m
+...
+Final: Return to center position
 ```
 
-### Advantages
-- **Predictable**: Deterministic coverage pattern
-- **Simple**: Easy to understand and debug
-- **Complete**: Systematic area coverage
-- **Safe**: No complex frontier analysis
-- **Configurable**: Easy parameter tuning
+### Key Features
+- **Forward-Left Start**: Begins at the most distant corner for comprehensive coverage
+- **Alternating Scans**: Left-to-right, then right-to-left for efficient coverage
+- **Return Home**: Ends exploration by returning to center position
+- **Custom Coordinates**: Intuitive forward/backward, left/right navigation
+
+## Heading Control
+
+The drone's heading (yaw) during exploration is controlled through a multi-stage process:
+
+### Goal Orientation Setting
+When planning to each waypoint, the exploration manager sets a fixed heading:
+```
+target_yaw = 0.0  // Facing positive X direction (east)
+```
+
+This provides a consistent orientation for all waypoints, ensuring predictable drone behavior during exploration.
+
+This sets the orientation in the `geometry_msgs/PoseStamped` goal published to `/move_base_simple/goal`.
+
+### EGO Planner Behavior
+**Important**: The EGO planner ignores the orientation field in the goal message. It only uses the 3D position for trajectory planning.
+
+### Actual Flight Heading
+During flight, the drone's heading is controlled by the **trajectory server** (`traj_server`), which:
+- Computes yaw based on the trajectory direction
+- Uses a look-ahead mechanism to determine the direction of motion
+- Publishes yaw commands in `quadrotor_msgs::PositionCommand` to the PX4 controller
+- Makes the drone face the direction it's moving (forward-facing flight)
+
+### Result
+- The goal orientation serves documentation/visualization purposes
+- Actual flight heading follows the trajectory path direction
+- Creates natural forward-facing behavior during exploration
+- Heading adapts continuously as the drone follows curved trajectories
 
 ## Architecture
 

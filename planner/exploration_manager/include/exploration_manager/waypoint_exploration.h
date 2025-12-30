@@ -68,6 +68,7 @@ private:
   ros::Timer fsm_timer_;
   ros::Publisher goal_pub_;
   ros::Publisher state_pub_;
+  ros::Publisher params_pub_;
   ros::Subscriber odom_sub_;
   ros::Subscriber trigger_sub_;
   ros::Subscriber finish_sub_;

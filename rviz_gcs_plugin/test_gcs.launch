@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Test launch for GCS Plugin -->
+    <arg name="use_rviz" default="true"/>
+
+    <!-- Dummy exploration node to provide parameters -->
+    <node name="exploration_node" pkg="exploration_manager" type="exploration_node" output="screen">
+        <param name="exploration/center_x" value="5.0"/>
+        <param name="exploration/center_y" value="0.0"/>
+        <param name="exploration/width" value="10.0"/>
+        <param name="exploration/height" value="10.0"/>
+        <param name="exploration/line_spacing" value="2.0"/>
+    </node>
+
+    <!-- Dummy odometry publisher -->
+    <node name="dummy_odom" pkg="rostopic" type="rostopic" args="pub /mavros/local_position/odom nav_msgs/Odometry -r 10 'header:
+  seq: 0
+  stamp:
+    secs: 0
+    nsecs: 0
+  frame_id: odom
+pose:
+  pose:
+    position:
+      x: 1.0
+      y: 2.0
+      z: 3.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+  covariance: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+twist:
+  twist:
+    linear:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    angular:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+  covariance: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]'" />
+
+    <!-- RViz with GCS Plugin -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rviz_gcs_plugin)/test_gcs.rviz" if="$(arg use_rviz)" />
+
+</launch>
