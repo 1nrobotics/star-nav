@@ -20,14 +20,17 @@ for pkg in "${PACKAGES_TO_CLEAN[@]}"; do
         done
         # Remove source files
         find "$pkg_path" -name "*.cpp" -o -name "*.h" -o -name "*.hpp" -o -name "CMakeLists.txt" | xargs rm -f
-        # Remove src directory if empty
-        if [ -d "$pkg_path/src" ] && [ -z "$(ls -A $pkg_path/src)" ]; then
-            rmdir "$pkg_path/src"
+        # Remove src directory
+        if [ -d "$pkg_path/src" ]; then
+            rm -rf "$pkg_path/src"
         fi
-        # Remove include if empty
-        if [ -d "$pkg_path/include" ] && [ -z "$(ls -A $pkg_path/include)" ]; then
-            rmdir "$pkg_path/include"
+        # Remove include directory
+        if [ -d "$pkg_path/include" ]; then
+            rm -rf "$pkg_path/include"
         fi
+        # Create CATKIN_IGNORE to prevent rebuild
+        touch "$pkg_path/CATKIN_IGNORE"
+        echo "Created CATKIN_IGNORE for $pkg"
     else
         echo "Package $pkg not found in $pkg_path"
     fi
