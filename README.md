@@ -1,4 +1,6 @@
 ## Local build
+rm /home/nvidia/star-nav-modified.tar.gz && cd /home/nvidia/src/star-nav && ./pack_workspace.sh
+
 Extract: tar -xzf star-nav-modified.tar.gz
 catkin_make
 Source: source catkin_ws/devel/setup.bash

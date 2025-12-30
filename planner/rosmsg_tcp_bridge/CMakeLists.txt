@@ -32,4 +32,6 @@ target_link_libraries(bridge_node
   ${catkin_LIBRARIES}
   )
 
+add_dependencies(bridge_node ${catkin_EXPORTED_TARGETS})
+
 

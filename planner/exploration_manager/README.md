@@ -194,9 +194,6 @@ RViz displays:
 # View current FSM state
 rostopic echo /exploration/state
 
-# Waypoint mode topics
-rostopic echo /exploration/waypoints
-
 # Frontier mode topics (when using frontier mode)
 rostopic echo /exploration/frontiers
 rostopic echo /exploration/frontier_cells
@@ -306,7 +303,6 @@ The exploration FSM has the following states:
 ### Published
 - `/drone_0_planning/pos_cmd` (quadrotor_msgs/PositionCommand): Position commands to PX4
 - `/exploration/state` (std_msgs/String): Current FSM state
-- `/exploration/waypoints` (visualization_msgs/MarkerArray): Waypoint visualization
 
 ## Hardware Setup Checklist
 

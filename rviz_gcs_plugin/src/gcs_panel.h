@@ -42,7 +42,6 @@ private:
   ros::Publisher finish_pub_;
   ros::Publisher goal_pub_;
   ros::Subscriber odom_sub_;
-  ros::Subscriber waypoints_sub_;
   ros::Subscriber goal_sub_;
   ros::Subscriber params_sub_;
 
@@ -53,7 +52,6 @@ private:
   QLabel* status_label_;
   QLabel* params_label_;
   QLabel* odom_label_;
-  QLabel* waypoints_label_;
   QLabel* goal_label_;
 };
 

@@ -17,7 +17,6 @@ GCSPanel::GCSPanel(QWidget* parent)
 
   // Subscriber
   odom_sub_ = nh_.subscribe("/mavros/local_position/odom", 10, &GCSPanel::odomCallback, this);
-  waypoints_sub_ = nh_.subscribe("/exploration/waypoints", 10, &GCSPanel::waypointsCallback, this);
   goal_sub_ = nh_.subscribe("/move_base_simple/goal", 10, &GCSPanel::goalCallback, this);
   params_sub_ = nh_.subscribe("/exploration/parameters", 1, &GCSPanel::paramsCallback, this);
 
@@ -30,7 +29,6 @@ GCSPanel::GCSPanel(QWidget* parent)
   status_label_ = new QLabel("Status: Ready");
   params_label_ = new QLabel("Params: Waiting for exploration node...");
   odom_label_ = new QLabel("Odom: No data");
-  waypoints_label_ = new QLabel("Waypoints: 0");
   goal_label_ = new QLabel("Goal: None");
 
   layout->addWidget(start_button_);
@@ -39,7 +37,6 @@ GCSPanel::GCSPanel(QWidget* parent)
   layout->addWidget(status_label_);
   layout->addWidget(params_label_);
   layout->addWidget(odom_label_);
-  layout->addWidget(waypoints_label_);
   layout->addWidget(goal_label_);
 
   setLayout(layout);
@@ -95,12 +92,6 @@ void GCSPanel::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
   double y = msg->pose.pose.position.y;
   double z = msg->pose.pose.position.z;
   odom_label_->setText(QString("Odom: (%1, %2, %3)").arg(x, 0, 'f', 2).arg(y, 0, 'f', 2).arg(z, 0, 'f', 2));
-}
-
-void GCSPanel::waypointsCallback(const visualization_msgs::MarkerArray::ConstPtr& msg)
-{
-  int count = msg->markers.size();
-  waypoints_label_->setText(QString("Waypoints: %1").arg(count));
 }
 
 void GCSPanel::goalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg)
