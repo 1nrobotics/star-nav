@@ -35,7 +35,7 @@ done
 
 echo "Creating archive..."
 cd /home/nvidia
-tar -czf star-nav-release.tar.gz --exclude='catkin_ws/build' catkin_ws
+tar -czf star-nav-release.tar.gz --exclude='catkin_ws/build' --exclude='catkin_ws/devel' catkin_ws
 
 echo "Archive created: /home/nvidia/star-nav-release.tar.gz"
 echo "To extract: tar -xzf star-nav-release.tar.gz"

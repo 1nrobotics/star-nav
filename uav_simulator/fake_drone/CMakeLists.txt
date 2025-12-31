@@ -26,3 +26,7 @@ include_directories(
 add_executable (poscmd_2_odom src/poscmd_2_odom.cpp )
 target_link_libraries(poscmd_2_odom
   ${catkin_LIBRARIES})
+
+install(TARGETS poscmd_2_odom
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

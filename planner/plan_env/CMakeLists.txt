@@ -51,6 +51,10 @@ target_link_libraries( plan_env
     ${OpenCV_LIBS}
     )  
 
+install(TARGETS plan_env
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+)
+
 add_executable(obj_generator
     src/obj_generator.cpp 
 )
