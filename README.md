@@ -1,3 +1,13 @@
+## release 
+Star-nav-release-v0.5
+
+Extract files to loca folder
+Cd catkin_ws & source devel/setup.bash
+Don’t build!!!
+Run:
+roslaunch vk180_ros exploration_sim.launch use_rviz:=true
+roslaunch vk180_ros vk180_exploration_flight.launch
+
 ## Local build
 rm /home/nvidia/star-nav-modified.tar.gz && cd /home/nvidia/src/star-nav && ./pack_workspace.sh
 

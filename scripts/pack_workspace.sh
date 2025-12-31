@@ -15,7 +15,7 @@ for pkg in "${PACKAGES_TO_CLEAN[@]}"; do
     pkg_path="$WORKSPACE_DIR/src/$pkg"
     if [ -d "$pkg_path" ]; then
         # Keep launch files, config files, scripts, package.xml
-        find "$pkg_path" -name "*.launch" -o -name "*.yaml" -o -name "*.rviz" -o -name "*.ini" -o -name "*.sh" -o -name "package.xml" | while read file; do
+        find "$pkg_path" -name "*.launch" -o -name "*.yaml" -o -name "*.rviz" -o -name "*.ini" -o -name "*.sh" -o -name "package.xml" -o -name "docker" -o -name "scripts" | while read file; do
             echo "Keeping $file"
         done
         # Remove source files
@@ -28,9 +28,6 @@ for pkg in "${PACKAGES_TO_CLEAN[@]}"; do
         if [ -d "$pkg_path/include" ]; then
             rm -rf "$pkg_path/include"
         fi
-        # Create CATKIN_IGNORE to prevent rebuild
-        touch "$pkg_path/CATKIN_IGNORE"
-        echo "Created CATKIN_IGNORE for $pkg"
     else
         echo "Package $pkg not found in $pkg_path"
     fi
