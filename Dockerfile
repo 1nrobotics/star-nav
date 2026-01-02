@@ -137,7 +137,7 @@ RUN if [ "$RELEASE_BUILD" = "true" ]; then \
         # Keep launch files \
         find . -name "*.launch" -o -name "*.xml" | grep -E "(launch|urdf|xacro|plugin_description)" > /tmp/keep_files.txt && \
         # Keep config files \
-        find . -name "*.yaml" -o -name "*.rviz" -o -name "*.ini" >> /tmp/keep_files.txt && \
+        find . -name "*.yaml" -o -name "*.rviz" -o -name "*.ini" -o -name "*.mesh" >> /tmp/keep_files.txt && \
         # Keep Python scripts \
         find . -name "*.py" -path "*/scripts/*" >> /tmp/keep_files.txt && \
         # Keep shell scripts \

@@ -1,3 +1,42 @@
+## release 
+Star-nav-release-v0.5
+
+Extract files to loca folder
+Cd catkin_ws & source devel/setup.bash
+Don’t build!!!
+Run:
+roslaunch vk180_ros exploration_sim.launch use_rviz:=true
+roslaunch vk180_ros vk180_exploration_flight.launch
+
+## Local build
+rm /home/nvidia/star-nav-modified.tar.gz && cd /home/nvidia/src/star-nav && ./pack_workspace.sh
+
+Extract: tar -xzf star-nav-modified.tar.gz
+catkin_make
+Source: source catkin_ws/devel/setup.bash
+Run launch files or modify other packages as needed.
+
+## Release image (developer only)
+docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
+ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
+
+docker tag 1nrobotics/star-nav:release vcmman/star-nav:release-jetson-v0.4
+docker login
+docker push vcmman/star-nav:release-jetson-v0.4
+
+## Sim test
+roslaunch ego_planner single_run_in_sim.launch
+roslaunch vk180_ros exploration_sim.launch
+rosrun rviz rviz -d $(rospack find vk180_ros)/config/vk180_planner_visualization.rviz
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
+
+roslaunch vk180_ros vk180_exploration_flight.launch \
+  exploration_center_x:=5.0 \
+  exploration_center_y:=2.0 \
+  exploration_width:=30.0 \
+  exploration_height:=25.0 \
+  line_spacing:=1.5
+
 ## Field Test Release
 # start everything
 ```bash
@@ -33,6 +72,35 @@ pose:
     w: 0.0"
 ```
 
+# In RViz, add these displays:
+# 1. MarkerArray - Topic: /exploration/frontiers
+# 2. PointCloud2 - Topic: /exploration/frontier_cells
+# 3. Pose - Topic: /move_base_simple/goal (direct EGO planner control)
+# 4. PointCloud2 - Topic: /vk180/depth/image_rect_raw (depth map, for real flight)
+
+# Trigger waypoint exploration
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
+
+# FSM returns to WAIT_TRIGGER
+rostopic pub /exploration/trigger_once std_msgs/Bool "data: false"
+
+# Emergency stop exploration
+rostopic pub /exploration/finish std_msgs/Empty "{}"
+
+# Monitor exploration state
+rostopic echo /exploration/state
+
+# Watch frontier detection
+rostopic echo /exploration/frontiers
+
+# Check if goals are being published
+rostopic echo /move_base_simple/goal
+
+# Monitor EGO planner status
+rostopic echo /drone_0_planning/data_display
+
+# Check distance to goal
+rostopic echo /mavros/local_position/odom | grep -A3 "position"
 
 ## Field Test Dev
 ```bash
@@ -43,11 +111,15 @@ cd src/star-nav
 
 docker exec -it star_nav bash
 tmux
-roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=false 
+roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=false 
 ctrl-b-%
 rostopic echo /mavros/local_position/odom
 rostopic echo /mavros/setpoint_raw/attitude
 
+# Trigger exploration
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
+
+# Or send manual goal (note: flight height is hardcoded to 1.0m in ego-planner)
 rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "header:
   seq: 0
   stamp:
@@ -58,7 +130,7 @@ pose:
   position:
     x: 1.0
     y: 0.0
-    z: 2
+    z: 1.0
   orientation:
     x: 0.0
     y: 0.0

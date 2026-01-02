@@ -109,3 +109,19 @@ target_link_libraries(vk180_planner_bridge
     CapnProto::capnp 
     vilota::vk_sdk
 )
+
+#############
+## Install ##
+#############
+
+install(TARGETS receive odom disparity sensor_extrinsics depth_conversion_test ecal_ros_bridge vk180_planner_bridge
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(DIRECTORY launch/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+)
+
+install(DIRECTORY config/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+)

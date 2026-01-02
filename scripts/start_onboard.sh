@@ -25,8 +25,8 @@ IMAGE_NAME=1nrobotics/star-nav
 echo "Star Nav onboard environment loaded"
 
 # Set system time
-echo "[*] Setting system time..."
-sudo date -s "2025-11-13 09:12:38"
+# echo "[*] Setting system time..."
+# sudo date -s "2025-12-22 22:50:00"
 
 # Check VK180 connectivity
 echo "[*] Checking VK180 connectivity..."

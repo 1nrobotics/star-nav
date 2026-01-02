@@ -28,6 +28,9 @@
           type="vk180_planner_bridge" 
           output="screen">
         
+        <!-- Set library path for VK180 SDK -->
+        <env name="LD_LIBRARY_PATH" value="/opt/vilota/lib:/opt/ros/noetic/lib" />
+        
         <!-- Frame IDs -->
         <param name="odom_frame_id" value="odom" />
         <param name="base_frame_id" value="base_link" />
@@ -42,6 +45,12 @@
              - Publishes /vk180/odom_raw (raw VIO before PX4 fusion)
              - Publishes /mavros/vision_pose/pose (vision input to PX4 EKF2)
              - PX4 fuses VIO + IMU → /mavros/local_position/odom
+             
+             Sensor Outputs for EGO Planner:
+             - /vk180/pointcloud: World-frame point cloud (pcl::PointXYZ)
+             - /vk180/depth/image_rect_raw: Virtual depth image (16UC1, millimeters)
+             - /vk180/depth/camera_info: Virtual camera intrinsics
+             - /vk180/camera_extrinsic: Camera-to-body transform for depth processing
         -->
     </node>
     
@@ -66,15 +75,15 @@
         
         <!-- Use PX4's fused odometry (VIO + IMU) instead of raw VIO -->
         <arg name="odometry_topic" value="/mavros/local_position/odom"/>
-        <arg name="depth_topic" value="nouse1"/>
+        <arg name="depth_topic" value="/vk180/depth/image_rect_raw"/>
         <arg name="camera_pose_topic" value="nouse2"/>
-        <arg name="cloud_topic" value="/vk180/pointcloud"/>
+        <arg name="cloud_topic" value="nouse"/>
         
-        <!-- Camera Intrinsics (not used for point cloud mapping) -->
+        <!-- Virtual Camera Intrinsics for depth image processing -->
         <arg name="cx" value="320.0"/>
         <arg name="cy" value="240.0"/>
-        <arg name="fx" value="400.0"/>
-        <arg name="fy" value="400.0"/>
+        <arg name="fx" value="320.0"/>
+        <arg name="fy" value="320.0"/>
         
         <!-- Planning Parameters -->
         <arg name="max_vel" value="$(arg max_vel)" />

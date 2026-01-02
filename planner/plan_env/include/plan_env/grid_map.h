@@ -73,6 +73,7 @@ struct MappingParameters {
   double prob_hit_log_, prob_miss_log_, clamp_min_log_, clamp_max_log_,
       min_occupancy_log_;                   // logit of occupancy probability
   double min_ray_length_, max_ray_length_;  // range of doing raycasting
+  bool enable_pointcloud_raycasting_;       // enable raycasting for pointcloud data (needed for exploration)
 
   /* local map update and clear */
   int local_map_margin_;
@@ -232,7 +233,7 @@ private:
   SynchronizerImageOdom sync_image_odom_;
 
   ros::Subscriber indep_cloud_sub_, indep_odom_sub_, extrinsic_sub_;
-  ros::Publisher map_pub_, map_inf_pub_;
+  ros::Publisher map_pub_, map_inf_pub_, depth_cloud_pub_;
   ros::Timer occ_timer_, vis_timer_;
 
   //
@@ -320,6 +321,11 @@ inline int GridMap::getOccupancy(Eigen::Vector3d pos) {
   Eigen::Vector3i id;
   posToIndex(pos, id);
 
+  // Check if unknown first (value below clamp_min)
+  if (md_.occupancy_buffer_[toAddress(id)] < mp_.clamp_min_log_ - 1e-3) {
+    return -1; // Unknown
+  }
+
   return md_.occupancy_buffer_[toAddress(id)] > mp_.min_occupancy_log_ ? 1 : 0;
 }
 
@@ -336,6 +342,11 @@ inline int GridMap::getOccupancy(Eigen::Vector3i id) {
   if (id(0) < 0 || id(0) >= mp_.map_voxel_num_(0) || id(1) < 0 || id(1) >= mp_.map_voxel_num_(1) ||
       id(2) < 0 || id(2) >= mp_.map_voxel_num_(2))
     return -1;
+
+  // Check if unknown first (value below clamp_min)
+  if (md_.occupancy_buffer_[toAddress(id)] < mp_.clamp_min_log_ - 1e-3) {
+    return -1; // Unknown
+  }
 
   return md_.occupancy_buffer_[toAddress(id)] > mp_.min_occupancy_log_ ? 1 : 0;
 }

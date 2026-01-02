@@ -151,7 +151,7 @@ void Odom_Data_t::feed(nav_msgs::OdometryConstPtr pMsg)
     {
         if ( one_min_count < 100 )
         {
-            ROS_WARN("ODOM frequency seems lower than 100Hz, which is too low!");
+            ROS_DEBUG("ODOM frequency seems lower than 100Hz, which is too low!");
         }
         one_min_count = 0;
         last_clear_count_time = now;
@@ -191,7 +191,7 @@ void Imu_Data_t::feed(sensor_msgs::ImuConstPtr pMsg)
     {
         if ( one_min_count < 100 )
         {
-            ROS_WARN("IMU frequency seems lower than 100Hz, which is too low!");
+            ROS_DEBUG("IMU frequency seems lower than 100Hz, which is too low!");
         }
         one_min_count = 0;
         last_clear_count_time = now;

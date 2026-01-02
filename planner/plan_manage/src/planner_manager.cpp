@@ -51,14 +51,14 @@ namespace ego_planner
                                         Eigen::Vector3d local_target_vel, bool flag_polyInit, bool flag_randomPolyTraj)
   {
     static int count = 0;
-    printf("\033[47;30m\n[drone %d replan %d]==============================================\033[0m\n", pp_.drone_id, count++);
+    ROS_DEBUG("[EGO] Replan iteration %d starting", count++);
     // cout.precision(3);
     // cout << "start: " << start_pt.transpose() << ", " << start_vel.transpose() << "\ngoal:" << local_target_pt.transpose() << ", " << local_target_vel.transpose()
     //      << endl;
 
     if ((start_pt - local_target_pt).norm() < 0.2)
     {
-      cout << "Close to goal" << endl;
+      ROS_INFO("[EGO] Close to goal");
       continous_failures_count_++;
       return false;
     }
@@ -232,8 +232,7 @@ namespace ego_planner
     {
       // cout << "enter" << endl;
       std::vector<ControlPoints> trajs = bspline_optimizer_->distinctiveTrajs(segments);
-      cout << "\033[1;33m"
-           << "multi-trajs=" << trajs.size() << "\033[1;0m" << endl;
+      ROS_DEBUG("multi-trajs=%lu", trajs.size());
 
       double final_cost, min_cost = 999999.0;
       for (int i = trajs.size() - 1; i >= 0; i--)
@@ -241,7 +240,7 @@ namespace ego_planner
         if (bspline_optimizer_->BsplineOptimizeTrajRebound(ctrl_pts_temp, final_cost, trajs[i], ts))
         {
 
-          cout << "traj " << trajs.size() - i << " success." << endl;
+          ROS_DEBUG("traj %lu success.", trajs.size() - i);
 
           flag_step_1_success = true;
           if (final_cost < min_cost)
@@ -260,7 +259,7 @@ namespace ego_planner
         }
         else
         {
-          cout << "traj " << trajs.size() - i << " failed." << endl;
+          ROS_DEBUG("traj %lu failed.", trajs.size() - i);
         }
       }
 
@@ -276,7 +275,7 @@ namespace ego_planner
       visualization_->displayInitPathList(point_set, 0.2, 0);
     }
 
-    cout << "plan_success=" << flag_step_1_success << endl;
+    ROS_DEBUG("plan_success=%d", flag_step_1_success);
     if (!flag_step_1_success)
     {
       visualization_->displayOptimalList(ctrl_pts, 0);
@@ -298,7 +297,7 @@ namespace ego_planner
       bool flag_step_2_success = true;
       if (!pos.checkFeasibility(ratio, false))
       {
-        cout << "Need to reallocate time." << endl;
+        ROS_DEBUG("Need to reallocate time.");
 
         Eigen::MatrixXd optimal_control_points;
         flag_step_2_success = refineTrajAlgo(pos, start_end_derivatives, ratio, ts, optimal_control_points);
@@ -332,7 +331,9 @@ namespace ego_planner
     static int count_success = 0;
     sum_time += (t_init + t_opt + t_refine).toSec();
     count_success++;
-    cout << "total time:\033[42m" << (t_init + t_opt + t_refine).toSec() << "\033[0m,optimize:" << (t_init + t_opt).toSec() << ",refine:" << t_refine.toSec() << ",avg_time=" << sum_time / count_success << endl;
+    ROS_DEBUG("total time:%.3f, optimize:%.3f, refine:%.3f, avg:%.3f", 
+              (t_init + t_opt + t_refine).toSec(), (t_init + t_opt).toSec(), 
+              t_refine.toSec(), sum_time / count_success);
 
     // success. YoY
     continous_failures_count_ = 0;
