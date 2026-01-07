@@ -223,7 +223,7 @@ void WaypointExploration::finishState() {
 void WaypointExploration::generateLawnmowerWaypoints() {
   waypoints_.clear();
 
-  ROS_INFO("[WaypointExploration] Generating lawnmower waypoints (forward-left start, left-to-right scan):");
+  ROS_INFO("[WaypointExploration] Generating lawnmower waypoints with smooth corners:");
   ROS_INFO("  Coordinate system: X=forward/backward, Y=left/right");
   ROS_INFO("  Center: [%.2f, %.2f, %.2f]", exploration_center_(0), exploration_center_(1), exploration_center_(2));
   ROS_INFO("  Size: %.2f x %.2f m", exploration_width_, exploration_height_);
@@ -239,73 +239,105 @@ void WaypointExploration::generateLawnmowerWaypoints() {
 
   ROS_INFO("  Bounds: forward[%.2f, %.2f], left[%.2f, %.2f]", min_x, max_x, min_y, max_y);
 
-  // Generate lawnmower pattern - start from forward-left, scan left-to-right
+  // Corner rounding parameters - use half of line spacing for smooth turns
+  double corner_offset = std::min(1.0, line_spacing_ * 0.5);  // Distance to start/end turn before corner
+  
+  ROS_INFO("  Corner offset: %.2with smooth rounded corners
   bool scan_left_to_right = true;  // Start scanning from left to right
   double current_x = max_x;  // Start at forward position
   int row_count = 0;
+  bool is_first_row = true;
 
   while (current_x >= min_x) {
-    // Yaw will be calculated dynamically based on current position to waypoint
-    double yaw_angle = 0.0;  // Placeholder, will be computed dynamically
+    double yaw_angle = 0.0;  // Placeholder
     
-    ROS_INFO("  Row %d: x=%.2f (forward=%.2f), direction=%s", 
-             row_count, current_x, max_x - current_x, scan_left_to_right ? "left-to-right" : "right-to-left");
+    ROS_INFO("  Row %d: x=%.2f, direction=%s", 
+             row_count, current_x, scan_left_to_right ? "left-to-right" : "right-to-left");
     
     if (scan_left_to_right) {
-      // Scan from left to right: start at max_y (left), end at min_y (right)
-      Eigen::Vector3d start_wp(current_x, max_y, exploration_altitude_);
-      Eigen::Vector3d end_wp(current_x, min_y, exploration_altitude_);
+      // Scan from left to right
+      double start_y = is_first_row ? max_y : (max_y - corner_offset);
+      double end_y = min_y + corner_offset;
+      
+      Eigen::Vector3d start_wp(current_x, start_y, exploration_altitude_);
+      Eigen::Vector3d end_wp(current_x, end_y, exploration_altitude_);
       
       if (isValidWaypoint(start_wp)) {
         waypoints_.push_back(std::make_pair(start_wp, yaw_angle));
-        ROS_INFO("    Added start waypoint: [%.2f, %.2f, %.2f] (forward-left)", 
-                 start_wp(0), start_wp(1), start_wp(2));
+        ROS_INFO("    Start: [%.2f, %.2f, %.2f]", start_wp(0), start_wp(1), start_wp(2));
       }
       
       if (isValidWaypoint(end_wp)) {
         waypoints_.push_back(std::make_pair(end_wp, yaw_angle));
-        ROS_INFO("    Added end waypoint: [%.2f, %.2f, %.2f] (forward-right)", 
-                 end_wp(0), end_wp(1), end_wp(2));
+        ROS_INFO("    End: [%.2f, %.2f, %.2f]", end_wp(0), end_wp(1), end_wp(2));
       }
+      
+      // Add corner transition if not the last row
+      double next_x = current_x - line_spacing_;
+      if (next_x >= min_x) {
+        // Add diagonal corner waypoint
+        Eigen::Vector3d corner_wp(current_x - corner_offset, min_y, exploration_altitude_);
+        if (isValidWaypoint(corner_wp)) {
+          waypoints_.push_back(std::make_pair(corner_wp, yaw_angle));
+          ROS_INFO("    Corner: [%.2f, %.2f, %.2f] (diagonal transition)", 
+                   corner_wp(0), corner_wp(1), corner_wp(2));
+        }
+      }
+      
     } else {
-      // Scan from right to left: start at min_y (right), end at max_y (left)
-      Eigen::Vector3d start_wp(current_x, min_y, exploration_altitude_);
-      Eigen::Vector3d end_wp(current_x, max_y, exploration_altitude_);
+      // Scan from right to left
+      double start_y = min_y + corner_offset;
+      double end_y = max_y - corner_offset;
+      
+      Eigen::Vector3d start_wp(current_x, start_y, exploration_altitude_);
+      Eigen::Vector3d end_wp(current_x, end_y, exploration_altitude_);
       
       if (isValidWaypoint(start_wp)) {
         waypoints_.push_back(std::make_pair(start_wp, yaw_angle));
-        ROS_INFO("    Added start waypoint: [%.2f, %.2f, %.2f] (forward-right)", 
-                 start_wp(0), start_wp(1), start_wp(2));
+        ROS_INFO("    Start: [%.2f, %.2f, %.2f]", start_wp(0), start_wp(1), start_wp(2));
       }
       
       if (isValidWaypoint(end_wp)) {
         waypoints_.push_back(std::make_pair(end_wp, yaw_angle));
-        ROS_INFO("    Added end waypoint: [%.2f, %.2f, %.2f] (forward-left)", 
-                 end_wp(0), end_wp(1), end_wp(2));
+        ROS_INFO("    End: [%.2f, %.2f, %.2f]", end_wp(0), end_wp(1), end_wp(2));
+      }
+      
+      // Add corner transition if not the last row
+      double next_x = current_x - line_spacing_;
+      if (next_x >= min_x) {
+        // Add diagonal corner waypoint
+        Eigen::Vector3d corner_wp(current_x - corner_offset, max_y, exploration_altitude_);
+        if (isValidWaypoint(corner_wp)) {
+          waypoints_.push_back(std::make_pair(corner_wp, yaw_angle));
+          ROS_INFO("    Corner: [%.2f, %.2f, %.2f] (diagonal transition)", 
+                   corner_wp(0), corner_wp(1), corner_wp(2));
+        }
       }
     }
 
-    // Move to next row (backward)
+    // Move to next row
     current_x -= line_spacing_;
-    scan_left_to_right = !scan_left_to_right;  // Alternate scan direction
+    scan_left_to_right = !scan_left_to_right;
+    is_first_row = false;
     row_count++;
     
-    // Prevent infinite loop
     if (row_count > 100) {
       ROS_ERROR("[WaypointExploration] Too many rows generated, breaking!");
       break;
     }
   }
 
-  // Add return home waypoint at the center/starting position
+  // Add return home waypoint
   Eigen::Vector3d home_wp(exploration_center_(0), exploration_center_(1), exploration_altitude_);
   if (isValidWaypoint(home_wp)) {
     waypoints_.push_back(std::make_pair(home_wp, 0.0));
-    ROS_INFO("    Added return home waypoint: [%.2f, %.2f, %.2f]", 
+    ROS_INFO("    Return home: [%.2f, %.2f, %.2f]", 
              home_wp(0), home_wp(1), home_wp(2));
   }
 
-  ROS_INFO("[WaypointExploration] Generated %lu waypoints (forward-left start, left-to-right scan, return home)", waypoints_.size());
+  ROS_INFO("[WaypointExploration] Generated %lu waypoints with smooth rounded corners
+
+  ROS_INFO("[WaypointExploration] Final waypoint count: %lu (forward-left start, left-to-right scan, smoothed turns, return home)", waypoints_.size());
 }
 
 bool WaypointExploration::isValidWaypoint(const Eigen::Vector3d& pos) {
