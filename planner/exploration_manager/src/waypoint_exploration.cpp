@@ -241,6 +241,24 @@ void WaypointExploration::generateLawnmowerWaypoints() {
 
   // Generate original lawnmower pattern first
   vector<Eigen::Vector3d> raw_waypoints;
+  
+  // Add lead-in waypoints for smooth approach from origin (0,0)
+  // (0,0) → (max_x - 1.5, max_y) → (max_x - 0.5, max_y) → (max_x, max_y - 0.5)
+  const double offset1 = line_spacing_ * 0.5;   // 1.5m for 3m spacing
+  const double offset2 = line_spacing_ / 6.0;   // 0.5m for 3m spacing
+  
+  Eigen::Vector3d leadin1(max_x - offset1, max_y, exploration_altitude_);
+  raw_waypoints.push_back(leadin1);
+  ROS_INFO("  Lead-in 1: [%.2f, %.2f, %.2f]", leadin1(0), leadin1(1), leadin1(2));
+  
+  Eigen::Vector3d leadin2(max_x - offset2, max_y, exploration_altitude_);
+  raw_waypoints.push_back(leadin2);
+  ROS_INFO("  Lead-in 2: [%.2f, %.2f, %.2f]", leadin2(0), leadin2(1), leadin2(2));
+  
+  Eigen::Vector3d leadin3(max_x, max_y - offset2, exploration_altitude_);
+  raw_waypoints.push_back(leadin3);
+  ROS_INFO("  Lead-in 3: [%.2f, %.2f, %.2f]", leadin3(0), leadin3(1), leadin3(2));
+  
   bool scan_left_to_right = true;
   double current_x = max_x;
   int row_count = 0;
