@@ -242,7 +242,9 @@ void WaypointExploration::generateLawnmowerWaypoints() {
   // Corner rounding parameters - use half of line spacing for smooth turns
   double corner_offset = std::min(1.0, line_spacing_ * 0.5);  // Distance to start/end turn before corner
   
-  ROS_INFO("  Corner offset: %.2with smooth rounded corners
+  ROS_INFO("  Corner offset: %.2f m (for smooth rounded corners)", corner_offset);
+
+  // Generate lawnmower pattern with smooth rounded corners
   bool scan_left_to_right = true;  // Start scanning from left to right
   double current_x = max_x;  // Start at forward position
   int row_count = 0;
@@ -335,9 +337,7 @@ void WaypointExploration::generateLawnmowerWaypoints() {
              home_wp(0), home_wp(1), home_wp(2));
   }
 
-  ROS_INFO("[WaypointExploration] Generated %lu waypoints with smooth rounded corners
-
-  ROS_INFO("[WaypointExploration] Final waypoint count: %lu (forward-left start, left-to-right scan, smoothed turns, return home)", waypoints_.size());
+  ROS_INFO("[WaypointExploration] Generated %lu waypoints with smooth rounded corners", waypoints_.size());
 }
 
 bool WaypointExploration::isValidWaypoint(const Eigen::Vector3d& pos) {
