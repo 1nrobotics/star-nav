@@ -244,11 +244,19 @@ void WaypointExploration::generateLawnmowerWaypoints() {
   
   ROS_INFO("  Corner offset: %.2f m (for smooth rounded corners)", corner_offset);
 
+  // Add lead-in waypoint from center (0,0) to first corner
+  // This ensures smooth transition from takeoff position to first scan line
+  Eigen::Vector3d leadin_wp(max_x - corner_offset, max_y, exploration_altitude_);
+  if (isValidWaypoint(leadin_wp)) {
+    waypoints_.push_back(std::make_pair(leadin_wp, 0.0));
+    ROS_INFO("  Lead-in waypoint: [%.2f, %.2f, %.2f] (smooth approach to first row)", 
+             leadin_wp(0), leadin_wp(1), leadin_wp(2));
+  }
+
   // Generate lawnmower pattern with smooth rounded corners
   bool scan_left_to_right = true;  // Start scanning from left to right
   double current_x = max_x;  // Start at forward position
   int row_count = 0;
-  bool is_first_row = true;
 
   while (current_x >= min_x) {
     double yaw_angle = 0.0;  // Placeholder
@@ -258,7 +266,7 @@ void WaypointExploration::generateLawnmowerWaypoints() {
     
     if (scan_left_to_right) {
       // Scan from left to right
-      double start_y = is_first_row ? max_y : (max_y - corner_offset);
+      double start_y = max_y - corner_offset;  // All rows now have corner offset for consistency
       double end_y = min_y + corner_offset;
       
       Eigen::Vector3d start_wp(current_x, start_y, exploration_altitude_);
@@ -320,7 +328,6 @@ void WaypointExploration::generateLawnmowerWaypoints() {
     // Move to next row
     current_x -= line_spacing_;
     scan_left_to_right = !scan_left_to_right;
-    is_first_row = false;
     row_count++;
     
     if (row_count > 100) {
