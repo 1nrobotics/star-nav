@@ -9,10 +9,10 @@ void WaypointExploration::init(ros::NodeHandle& nh) {
   nh.param("exploration/center_x", exploration_center_(0), 0.0);
   nh.param("exploration/center_y", exploration_center_(1), 0.0);
   nh.param("exploration/center_z", exploration_center_(2), 1.5);
-  nh.param("exploration/width", exploration_width_, 10.0);
-  nh.param("exploration/height", exploration_height_, 10.0);
+  nh.param("exploration/width", exploration_width_, 9.0);
+  nh.param("exploration/height", exploration_height_, 9.0);
   nh.param("exploration/altitude", exploration_altitude_, 1.0);
-  nh.param("exploration/line_spacing", line_spacing_, 0.5);
+  nh.param("exploration/line_spacing", line_spacing_, 3.0);
   nh.param("fsm/waypoint_timeout", waypoint_timeout_, 30.0);
   nh.param("fsm/max_exploration_time", max_exploration_time_, 600.0);
   nh.param("fsm/replan_time", replan_time_, 0.05);
@@ -303,14 +303,14 @@ void WaypointExploration::generateLawnmowerWaypoints() {
       Eigen::Vector3d prev = raw_waypoints[i-1];
       Eigen::Vector3d curr = raw_waypoints[i];
       
-      Eigen::Vector2d dir1(prev(0) - prev_prev(0), prev(1) - prev_prev(1));
-      Eigen::Vector2d dir2(curr(0) - prev(0), curr(1) - prev(1));
+      Eigen::Vector3d dir1_3d = prev - prev_prev;
+      Eigen::Vector3d dir2_3d = curr - prev;
       
-      if (dir1.norm() > 0.01 && dir2.norm() > 0.01) {
-        dir1.normalize();
-        dir2.normalize();
+      if (dir1_3d.norm() > 0.01 && dir2_3d.norm() > 0.01) {
+        dir1_3d.normalize();
+        dir2_3d.normalize();
         
-        double dot = dir1.dot(dir2);
+        double dot = dir1_3d.dot(dir2_3d);
         double angle = std::acos(std::max(-1.0, std::min(1.0, dot)));
         
         // If ~90° turn (between 60° and 120°)
@@ -322,19 +322,19 @@ void WaypointExploration::generateLawnmowerWaypoints() {
           // Example: (10,-10) to (8,-10) becomes:
           // (10,-9.5), (9.5,-10), (8.5,-10), (8,-9.5)
           
-          Eigen::Vector3d int1 = prev - dir1 * STEP;  // Step back on incoming direction
+          Eigen::Vector3d int1 = prev - dir1_3d * STEP;  // Step back on incoming direction
           waypoints_.push_back(std::make_pair(int1, 0.0));
           ROS_INFO("      Int1: [%.2f, %.2f, %.2f]", int1(0), int1(1), int1(2));
           
-          Eigen::Vector3d int2 = prev + (dir2 - dir1).normalized() * STEP;  // Diagonal
+          Eigen::Vector3d int2 = prev + (dir2_3d - dir1_3d).normalized() * STEP;  // Diagonal
           waypoints_.push_back(std::make_pair(int2, 0.0));
           ROS_INFO("      Int2: [%.2f, %.2f, %.2f]", int2(0), int2(1), int2(2));
           
-          Eigen::Vector3d int3 = prev + dir2 * STEP;  // Step forward on outgoing direction
+          Eigen::Vector3d int3 = prev + dir2_3d * STEP;  // Step forward on outgoing direction
           waypoints_.push_back(std::make_pair(int3, 0.0));
           ROS_INFO("      Int3: [%.2f, %.2f, %.2f]", int3(0), int3(1), int3(2));
           
-          Eigen::Vector3d int4 = prev + dir2 * (2.0 * STEP);  // Further on outgoing direction
+          Eigen::Vector3d int4 = prev + dir2_3d * (2.0 * STEP);  // Further on outgoing direction
           waypoints_.push_back(std::make_pair(int4, 0.0));
           ROS_INFO("      Int4: [%.2f, %.2f, %.2f]", int4(0), int4(1), int4(2));
         }

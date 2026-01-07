@@ -21,9 +21,9 @@
     <!-- Exploration Parameters -->
     <arg name="exploration_center_x" default="0.0"/>
     <arg name="exploration_center_y" default="0.0"/>
-    <arg name="exploration_width" default="20.0"/>
-    <arg name="exploration_height" default="20.0"/>
-    <arg name="line_spacing" default="2.0"/>
+    <arg name="exploration_width" default="9.0"/>
+    <arg name="exploration_height" default="9.0"/>
+    <arg name="line_spacing" default="3.0"/>
 
     <!-- ============================== -->
     <!-- 1. Map Generator               -->
