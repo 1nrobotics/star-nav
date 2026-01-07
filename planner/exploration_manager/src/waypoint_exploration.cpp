@@ -183,14 +183,14 @@ void WaypointExploration::execWaypointState() {
   // Log progress towards waypoint (throttled to 5Hz for debug)
   ROS_DEBUG_THROTTLE(5.0, "[WaypointExploration] Waypoint %d progress: "
                      "Current [%.2f, %.2f, %.2f] -> Target [%.2f, %.2f, %.2f] | "
-                     "Distance: %.3f m (H:%.3f, V:%.3f) | Tolerance: 0.7 m",
+                     "Distance: %.3f m (H:%.3f, V:%.3f) | Tolerance: 0.5 m",
                      current_waypoint_idx_,
                      odom_pos_(0), odom_pos_(1), odom_pos_(2),
                      target_pt_(0), target_pt_(1), target_pt_(2),
                      dist_to_goal, horizontal_dist, fabs(dz));
 
-  // Check if reached waypoint (increased tolerance for simulation)
-  if (dist_to_goal < 0.7) {  // Increased from 0.5m to 0.7m for simulation
+  // Check if reached waypoint
+  if (dist_to_goal < 0.5) {
     ROS_INFO("[WaypointExploration] SUCCESS: Reached waypoint %d! Final distance: %.3f m (H:%.3f, V:%.3f)",
              current_waypoint_idx_, dist_to_goal, horizontal_dist, fabs(dz));
     current_waypoint_idx_++;
