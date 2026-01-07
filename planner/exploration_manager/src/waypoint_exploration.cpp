@@ -291,20 +291,16 @@ void WaypointExploration::generateLawnmowerWaypoints() {
   const double STEP = line_spacing_ * 0.25;  // Quarter of line spacing per step
   
   for (size_t i = 0; i < raw_waypoints.size(); ++i) {
-    if (i == 0) {
-      // First waypoint - add as-is
-      waypoints_.push_back(std::make_pair(raw_waypoints[i], 0.0));
-      continue;
-    }
+    // Check if current waypoint is a 90° corner that should be smoothed
+    bool is_corner = false;
     
-    if (i >= 2) {
-      // Check if there's a 90° turn at previous waypoint
-      Eigen::Vector3d prev_prev = raw_waypoints[i-2];
+    if (i >= 1 && i < raw_waypoints.size() - 1) {
       Eigen::Vector3d prev = raw_waypoints[i-1];
       Eigen::Vector3d curr = raw_waypoints[i];
+      Eigen::Vector3d next = raw_waypoints[i+1];
       
-      Eigen::Vector3d dir1_3d = prev - prev_prev;
-      Eigen::Vector3d dir2_3d = curr - prev;
+      Eigen::Vector3d dir1_3d = curr - prev;
+      Eigen::Vector3d dir2_3d = next - curr;
       
       if (dir1_3d.norm() > 0.01 && dir2_3d.norm() > 0.01) {
         dir1_3d.normalize();
@@ -315,34 +311,34 @@ void WaypointExploration::generateLawnmowerWaypoints() {
         
         // If ~90° turn (between 60° and 120°)
         if (angle > M_PI / 3.0 && angle < 2.0 * M_PI / 3.0) {
-          ROS_INFO("    90° turn at waypoint %lu [%.2f, %.2f], inserting 4 intermediate points", 
-                   i-1, prev(0), prev(1));
+          is_corner = true;
+          ROS_INFO("    90° corner at waypoint %lu [%.2f, %.2f], replacing with 4 intermediate points", 
+                   i, curr(0), curr(1));
           
           // Insert 4 intermediate waypoints to create smooth arc
-          // Example: (10,-10) to (8,-10) becomes:
-          // (10,-9.5), (9.5,-10), (8.5,-10), (8,-9.5)
-          
-          Eigen::Vector3d int1 = prev - dir1_3d * STEP;  // Step back on incoming direction
+          Eigen::Vector3d int1 = curr - dir1_3d * STEP;  // Step back on incoming direction
           waypoints_.push_back(std::make_pair(int1, 0.0));
           ROS_INFO("      Int1: [%.2f, %.2f, %.2f]", int1(0), int1(1), int1(2));
           
-          Eigen::Vector3d int2 = prev + (dir2_3d - dir1_3d).normalized() * STEP;  // Diagonal
+          Eigen::Vector3d int2 = curr + (dir2_3d - dir1_3d).normalized() * STEP;  // Diagonal
           waypoints_.push_back(std::make_pair(int2, 0.0));
           ROS_INFO("      Int2: [%.2f, %.2f, %.2f]", int2(0), int2(1), int2(2));
           
-          Eigen::Vector3d int3 = prev + dir2_3d * STEP;  // Step forward on outgoing direction
+          Eigen::Vector3d int3 = curr + dir2_3d * STEP;  // Step forward on outgoing direction
           waypoints_.push_back(std::make_pair(int3, 0.0));
           ROS_INFO("      Int3: [%.2f, %.2f, %.2f]", int3(0), int3(1), int3(2));
           
-          Eigen::Vector3d int4 = prev + dir2_3d * (2.0 * STEP);  // Further on outgoing direction
+          Eigen::Vector3d int4 = curr + dir2_3d * (2.0 * STEP);  // Further on outgoing direction
           waypoints_.push_back(std::make_pair(int4, 0.0));
           ROS_INFO("      Int4: [%.2f, %.2f, %.2f]", int4(0), int4(1), int4(2));
         }
       }
     }
     
-    // Add current waypoint
-    waypoints_.push_back(std::make_pair(raw_waypoints[i], 0.0));
+    // Add current waypoint only if it's not a corner (corners are replaced by intermediate points)
+    if (!is_corner) {
+      waypoints_.push_back(std::make_pair(raw_waypoints[i], 0.0));
+    }
   }
 
   ROS_INFO("[WaypointExploration] Generated %lu waypoints with smooth 4-point corners", waypoints_.size());
