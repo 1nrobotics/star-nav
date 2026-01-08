@@ -118,9 +118,9 @@ COPY docker/tools/ecal.ini /etc/ecal/ecal.ini
 RUN echo "source /opt/ros/noetic/setup.bash" >> /root/.bashrc && \
     echo "source /catkin_ws/install/setup.bash" >> /root/.bashrc
 
-# Copy custom bashrc for additional configuration
-COPY docker/.bashrc /root/.bashrc_custom 2>/dev/null || true
-RUN if [ -f /root/.bashrc_custom ]; then cat /root/.bashrc_custom >> /root/.bashrc; fi
+# Copy custom bashrc for additional configuration (if it exists)
+COPY docker/.bashrc /root/.bashrc_custom
+RUN cat /root/.bashrc_custom >> /root/.bashrc || true
 
 # Set working directory
 WORKDIR /catkin_ws

@@ -10,6 +10,7 @@ build/
 devel/
 logs/
 install/
+build_context_release/
 .catkin_workspace
 **/build/
 **/devel/

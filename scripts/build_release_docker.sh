@@ -31,7 +31,15 @@ echo ""
 echo "Step 2: Extracting built workspace from builder container..."
 # Create temporary container and copy workspace out
 docker create --name star-nav-builder-temp star-nav-builder:temp
-docker cp star-nav-builder-temp:/catkin_ws/install "$BUILD_CONTEXT_DIR/"
+
+# Try to copy install directory first, fall back to devel if it doesn't exist
+if docker cp star-nav-builder-temp:/catkin_ws/install "$BUILD_CONTEXT_DIR/" 2>/dev/null; then
+    echo "  Copied install/ directory"
+else
+    echo "  install/ not found, copying devel/ directory instead"
+    docker cp star-nav-builder-temp:/catkin_ws/devel "$BUILD_CONTEXT_DIR/install"
+fi
+
 docker cp star-nav-builder-temp:/catkin_ws/src "$BUILD_CONTEXT_DIR/"
 docker rm star-nav-builder-temp
 

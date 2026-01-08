@@ -1,0 +1,22 @@
+# Build artifacts
+build/
+devel/
+install/
+build_context_release/
+
+# IDE
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# ROS
+*.bag
+*.autosave
+
+# Temporary files
+*~
+*.swp
