@@ -28,31 +28,22 @@ public:
 
 private Q_SLOTS:
   void onStartExploration();
-  void onStopExploration();
-  void onSendGoal();
 
 private:
   void odomCallback(const nav_msgs::OdometryConstPtr& msg);
   void waypointsCallback(const visualization_msgs::MarkerArray::ConstPtr& msg);
-  void goalCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
   void paramsCallback(const std_msgs::String::ConstPtr& msg);
 
   ros::NodeHandle nh_;
   ros::Publisher trigger_pub_;
-  ros::Publisher finish_pub_;
-  ros::Publisher goal_pub_;
   ros::Subscriber odom_sub_;
-  ros::Subscriber goal_sub_;
   ros::Subscriber params_sub_;
 
   QPushButton* start_button_;
-  QPushButton* stop_button_;
-  QPushButton* goal_button_;
 
   QLabel* status_label_;
   QLabel* params_label_;
   QLabel* odom_label_;
-  QLabel* goal_label_;
 };
 
 } // namespace rviz_gcs_plugin
