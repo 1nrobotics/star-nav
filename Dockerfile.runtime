@@ -1,51 +1,35 @@
-# Jetson NX/Orin specific Dockerfile
-# Based on NVIDIA L4T (Linux for Tegra) with ROS Noetic
-FROM nvcr.io/nvidia/l4t-base:r35.4.1
+# Runtime-only Docker image for packed Star Nav workspace
+# Expects a pre-built workspace archive (install + minimal src for launch files)
+# Multi-architecture support: works for x86_64 and ARM64 (Jetson)
+
+ARG BASE_IMAGE=ros:noetic-ros-core-focal
+FROM ${BASE_IMAGE}
 
 LABEL maintainer="1nrobotics@github"
-LABEL description="Docker image for Star Nav on NVIDIA Jetson - ARM64 with GPU acceleration"
+LABEL description="Star Nav Runtime - Pre-built workspace for deployment"
 
 # Set environment variables
 ENV ROS_DISTRO=noetic
 ENV DEBIAN_FRONTEND=noninteractive
-ENV NVIDIA_VISIBLE_DEVICES=all
-ENV NVIDIA_DRIVER_CAPABILITIES=all
 
-# Install ROS Noetic from source or packages
-# Note: L4T is based on Ubuntu 20.04, ROS Noetic is available
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gnupg2 \
-    curl \
-    ca-certificates \
-    lsb-release \
-    && sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list' \
-    && curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - \
-    && apt-get update \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install bootstrap tools and essential packages
+# Install minimal runtime tools
 RUN apt-get update && apt-get install --no-install-recommends -y \
     vim \
     wget \
     curl \
-    git \
     tmux \
     iproute2 \
-    build-essential \
     python3-rosdep \
-    python3-rosinstall \
-    python3-vcstools \
     python3-pip \
-    xmlstarlet \
     && rm -rf /var/lib/apt/lists/*
 
 # Bootstrap rosdep
 RUN rosdep init && \
     rosdep update --rosdistro $ROS_DISTRO
 
-# Install ROS packages
+# Install ROS runtime packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-noetic-ros-base \
+    ros-noetic-ros-base=1.5.0-1* \
     && rm -rf /var/lib/apt/lists/*
 
 # Install MAVROS and related dependencies
@@ -64,16 +48,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-pcl-ros \
     ros-${ROS_DISTRO}-pcl-conversions \
     ros-${ROS_DISTRO}-eigen-conversions \
-    ros-${ROS_DISTRO}-cmake-modules \
     ros-${ROS_DISTRO}-rviz \
     ros-${ROS_DISTRO}-cv-bridge \
     ros-${ROS_DISTRO}-image-transport \
-    ros-${ROS_DISTRO}-roslint \
     ros-${ROS_DISTRO}-xacro \
     ros-${ROS_DISTRO}-ddynamic-reconfigure \
     && rm -rf /var/lib/apt/lists/*
 
-# Install system dependencies
+# Install system dependencies (runtime libraries only)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libeigen3-dev \
     libpcl-dev \
@@ -82,19 +64,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install eCAL using Vilota software installer
-COPY shiviz_px4_nav/tools/VilotaSoftwareInstaller_v2.0-bba1a93f.py /tmp/installer.py
+COPY docker/tools/VilotaSoftwareInstaller_v2.0-bba1a93f.py /tmp/installer.py
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         python3-requests \
         software-properties-common \
         sudo \
-        iputils-ping \
         apt-transport-https \
         ca-certificates \
         gnupg && \
     rm -rf /var/lib/apt/lists/*
 
-# Install eCAL and dependencies (may need ARM64-compatible version)
+# Install eCAL runtime (no build tools needed)
 RUN apt-get update && \
     python3 /tmp/installer.py -s -u deployment -p vilota-dep --no-update-script && \
     rm -rf /var/lib/apt/lists/*
@@ -109,7 +90,7 @@ RUN apt-get update && \
 RUN python3 -c "import ecal; print('eCAL imported successfully')" || echo "Warning: eCAL import failed"
 RUN python3 -c "import capnp; print(f'pycapnp {capnp.__version__} imported successfully')" || echo "Warning: pycapnp import failed"
 
-# Ensure udev rules directory exists
+# Movidius udev rule
 RUN mkdir -p /etc/udev/rules.d && \
     echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"' > /etc/udev/rules.d/80-movidius.rules || true
 
@@ -118,33 +99,28 @@ RUN wget https://raw.githubusercontent.com/mavlink/mavros/master/mavros/scripts/
     && bash ./install_geographiclib_datasets.sh \
     && rm install_geographiclib_datasets.sh
 
-# Enable the use of `source` keyword
+# Enable bash source keyword
 SHELL ["/bin/bash", "-c"]
 
-# Create workspace and copy source code
-WORKDIR /catkin_ws/src/
-COPY . /catkin_ws/src/
+# Create workspace directory
+WORKDIR /catkin_ws
+
+# Copy pre-built workspace (install directory and minimal src with launch/config files)
+# This expects the packed workspace to be extracted here
+# Build context should contain: install/ and src/ (with only launch/config/scripts)
+COPY install/ /catkin_ws/install/
+COPY src/ /catkin_ws/src/
 
 # Copy eCAL configuration
-COPY shiviz_px4_nav/tools/ecal.ini /etc/ecal/ecal.ini
+COPY docker/tools/ecal.ini /etc/ecal/ecal.ini
 
-# Build the workspace
-WORKDIR /catkin_ws/
-RUN source /opt/ros/noetic/setup.bash \
-    && rosdep update \
-    && rosdep install --from-paths src --ignore-src -r -y \
-    && catkin_make -DCMAKE_BUILD_TYPE=Release
-
-# Set up environment in bashrc
+# Set up environment in bashrc - use install/setup.bash for release builds
 RUN echo "source /opt/ros/noetic/setup.bash" >> /root/.bashrc && \
-    echo "source /catkin_ws/devel/setup.bash" >> /root/.bashrc && \
-    echo "export ROS_MASTER_URI=http://localhost:11311" >> /root/.bashrc && \
-    echo "export ROS_HOSTNAME=localhost" >> /root/.bashrc && \
-    echo "export ROS_IP=localhost" >> /root/.bashrc
+    echo "source /catkin_ws/install/setup.bash" >> /root/.bashrc
 
-# Copy custom bashrc
-COPY docker/.bashrc /root/.bashrc_custom
-RUN cat /root/.bashrc_custom >> /root/.bashrc
+# Copy custom bashrc for additional configuration
+COPY docker/.bashrc /root/.bashrc_custom 2>/dev/null || true
+RUN if [ -f /root/.bashrc_custom ]; then cat /root/.bashrc_custom >> /root/.bashrc; fi
 
 # Set working directory
 WORKDIR /catkin_ws
@@ -156,5 +132,5 @@ EXPOSE 11311 14540 14557
 ENV PX4_SIM_HOST=localhost
 ENV PX4_SIM_MODEL=iris
 
-ENTRYPOINT ["/bin/bash", "-c"]
-CMD ["source /catkin_ws/devel/setup.bash && bash"]
+ENTRYPOINT ["/ros_entrypoint.sh"]
+CMD ["bash"]

@@ -1,4 +1,12 @@
-## release 
+## install build with docker
+
+
+## install build
+on Ubuntu 20.04
+build_ws_jetson.sh
+pack_ws_jetson.sh
+
+## install run 
 Star-nav-release-v0.5
 
 Extract files to loca folder
