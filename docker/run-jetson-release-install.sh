@@ -14,10 +14,18 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}🚁 Star Nav - Jetson Release Runner${NC}"
 
-# Get script directory and repo root
+# Get script directory
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
-REPO_ROOT=$(realpath "$SCRIPT_DIR/..")
-BUILD_CONTEXT_DIR="$REPO_ROOT/build_context_release"
+
+# Detect if we're running from inside build_context_release or from repo root
+if [ -f "$SCRIPT_DIR/Dockerfile.runtime" ] && [ -d "$SCRIPT_DIR/install" ]; then
+    # Running from inside build_context_release (as run.sh)
+    BUILD_CONTEXT_DIR="$SCRIPT_DIR"
+else
+    # Running from repo docker/ folder
+    REPO_ROOT=$(realpath "$SCRIPT_DIR/..")
+    BUILD_CONTEXT_DIR="$REPO_ROOT/build_context_release"
+fi
 
 # Docker image settings
 IMAGE_NAME="${IMAGE_NAME:-1nrobotics/star-nav}"
@@ -114,10 +122,10 @@ echo "  docker stop star_nav                       # Stop service"
 echo "  docker rm star_nav                         # Remove container"
 echo ""
 echo "To launch exploration:"
-echo "  docker exec -it star_nav bash -c 'roslaunch vk180_ros vk180_exploration.launch'"
+echo "  docker exec -it star_nav bash -i -c 'roslaunch vk180_ros vk180_exploration.launch'"
 echo ""
 echo "To launch autonomous flight:"
-echo "  docker exec -it star_nav bash -c 'roslaunch vk180_ros vk180_autonomous_flight.launch'"
+echo "  docker exec -it star_nav bash -i -c 'roslaunch vk180_ros vk180_autonomous_flight.launch'"
 echo ""
 echo "Environment variables:"
 echo "  ENABLE_REMOTE_VIZ=true/false    # Enable remote ROS visualization (default: true)"

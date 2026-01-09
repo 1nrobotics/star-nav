@@ -136,6 +136,7 @@ EXPOSE 11311 14540 14557
 # Default environment variables
 ENV PX4_SIM_HOST=localhost
 ENV PX4_SIM_MODEL=iris
+ENV BASH_ENV=/etc/bash.bashrc
 
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]

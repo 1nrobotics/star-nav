@@ -60,17 +60,27 @@ for pkg in "${PACKAGES_TO_CLEAN[@]}"; do
 done
 
 echo ""
-echo "Step 4: Building runtime Docker image..."
-# Copy necessary files for Docker build
+echo "Step 4: Preparing build context with necessary files..."
+# Copy necessary files for Docker build (exclude build_context_release itself to avoid recursion)
 cp -r "$REPO_ROOT/docker" "$BUILD_CONTEXT_DIR/"
 cp "$REPO_ROOT/Dockerfile.runtime" "$BUILD_CONTEXT_DIR/"
+
+# Modify .bashrc to use install/setup.bash instead of devel/setup.bash
+sed -i 's|/catkin_ws/devel/setup.bash|/catkin_ws/install/setup.bash|g' "$BUILD_CONTEXT_DIR/docker/.bashrc"
+
+# Copy the run script into build_context_release for easy deployment
+cp "$REPO_ROOT/docker/run-jetson-release-install.sh" "$BUILD_CONTEXT_DIR/run.sh"
+chmod +x "$BUILD_CONTEXT_DIR/run.sh"
+
+echo ""
+echo "Step 5: Building runtime Docker image..."
 
 # Build the runtime image
 cd "$BUILD_CONTEXT_DIR"
 docker build -t "${IMAGE_NAME}:${IMAGE_TAG}" -f Dockerfile.runtime .
 
 echo ""
-echo "Step 5: Cleaning up..."
+echo "Step 6: Cleaning up..."
 cd "$REPO_ROOT"
 # Optional: uncomment to remove build context after successful build
 # rm -rf "$BUILD_CONTEXT_DIR"
@@ -83,10 +93,11 @@ echo "Image details:"
 docker images "${IMAGE_NAME}:${IMAGE_TAG}"
 echo ""
 echo "Build context preserved at: $BUILD_CONTEXT_DIR"
+echo "  - Contains: install/, src/, docker/, Dockerfile.runtime, run.sh"
 echo "  - Remove with: rm -rf $BUILD_CONTEXT_DIR"
 echo ""
-echo "To run:"
-echo "  docker run -it --rm ${IMAGE_NAME}:${IMAGE_TAG}"
+echo "To run the release build:"
+echo "  cd $BUILD_CONTEXT_DIR && ./run.sh"
 echo ""
-echo "Or use the deployment script:"
-echo "  IMAGE_TAG=${IMAGE_TAG} ./docker/release-deploy.sh"
+echo "Or run directly:"
+echo "  docker run -it --rm ${IMAGE_NAME}:${IMAGE_TAG}"
