@@ -1,5 +1,8 @@
 ## install build with docker
-
+scripts/build_release_docker.sh
+docker run -it --rm 1nrobotics/star-nav:runtime
+IMAGE_TAG=runtime ./docker/release-deploy.sh
+ENABLE_REMOTE_VIZ=false ./docker/run-jetson-release-install.sh
 
 ## install build
 on Ubuntu 20.04

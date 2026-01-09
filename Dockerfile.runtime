@@ -114,7 +114,12 @@ COPY src/ /catkin_ws/src/
 # Copy eCAL configuration
 COPY docker/tools/ecal.ini /etc/ecal/ecal.ini
 
-# Set up environment in bashrc - use install/setup.bash for release builds
+# Set up environment for all interactive shells (both login and non-login)
+# Add to /etc/bash.bashrc so it's sourced by docker exec as well
+RUN echo "source /opt/ros/noetic/setup.bash" >> /etc/bash.bashrc && \
+    echo "source /catkin_ws/install/setup.bash" >> /etc/bash.bashrc
+
+# Also add to root's bashrc for login shells
 RUN echo "source /opt/ros/noetic/setup.bash" >> /root/.bashrc && \
     echo "source /catkin_ws/install/setup.bash" >> /root/.bashrc
 
