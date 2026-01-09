@@ -3,6 +3,9 @@ scripts/build_release_docker.sh
 docker run -it --rm 1nrobotics/star-nav:runtime
 IMAGE_TAG=runtime ./docker/release-deploy.sh
 ENABLE_REMOTE_VIZ=false ./docker/run-jetson-release-install.sh
+ENABLE_REMOTE_VIZ=false ./run.sh
+
+tar -czf star-nav-install-v0.5-docker.tar.gz build_context_release
 
 ## install build
 on Ubuntu 20.04
@@ -30,7 +33,6 @@ Run launch files or modify other packages as needed.
 ## Release image (developer only)
 docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
 ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
-
 docker tag 1nrobotics/star-nav:release vcmman/star-nav:release-jetson-v0.4
 docker login
 docker push vcmman/star-nav:release-jetson-v0.4
