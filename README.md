@@ -1,3 +1,10 @@
+## test
+REBUILD_IMAGE=true IMAGE_TAG=local ENABLE_REMOTE_VIZ=true ./docker/local-deploy.sh
+
+REBUILD_IMAGE=true ENABLE_REMOTE_VIZ=false ./docker/local-deploy.sh
+
+exploration_sim_rviz exploration_width:=12 exploration_height:=12 line_spacing:=4 enable_corner_smoothing:=false
+
 ## release 
 Star-nav-release-v0.5
 
