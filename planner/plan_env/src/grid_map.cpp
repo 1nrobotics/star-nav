@@ -38,9 +38,9 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/p_occ", mp_.p_occ_, 0.80);
   node_.param("grid_map/min_ray_length", mp_.min_ray_length_, -0.1);
   node_.param("grid_map/max_ray_length", mp_.max_ray_length_, -0.1);
-  node_.param("grid_map/enable_pointcloud_raycasting", mp_.enable_pointcloud_raycasting_, false);
 
   node_.param("grid_map/visualization_truncate_height", mp_.visualization_truncate_height_, -0.1);
+  node_.param("grid_map/virtual_ceil_height", mp_.virtual_ceil_height_, -0.1);
   node_.param("grid_map/virtual_ceil_yp", mp_.virtual_ceil_yp_, -0.1);
   node_.param("grid_map/virtual_ceil_yn", mp_.virtual_ceil_yn_, -0.1);
 
@@ -52,6 +52,11 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/ground_height", mp_.ground_height_, 1.0);
 
   node_.param("grid_map/odom_depth_timeout", mp_.odom_depth_timeout_, 1.0);
+
+  if( mp_.virtual_ceil_height_ - mp_.ground_height_ > z_size)
+  {
+    mp_.virtual_ceil_height_ = mp_.ground_height_ + z_size;
+  }
 
   mp_.resolution_inv_ = 1 / mp_.resolution_;
   mp_.map_origin_ = Eigen::Vector3d(-x_size / 2.0, -y_size / 2.0, mp_.ground_height_);
@@ -102,7 +107,7 @@ void GridMap::initMap(ros::NodeHandle &nh)
 
   depth_sub_.reset(new message_filters::Subscriber<sensor_msgs::Image>(node_, "grid_map/depth", 50));
   extrinsic_sub_ = node_.subscribe<nav_msgs::Odometry>(
-      "/vins_fusion/extrinsic", 10, &GridMap::extrinsicCallback, this); //sub
+      "/vins_estimator/extrinsic", 10, &GridMap::extrinsicCallback, this); //sub
 
   if (mp_.pose_type_ == POSE_STAMPED)
   {
@@ -131,11 +136,8 @@ void GridMap::initMap(ros::NodeHandle &nh)
   occ_timer_ = node_.createTimer(ros::Duration(0.05), &GridMap::updateOccupancyCallback, this);
   vis_timer_ = node_.createTimer(ros::Duration(0.11), &GridMap::visCallback, this);
 
-  // Latched publishers so RViz can connect later and still see the last map.
-  // Also helps prevent the visualization from flickering when updates are intermittent.
-  map_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy", 10, true);
-  map_inf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy_inflate", 10, true);
-  depth_cloud_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/depth_cloud", 10, true);
+  map_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy", 10);
+  map_inf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy_inflate", 10);
 
   md_.occ_need_update_ = false;
   md_.local_updated_ = false;
@@ -641,6 +643,14 @@ void GridMap::clearAndInflateLocalMap()
         }
       }
 
+  // add virtual ceiling to limit flight height
+  if (mp_.virtual_ceil_height_ > -0.5) {
+    int ceil_id = floor((mp_.virtual_ceil_height_ - mp_.map_origin_(2)) * mp_.resolution_inv_) - 1;
+    for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
+      for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y) {
+        md_.occupancy_buffer_inflate_[toAddress(x, y, ceil_id)] = 1;
+      }
+  }
 }
 
 void GridMap::visCallback(const ros::TimerEvent & /*event*/)
@@ -648,7 +658,6 @@ void GridMap::visCallback(const ros::TimerEvent & /*event*/)
 
   publishMapInflate(true);
   publishMap();
-  publishDepth();
 }
 
 void GridMap::updateOccupancyCallback(const ros::TimerEvent & /*event*/)
@@ -671,12 +680,7 @@ void GridMap::updateOccupancyCallback(const ros::TimerEvent & /*event*/)
   // ros::Time t1, t2, t3, t4;
   // t1 = ros::Time::now();
 
-  // Depth-fusion path: project depth image into point set for raycasting.
-  // Pointcloud-only path: cloudCallback already populates md_.proj_points_ and md_.proj_points_cnt.
-  if (md_.flag_use_depth_fusion)
-  {
-    projectDepthImage();
-  }
+  projectDepthImage();
   // t2 = ros::Time::now();
   raycastProcess();
   // t3 = ros::Time::now();
@@ -771,12 +775,6 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
   this->resetBuffer(md_.camera_pos_ - mp_.local_update_range_,
                     md_.camera_pos_ + mp_.local_update_range_);
 
-  // Populate projection points for raycasting (only if enabled - needed for exploration)
-  if (mp_.enable_pointcloud_raycasting_)
-  {
-    md_.proj_points_cnt = 0;
-  }
-  
   pcl::PointXYZ pt;
   Eigen::Vector3d p3d, p3d_inf;
 
@@ -805,15 +803,6 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
     if (fabs(devi(0)) < mp_.local_update_range_(0) && fabs(devi(1)) < mp_.local_update_range_(1) &&
         fabs(devi(2)) < mp_.local_update_range_(2))
     {
-      // Add point to projection buffer for raycasting (only if enabled)
-      if (mp_.enable_pointcloud_raycasting_)
-      {
-        double dist = devi.norm();
-        if (dist > mp_.min_ray_length_ && dist < mp_.max_ray_length_)
-        {
-          md_.proj_points_[md_.proj_points_cnt++] = p3d;
-        }
-      }
 
       /* inflate the point */
       for (int x = -inf_step; x <= inf_step; ++x)
@@ -861,12 +850,14 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
   boundIndex(md_.local_bound_min_);
   boundIndex(md_.local_bound_max_);
 
-  // Only trigger raycasting if enabled (exploration needs this, EGO planner doesn't)
-  if (mp_.enable_pointcloud_raycasting_)
-  {
-    md_.occ_need_update_ = true;
+  // add virtual ceiling to limit flight height
+  if (mp_.virtual_ceil_height_ > -0.5) {
+    int ceil_id = floor((mp_.virtual_ceil_height_ - mp_.map_origin_(2)) * mp_.resolution_inv_) - 1;
+    for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
+      for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y) {
+        md_.occupancy_buffer_inflate_[toAddress(x, y, ceil_id)] = 1;
+      }
   }
-
 }
 
 void GridMap::publishMap()
@@ -911,10 +902,6 @@ void GridMap::publishMap()
   cloud.is_dense = true;
   cloud.header.frame_id = mp_.frame_id_;
   sensor_msgs::PointCloud2 cloud_msg;
-
-  // Avoid publishing empty clouds: RViz will otherwise show "no data" and appear to flicker.
-  if (cloud.points.empty())
-    return;
 
   pcl::toROSMsg(cloud, cloud_msg);
   map_pub_.publish(cloud_msg);
@@ -966,10 +953,6 @@ void GridMap::publishMapInflate(bool all_info)
   cloud.header.frame_id = mp_.frame_id_;
   sensor_msgs::PointCloud2 cloud_msg;
 
-  // Avoid publishing empty clouds: keep last valid visualization latched.
-  if (cloud.points.empty())
-    return;
-
   pcl::toROSMsg(cloud, cloud_msg);
   map_inf_pub_.publish(cloud_msg);
 
@@ -978,11 +961,7 @@ void GridMap::publishMapInflate(bool all_info)
 
 bool GridMap::odomValid() { return md_.has_odom_; }
 
-bool GridMap::hasDepthObservation()
-{
-  // In pointcloud-only mode (exploration), treat cloud reception as a valid map observation.
-  return md_.has_first_depth_ || (mp_.enable_pointcloud_raycasting_ && md_.has_cloud_);
-}
+bool GridMap::hasDepthObservation() { return md_.has_first_depth_; }
 
 Eigen::Vector3d GridMap::getOrigin() { return mp_.map_origin_; }
 
@@ -1042,51 +1021,4 @@ void GridMap::depthOdomCallback(const sensor_msgs::ImageConstPtr &img,
 
   md_.occ_need_update_ = true;
   md_.flag_use_depth_fusion = true;
-}
-
-void GridMap::publishDepth()
-{
-  if (depth_cloud_pub_.getNumSubscribers() <= 0)
-    return;
-
-  pcl::PointXYZ pt;
-  pcl::PointCloud<pcl::PointXYZ> cloud;
-
-  // Debug: print camera transform
-  static int debug_counter = 0;
-  if (debug_counter++ % 100 == 0) {
-    ROS_INFO("[GridMap] Camera position: [%.2f, %.2f, %.2f]", 
-             md_.camera_pos_(0), md_.camera_pos_(1), md_.camera_pos_(2));
-    ROS_INFO("[GridMap] Camera rotation:\n  [%.3f, %.3f, %.3f]\n  [%.3f, %.3f, %.3f]\n  [%.3f, %.3f, %.3f]",
-             md_.camera_r_m_(0,0), md_.camera_r_m_(0,1), md_.camera_r_m_(0,2),
-             md_.camera_r_m_(1,0), md_.camera_r_m_(1,1), md_.camera_r_m_(1,2),
-             md_.camera_r_m_(2,0), md_.camera_r_m_(2,1), md_.camera_r_m_(2,2));
-    ROS_INFO("[GridMap] cam2body:\n  [%.3f, %.3f, %.3f, %.3f]\n  [%.3f, %.3f, %.3f, %.3f]\n  [%.3f, %.3f, %.3f, %.3f]",
-             md_.cam2body_(0,0), md_.cam2body_(0,1), md_.cam2body_(0,2), md_.cam2body_(0,3),
-             md_.cam2body_(1,0), md_.cam2body_(1,1), md_.cam2body_(1,2), md_.cam2body_(1,3),
-             md_.cam2body_(2,0), md_.cam2body_(2,1), md_.cam2body_(2,2), md_.cam2body_(2,3));
-    ROS_INFO("[GridMap] Publishing depth cloud with %d projected points", md_.proj_points_cnt);
-  }
-
-  // Publish the projected points from depth image
-  for (int i = 0; i < md_.proj_points_cnt; ++i)
-  {
-    Eigen::Vector3d pos = md_.proj_points_[i];
-    pt.x = pos(0);
-    pt.y = pos(1);
-    pt.z = pos(2);
-    cloud.push_back(pt);
-  }
-
-  cloud.width = cloud.points.size();
-  cloud.height = 1;
-  cloud.is_dense = true;
-  cloud.header.frame_id = mp_.frame_id_;
-  sensor_msgs::PointCloud2 cloud_msg;
-
-  if (!cloud.points.empty())
-  {
-    pcl::toROSMsg(cloud, cloud_msg);
-    depth_cloud_pub_.publish(cloud_msg);
-  }
 }

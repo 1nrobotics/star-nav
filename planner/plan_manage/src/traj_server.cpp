@@ -71,7 +71,7 @@ void bsplineCallback(traj_utils::BsplineConstPtr msg)
 std::pair<double, double> calculate_yaw(double t_cur, Eigen::Vector3d &pos, ros::Time &time_now, ros::Time &time_last)
 {
   constexpr double PI = 3.1415926;
-  constexpr double YAW_DOT_MAX_PER_SEC = PI / 2.0;  // 90 deg/s (reduced from 180 deg/s)
+  constexpr double YAW_DOT_MAX_PER_SEC = PI;
   // constexpr double YAW_DOT_DOT_MAX_PER_SEC = PI;
   std::pair<double, double> yaw_yawdot(0, 0);
   double yaw = 0;
@@ -197,11 +197,10 @@ void cmdCallback(const ros::TimerEvent &e)
     yaw_yawdot.second = 0;
 
     pos_f = pos;
-    return;
   }
   else
   {
-    ROS_WARN("[Traj server]: invalid time.");
+    cout << "[Traj server]: invalid time." << endl;
   }
   time_last = time_now;
 
