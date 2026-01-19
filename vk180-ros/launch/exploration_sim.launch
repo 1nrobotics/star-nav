@@ -21,9 +21,10 @@
     <!-- Exploration Parameters -->
     <arg name="exploration_center_x" default="0.0"/>
     <arg name="exploration_center_y" default="0.0"/>
-    <arg name="exploration_width" default="20.0"/>
-    <arg name="exploration_height" default="20.0"/>
-    <arg name="line_spacing" default="2.0"/>
+    <arg name="exploration_width" default="9.0"/>
+    <arg name="exploration_height" default="9.0"/>
+    <arg name="line_spacing" default="3.0"/>
+    <arg name="enable_corner_smoothing" default="false"/>
 
     <!-- ============================== -->
     <!-- 1. Map Generator               -->
@@ -133,6 +134,7 @@
         <param name="exploration/height" value="$(arg exploration_height)" type="double"/>
         <param name="exploration/altitude" value="1.0" type="double"/>
         <param name="exploration/line_spacing" value="$(arg line_spacing)" type="double"/>
+        <param name="exploration/enable_corner_smoothing" value="$(arg enable_corner_smoothing)" type="bool"/>
     </node>
 
     <!-- ============================== -->

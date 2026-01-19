@@ -40,6 +40,7 @@ xhost +local:docker 2>/dev/null || true
 export IMAGE_TAG=${IMAGE_TAG:-local}
 export IMAGE_NAME=${IMAGE_NAME:-1nrobotics/star-nav}
 export DISPLAY=${DISPLAY}
+export REBUILD_IMAGE=${REBUILD_IMAGE:-false}
 
 # Repository root (default: one level up from this script's directory)
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
@@ -50,9 +51,20 @@ echo "Stopping existing containers..."
 docker stop star_nav 2>/dev/null || true
 docker rm star_nav 2>/dev/null || true
 
+# Handle image rebuild if requested
+if [ "$REBUILD_IMAGE" = "true" ]; then
+    echo -e "${BLUE}Rebuild requested - removing existing image...${NC}"
+    docker rmi ${IMAGE_NAME}:${IMAGE_TAG} 2>/dev/null || true
+fi
+
 # Check if image exists, if not build it
 if ! docker images | grep -q "${IMAGE_NAME}"; then
     echo "Image not found. Building..."
+    echo "Using repository root: ${REPO_ROOT}"
+    cd "${REPO_ROOT}"
+    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+elif [ "$REBUILD_IMAGE" = "true" ]; then
+    echo "Rebuilding image..."
     echo "Using repository root: ${REPO_ROOT}"
     cd "${REPO_ROOT}"
     docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .

@@ -101,6 +101,7 @@ private:
   double exploration_altitude_;
   double line_spacing_;
   double replan_time_;
+  bool enable_corner_smoothing_;
 
   // State strings for visualization
   std::vector<std::string> state_str_;
