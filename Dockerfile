@@ -18,22 +18,28 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     tmux \
     iproute2 \
     build-essential \
-    python3-rosdep \
-    python3-rosinstall \
-    python3-vcstools \
-    python3-catkin-tools \
     python3-pip \
     xmlstarlet \
     && rm -rf /var/lib/apt/lists/*
 
-# Bootstrap rosdep
-RUN rosdep init && \
-    rosdep update --rosdistro $ROS_DISTRO
+# Install catkin tools via pip
+RUN pip3 install catkin-tools
 
-# Install ROS packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-noetic-ros-base=1.5.0-1* \
+# Install python3-rosdep and related tools (handle conflicts)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends -o Dpkg::Options::="--force-overwrite" \
+    python3-rosdep \
+    python3-rosinstall \
+    python3-vcstools \
     && rm -rf /var/lib/apt/lists/*
+
+# Bootstrap rosdep (skip init if already exists)
+RUN rosdep update --rosdistro $ROS_DISTRO || true
+
+# Add ROS repository if not already present
+RUN if ! grep -q "packages.ros.org" /etc/apt/sources.list.d/*; then \
+        echo "deb http://packages.ros.org/ros/ubuntu focal main" > /etc/apt/sources.list.d/ros-latest.list; \
+    fi
 
 # Install MAVROS and related dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
