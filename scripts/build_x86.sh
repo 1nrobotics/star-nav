@@ -17,7 +17,7 @@ cp -r /home/yc/catkin_ws/src/px4ctrl $WORKSPACE_DIR/src/
 cp -r /home/yc/catkin_ws/src/rviz_gcs_plugin $WORKSPACE_DIR/src/
 cp -r /home/yc/catkin_ws/src/uav_simulator $WORKSPACE_DIR/src/
 cp -r /home/yc/catkin_ws/src/utils $WORKSPACE_DIR/src/
-cp -r /home/yc/catkin_ws/src/vk180-ros $WORKSPACE_DIR/src/
+cp -r /home/yc/catkin_ws/src/planner $WORKSPACE_DIR/src/
 cp -r /home/yc/catkin_ws/src/scripts $WORKSPACE_DIR/src/
 cp -r /home/yc/catkin_ws/src/docker $WORKSPACE_DIR/src/
 # Copy root CMakeLists.txt and other files if needed

@@ -6,7 +6,7 @@
 set -e
 
 WORKSPACE_DIR="$HOME/tmp_ws"
-PACKAGES_TO_CLEAN=("vk180-ros" "planner/exploration_manager" "rviz_gcs_plugin")
+PACKAGES_TO_CLEAN=("planner/exploration_manager" "rviz_gcs_plugin")
 
 echo "Cleaning source code for specified packages..."
 
