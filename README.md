@@ -1,90 +1,59 @@
-## test
+# Star Nav Lite
+
+Open source autonomous navigation system for UAVs with exploration capabilities.
+
+## Quick Start - Simulation
+
+### Build and Run
+```bash
+# Build the Docker image
 REBUILD_IMAGE=true IMAGE_TAG=local ENABLE_REMOTE_VIZ=true ./docker/local-deploy.sh
 
+# Or without remote visualization
 REBUILD_IMAGE=true ENABLE_REMOTE_VIZ=false ./docker/local-deploy.sh
+```
 
-exploration_sim_rviz exploration_width:=12 exploration_height:=12 line_spacing:=4 enable_corner_smoothing:=false
+### Run Exploration Simulation
+```bash
+# With RViz
+roslaunch ego_planner single_run_in_sim.launch
 
-## release 
-Star-nav-release-v0.5
+# View with RViz
+rosrun rviz rviz
 
-Extract files to loca folder
-Cd catkin_ws & source devel/setup.bash
-Don’t build!!!
-Run:
-roslaunch vk180_ros exploration_sim.launch use_rviz:=true
-roslaunch vk180_ros vk180_exploration_flight.launch
+# Trigger exploration
+rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
+```
 
-## Local build
-rm /home/nvidia/star-nav-modified.tar.gz && cd /home/nvidia/src/star-nav && ./pack_workspace.sh
+## Local Build
 
-Extract: tar -xzf star-nav-modified.tar.gz
+Extract files to local folder:
+```bash
+cd catkin_ws
+source devel/setup.bash
 catkin_make
-Source: source catkin_ws/devel/setup.bash
-Run launch files or modify other packages as needed.
+```
 
-## Release image (developer only)
+Run launch files or modify packages as needed.
+
+## Release Image (Developer Only)
+```bash
 docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
 ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
 
-docker tag 1nrobotics/star-nav:release vcmman/star-nav:release-jetson-v0.4
+docker tag 1nrobotics/star-nav:release 1nrobotics/star-nav:release-v0.5
 docker login
-docker push vcmman/star-nav:release-jetson-v0.4
+docker push 1nrobotics/star-nav:release-v0.5
+```
 
-## Sim test
+## Sim Test
+```bash
 roslaunch ego_planner single_run_in_sim.launch
-roslaunch vk180_ros exploration_sim.launch
-rosrun rviz rviz -d $(rospack find vk180_ros)/config/vk180_planner_visualization.rviz
-rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
-
-roslaunch vk180_ros vk180_exploration_flight.launch \
-  exploration_center_x:=5.0 \
-  exploration_center_y:=2.0 \
-  exploration_width:=30.0 \
-  exploration_height:=25.0 \
-  line_spacing:=1.5
-
-## Field Test Release
-# start everything
-```bash
-ssh nvidia@192.168.10.200
-cd src/star-nav
-./scripts/start_onboard.sh  # start camera and vio
-./docker/release_deploy.sh  # start container, if pulled image, modify this script
-
-docker exec -it star_nav bash
-tmux
-nav_launch     # tmux window 1, launch all nodes without online rviz
-px4_odom       # tmux window 2, monitor local odom fused by px4
-px4_cmd        # tmux window 3, monitor thrust and attitude command sent from px4ctrl to px4
-planner_cmd    # tmux window 4, monitor planner pos command sent from planner to px4ctrl
-```
-# send a waypoint with topic or click on remote rviz
-```bash
-rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "header:
-  seq: 0
-  stamp:
-    secs: 0
-    nsecs: 0
-  frame_id: 'world'
-pose:
-  position:
-    x: 1.0
-    y: 0.0
-    z: 2
-  orientation:
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 0.0"
 ```
 
-# In RViz, add these displays:
-# 1. MarkerArray - Topic: /exploration/frontiers
-# 2. PointCloud2 - Topic: /exploration/frontier_cells
-# 3. Pose - Topic: /move_base_simple/goal (direct EGO planner control)
-# 4. PointCloud2 - Topic: /vk180/depth/image_rect_raw (depth map, for real flight)
+## Exploration Commands
 
+```bash
 # Trigger waypoint exploration
 rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
 
@@ -105,44 +74,4 @@ rostopic echo /move_base_simple/goal
 
 # Monitor EGO planner status
 rostopic echo /drone_0_planning/data_display
-
-# Check distance to goal
-rostopic echo /mavros/local_position/odom | grep -A3 "position"
-
-## Field Test Dev
-```bash
-ssh nvidia@192.168.10.200
-cd src/star-nav
-./scripts/start_onboard.sh
-./docker/local_deploy.sh
-
-docker exec -it star_nav bash
-tmux
-roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=false 
-ctrl-b-%
-rostopic echo /mavros/local_position/odom
-rostopic echo /mavros/setpoint_raw/attitude
-
-# Trigger exploration
-rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
-
-# Or send manual goal (note: flight height is hardcoded to 1.0m in ego-planner)
-rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "header:
-  seq: 0
-  stamp:
-    secs: 0
-    nsecs: 0
-  frame_id: 'world'
-pose:
-  position:
-    x: 1.0
-    y: 0.0
-    z: 1.0
-  orientation:
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 0.0"
-    
-rostopic echo /drone_0_planning/pos_cmd
 ```

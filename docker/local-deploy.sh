@@ -93,7 +93,6 @@ docker run -d \
     ${DOCKER_DEVICE_ARGS} \
     -v "${REPO_ROOT}/px4ctrl":/catkin_ws/src/px4ctrl:rw \
     -v "${REPO_ROOT}/planner":/catkin_ws/src/planner:rw \
-    -v "${REPO_ROOT}/vk180-ros":/catkin_ws/src/vk180-ros:rw \
     -v "${REPO_ROOT}/utils":/catkin_ws/src/utils:rw \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -e ROS_MASTER_URI=${ROS_MASTER_URI} \
@@ -103,7 +102,6 @@ docker run -d \
     -e DISABLE_ROS1_EOL_WARNINGS=1 \
     ${IMAGE_NAME}:${IMAGE_TAG} \
     bash -c "source /catkin_ws/devel/setup.bash && tail -f /dev/null"
-    # bash -c "source /catkin_ws/devel/setup.bash && roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=true ${DOCKER_LAUNCH_ARGS}"
 
 echo ""
 echo -e "${GREEN}✅ Local deployment completed!${NC}"

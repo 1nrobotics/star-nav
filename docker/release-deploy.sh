@@ -89,7 +89,6 @@ docker run -d \
     -e DISABLE_ROS1_EOL_WARNINGS=1 \
     ${IMAGE_NAME}:${IMAGE_TAG} \
     bash -c "source /catkin_ws/devel/setup.bash && tail -f /dev/null"
-    # bash -c "source /catkin_ws/devel/setup.bash && roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=false use_sim:=true"
 
 echo ""
 echo -e "${GREEN}✅ Release deployment completed!${NC}"

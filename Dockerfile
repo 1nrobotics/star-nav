@@ -3,7 +3,7 @@ ARG BASE_IMAGE=ros:noetic-ros-core-focal
 FROM ${BASE_IMAGE}
 
 LABEL maintainer="1nrobotics@github"
-LABEL description="Docker image for Star Nav - Multi-package ROS Navigation System (px4ctrl, vk180-ros, utils)"
+LABEL description="Docker image for Star Nav Lite - Simplified ROS Navigation System for open source"
 
 # Set environment variables
 ENV ROS_DISTRO=noetic
@@ -68,39 +68,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libyaml-cpp0.6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install eCAL using Vilota software installer
-# Copy the installer from docker tools
-COPY docker/tools/VilotaSoftwareInstaller_v2.0-bba1a93f.py /tmp/installer.py
-# Ensure helper tools needed by the Vilota installer are available during build
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        python3-requests \
-        software-properties-common \
-        sudo \
-        iputils-ping \
-        apt-transport-https \
-        ca-certificates \
-        gnupg && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install eCAL, capnp and dependencies with Vilota installer (requires credentials to be passed as build args)
-RUN apt-get update && \
-    python3 /tmp/installer.py -s -u deployment -p vilota-dep --no-update-script && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install eCAL Python bindings explicitly
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3-ecal5 && \
-    rm -rf /var/lib/apt/lists/* || \
-    echo "Warning: python3-ecal5 package not available"
-
-# Verify eCAL and pycapnp installation
-RUN python3 -c "import ecal; print('eCAL imported successfully')" || echo "Warning: eCAL import failed"
-RUN python3 -c "import capnp; print(f'pycapnp {capnp.__version__} imported successfully')" || echo "Warning: pycapnp import failed"
-
-# Ensure udev rules directory exists and add Movidius udev rule
-RUN mkdir -p /etc/udev/rules.d && \
-    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"' > /etc/udev/rules.d/80-movidius.rules || true
+# Note: eCAL and Vilota-specific dependencies removed for open source version
 
 # Install MAVROS geographic datasets
 RUN wget https://raw.githubusercontent.com/mavlink/mavros/master/mavros/scripts/install_geographiclib_datasets.sh \
@@ -113,9 +81,6 @@ SHELL ["/bin/bash", "-c"]
 # Create workspace and copy all source code
 WORKDIR /catkin_ws/src/
 COPY . /catkin_ws/src/
-
-# Copy eCAL configuration
-COPY docker/tools/ecal.ini /etc/ecal/ecal.ini
 
 # Initialize and build the workspace
 WORKDIR /catkin_ws/
