@@ -29,10 +29,15 @@ find_package(Eigen3 REQUIRED)
 ## PCL
 find_package(PCL REQUIRED)
 
-## VK180 eCAL SDK
-set(CapnProto_DIR "/opt/vilota/lib/cmake/CapnProto")
-set(vk_sdk_DIR "/opt/vilota/lib/cmake/vk_sdk")
-find_package(vk_sdk CONFIG REQUIRED)
+option(ENABLE_VK180_SDK "Build VK180/Vilota hardware integration binaries" ON)
+
+if(ENABLE_VK180_SDK)
+  set(CapnProto_DIR "/opt/vilota/lib/cmake/CapnProto")
+  set(vk_sdk_DIR "/opt/vilota/lib/cmake/vk_sdk")
+  find_package(vk_sdk CONFIG REQUIRED)
+else()
+  message(STATUS "VK180 SDK support disabled: building launch/config-only package")
+endif()
 
 ###################################
 ## catkin specific configuration ##
@@ -57,66 +62,67 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
 )
 
-## VK180 utility executables
-add_executable(receive src/utils/AllTopicReceiver.cpp)
-add_executable(odom src/utils/odom.cpp)
-add_executable(disparity src/utils/disparity.cpp)
-add_executable(sensor_extrinsics src/utils/sensor_extrinsics.cpp)
-add_executable(depth_conversion_test src/utils/depth_conversion_test.cpp)
+if(ENABLE_VK180_SDK)
+  add_executable(receive src/utils/AllTopicReceiver.cpp)
+  add_executable(odom src/utils/odom.cpp)
+  add_executable(disparity src/utils/disparity.cpp)
+  add_executable(sensor_extrinsics src/utils/sensor_extrinsics.cpp)
+  add_executable(depth_conversion_test src/utils/depth_conversion_test.cpp)
 
-target_link_libraries(receive 
-  PRIVATE 
-    CapnProto::capnp 
-    vilota::vk_sdk
-)
-target_link_libraries(odom 
-  PRIVATE 
-    CapnProto::capnp 
-    vilota::vk_sdk
-)
-target_link_libraries(disparity 
-  PRIVATE 
-    CapnProto::capnp 
-    vilota::vk_sdk
-)
-target_link_libraries(sensor_extrinsics 
-  PRIVATE 
-    CapnProto::capnp 
-    vilota::vk_sdk
-)
-target_link_libraries(depth_conversion_test 
-  PRIVATE 
-    CapnProto::capnp 
-    vilota::vk_sdk
-)
+  target_link_libraries(receive
+    PRIVATE
+      CapnProto::capnp
+      vilota::vk_sdk
+  )
+  target_link_libraries(odom
+    PRIVATE
+      CapnProto::capnp
+      vilota::vk_sdk
+  )
+  target_link_libraries(disparity
+    PRIVATE
+      CapnProto::capnp
+      vilota::vk_sdk
+  )
+  target_link_libraries(sensor_extrinsics
+    PRIVATE
+      CapnProto::capnp
+      vilota::vk_sdk
+  )
+  target_link_libraries(depth_conversion_test
+    PRIVATE
+      CapnProto::capnp
+      vilota::vk_sdk
+  )
 
-## ROS bridge node
-add_executable(ecal_ros_bridge src/nodes/ecal_ros_bridge_node.cpp)
-target_link_libraries(ecal_ros_bridge 
-  PRIVATE
-    ${catkin_LIBRARIES}
-    CapnProto::capnp 
-    vilota::vk_sdk
-)
+  add_executable(ecal_ros_bridge src/nodes/ecal_ros_bridge_node.cpp)
+  target_link_libraries(ecal_ros_bridge
+    PRIVATE
+      ${catkin_LIBRARIES}
+      CapnProto::capnp
+      vilota::vk_sdk
+  )
 
-## VK180 Planner Bridge with body frame transformation
-add_executable(vk180_planner_bridge src/nodes/vk180_planner_bridge.cpp)
-target_link_libraries(vk180_planner_bridge 
-  PRIVATE
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBRARIES}
-    ${PCL_LIBRARIES}
-    CapnProto::capnp 
-    vilota::vk_sdk
-)
+  add_executable(vk180_planner_bridge src/nodes/vk180_planner_bridge.cpp)
+  target_link_libraries(vk180_planner_bridge
+    PRIVATE
+      ${catkin_LIBRARIES}
+      ${OpenCV_LIBRARIES}
+      ${PCL_LIBRARIES}
+      CapnProto::capnp
+      vilota::vk_sdk
+  )
+endif()
 
 #############
 ## Install ##
 #############
 
-install(TARGETS receive odom disparity sensor_extrinsics depth_conversion_test ecal_ros_bridge vk180_planner_bridge
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+if(ENABLE_VK180_SDK)
+  install(TARGETS receive odom disparity sensor_extrinsics depth_conversion_test ecal_ros_bridge vk180_planner_bridge
+    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+  )
+endif()
 
 install(DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch

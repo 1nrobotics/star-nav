@@ -41,6 +41,7 @@ export IMAGE_TAG=${IMAGE_TAG:-local}
 export IMAGE_NAME=${IMAGE_NAME:-1nrobotics/star-nav}
 export DISPLAY=${DISPLAY}
 export REBUILD_IMAGE=${REBUILD_IMAGE:-false}
+export ENABLE_VK180_SDK=${ENABLE_VK180_SDK:-false}
 
 # Repository root (default: one level up from this script's directory)
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
@@ -62,12 +63,12 @@ if ! docker images | grep -q "${IMAGE_NAME}"; then
     echo "Image not found. Building..."
     echo "Using repository root: ${REPO_ROOT}"
     cd "${REPO_ROOT}"
-    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+    docker build --build-arg ENABLE_VK180_SDK=${ENABLE_VK180_SDK} -t ${IMAGE_NAME}:${IMAGE_TAG} .
 elif [ "$REBUILD_IMAGE" = "true" ]; then
     echo "Rebuilding image..."
     echo "Using repository root: ${REPO_ROOT}"
     cd "${REPO_ROOT}"
-    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+    docker build --build-arg ENABLE_VK180_SDK=${ENABLE_VK180_SDK} -t ${IMAGE_NAME}:${IMAGE_TAG} .
 fi
 
 # Start the service
@@ -117,3 +118,5 @@ echo "  docker logs -f star_nav         # View logs"
 echo "  docker exec -it star_nav bash   # Access container"
 echo "  docker stop star_nav            # Stop service"
 echo "  docker rm star_nav              # Remove container"
+echo "  ./scripts/run_sim_exploration.sh  # Launch simulation"
+echo "  ./scripts/trigger_exploration.sh  # Trigger exploration"
