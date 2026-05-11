@@ -28,6 +28,8 @@ proprietary VK180 SDK during build. This is the default path for simulation.
 
 ### 2. Launch the simulation
 
+Keep this command running in its own terminal:
+
 ```bash
 ./scripts/run_sim_exploration.sh
 ```
@@ -45,6 +47,8 @@ To override exploration area parameters:
 ```
 
 ### 3. Trigger waypoint exploration
+
+Open a second terminal in the repository root and run:
 
 ```bash
 ./scripts/trigger_exploration.sh

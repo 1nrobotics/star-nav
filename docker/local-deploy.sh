@@ -58,8 +58,8 @@ if [ "$REBUILD_IMAGE" = "true" ]; then
     docker rmi ${IMAGE_NAME}:${IMAGE_TAG} 2>/dev/null || true
 fi
 
-# Check if image exists, if not build it
-if ! docker images | grep -q "${IMAGE_NAME}"; then
+# Check if the requested image tag exists, if not build it
+if ! docker image inspect "${IMAGE_NAME}:${IMAGE_TAG}" >/dev/null 2>&1; then
     echo "Image not found. Building..."
     echo "Using repository root: ${REPO_ROOT}"
     cd "${REPO_ROOT}"

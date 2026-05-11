@@ -23,7 +23,17 @@ This open-source branch is organized around a simple rule:
 ```bash
 cd /path/to/star-nav
 ENABLE_VK180_SDK=false REBUILD_IMAGE=true ./docker/local-deploy.sh
+```
+
+Terminal 1:
+
+```bash
 ./scripts/run_sim_exploration.sh
+```
+
+Terminal 2:
+
+```bash
 ./scripts/trigger_exploration.sh
 ```
 
