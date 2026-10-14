@@ -1,148 +1,95 @@
-## test
-REBUILD_IMAGE=true IMAGE_TAG=local ENABLE_REMOTE_VIZ=true ./docker/local-deploy.sh
+# Star Nav
 
-REBUILD_IMAGE=true ENABLE_REMOTE_VIZ=false ./docker/local-deploy.sh
+Star Nav is a ROS Noetic workspace for quadrotor planning, simulation, PX4
+control, and optional VK180-based onboard perception.
 
-exploration_sim_rviz exploration_width:=12 exploration_height:=12 line_spacing:=4 enable_corner_smoothing:=false
+This open-source branch is organized around a simple rule:
 
-## release 
-Star-nav-release-v0.5
+- use simulation first
+- document real hardware second
 
-Extract files to loca folder
-Cd catkin_ws & source devel/setup.bash
-Don’t build!!!
-Run:
+## Status
+
+- Simulation is the recommended public entrypoint.
+- Real-hardware support remains available, but it depends on proprietary
+  VK180/Vilota tooling.
+- The repository contains mixed licensing inherited from upstream components.
+  Start with [docs/LICENSES.md](docs/LICENSES.md).
+
+## Quick Start
+
+### Recommended: Docker simulation workflow
+
+```bash
+cd /path/to/star-nav
+ENABLE_VK180_SDK=false REBUILD_IMAGE=true ./docker/local-deploy.sh
+```
+
+Terminal 1:
+
+```bash
+./scripts/run_sim_exploration.sh
+```
+
+Terminal 2:
+
+```bash
+./scripts/trigger_exploration.sh
+```
+
+To customize the search area:
+
+```bash
+./scripts/run_sim_exploration.sh exploration_width:=12 exploration_height:=12 line_spacing:=4
+```
+
+### Native ROS Noetic workflow
+
+```bash
+source /opt/ros/noetic/setup.bash
+rosdep install --from-paths . --ignore-src -r -y
+catkin_make -DCMAKE_BUILD_TYPE=Release -DENABLE_VK180_SDK=OFF
+source devel/setup.bash
 roslaunch vk180_ros exploration_sim.launch use_rviz:=true
-roslaunch vk180_ros vk180_exploration_flight.launch
-
-## Local build
-rm /home/nvidia/star-nav-modified.tar.gz && cd /home/nvidia/src/star-nav && ./pack_workspace.sh
-
-Extract: tar -xzf star-nav-modified.tar.gz
-catkin_make
-Source: source catkin_ws/devel/setup.bash
-Run launch files or modify other packages as needed.
-
-## Release image (developer only)
-docker stop star_nav && docker rm star_nav && docker rmi 1nrobotics/star-nav:release
-ENABLE_REMOTE_VIZ=false ./docker/release-deploy.sh
-
-docker tag 1nrobotics/star-nav:release vcmman/star-nav:release-jetson-v0.4
-docker login
-docker push vcmman/star-nav:release-jetson-v0.4
-
-## Sim test
-roslaunch ego_planner single_run_in_sim.launch
-roslaunch vk180_ros exploration_sim.launch
-rosrun rviz rviz -d $(rospack find vk180_ros)/config/vk180_planner_visualization.rviz
-rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
-
-roslaunch vk180_ros vk180_exploration_flight.launch \
-  exploration_center_x:=5.0 \
-  exploration_center_y:=2.0 \
-  exploration_width:=30.0 \
-  exploration_height:=25.0 \
-  line_spacing:=1.5
-
-## Field Test Release
-# start everything
-```bash
-ssh nvidia@192.168.10.200
-cd src/star-nav
-./scripts/start_onboard.sh  # start camera and vio
-./docker/release_deploy.sh  # start container, if pulled image, modify this script
-
-docker exec -it star_nav bash
-tmux
-nav_launch     # tmux window 1, launch all nodes without online rviz
-px4_odom       # tmux window 2, monitor local odom fused by px4
-px4_cmd        # tmux window 3, monitor thrust and attitude command sent from px4ctrl to px4
-planner_cmd    # tmux window 4, monitor planner pos command sent from planner to px4ctrl
-```
-# send a waypoint with topic or click on remote rviz
-```bash
-rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "header:
-  seq: 0
-  stamp:
-    secs: 0
-    nsecs: 0
-  frame_id: 'world'
-pose:
-  position:
-    x: 1.0
-    y: 0.0
-    z: 2
-  orientation:
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 0.0"
+rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 ```
 
-# In RViz, add these displays:
-# 1. MarkerArray - Topic: /exploration/frontiers
-# 2. PointCloud2 - Topic: /exploration/frontier_cells
-# 3. Pose - Topic: /move_base_simple/goal (direct EGO planner control)
-# 4. PointCloud2 - Topic: /vk180/depth/image_rect_raw (depth map, for real flight)
+## Documentation
 
-# Trigger waypoint exploration
-rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
+- [Simulation Guide](docs/SIMULATION.md)
+- [Hardware Guide](docs/HARDWARE.md)
+- [Licensing Notes](docs/LICENSES.md)
+- [Contributing](CONTRIBUTING.md)
+- [Open-Source Branch Plan](docs/OPEN_SOURCE_PLAN.md)
 
-# FSM returns to WAIT_TRIGGER
-rostopic pub /exploration/trigger_once std_msgs/Bool "data: false"
+## Repository Layout
 
-# Emergency stop exploration
-rostopic pub /exploration/finish std_msgs/Empty "{}"
+- `planner/`: EGO-Planner-based planning stack and exploration manager
+- `px4ctrl/`: PX4 controller integration
+- `uav_simulator/`: simulation, mapping, and local sensing components
+- `vk180-ros/`: VK180 launch files and hardware bridge code
+- `utils/`: shared ROS messages, plugins, and utilities
+- `docker/`: Docker-based developer and release workflows
+- `scripts/`: helper scripts for local build and deployment
 
-# Monitor exploration state
-rostopic echo /exploration/state
+## Main Entry Points
 
-# Watch frontier detection
-rostopic echo /exploration/frontiers
+### Simulation
 
-# Check if goals are being published
-rostopic echo /move_base_simple/goal
-
-# Monitor EGO planner status
-rostopic echo /drone_0_planning/data_display
-
-# Check distance to goal
-rostopic echo /mavros/local_position/odom | grep -A3 "position"
-
-## Field Test Dev
 ```bash
-ssh nvidia@192.168.10.200
-cd src/star-nav
-./scripts/start_onboard.sh
-./docker/local_deploy.sh
-
-docker exec -it star_nav bash
-tmux
-roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=false 
-ctrl-b-%
-rostopic echo /mavros/local_position/odom
-rostopic echo /mavros/setpoint_raw/attitude
-
-# Trigger exploration
-rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"
-
-# Or send manual goal (note: flight height is hardcoded to 1.0m in ego-planner)
-rostopic pub /move_base_simple/goal geometry_msgs/PoseStamped "header:
-  seq: 0
-  stamp:
-    secs: 0
-    nsecs: 0
-  frame_id: 'world'
-pose:
-  position:
-    x: 1.0
-    y: 0.0
-    z: 1.0
-  orientation:
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 0.0"
-    
-rostopic echo /drone_0_planning/pos_cmd
+roslaunch vk180_ros exploration_sim.launch use_rviz:=true
 ```
+
+### Real exploration flight
+
+```bash
+roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=false
+```
+
+## Notes for Public Users
+
+- The Docker simulation path can now be built without the VK180 SDK.
+- The hardware bridge binaries in `vk180-ros` are optional and only build when
+  VK180 SDK support is enabled.
+- Some subpackage READMEs still reflect earlier internal workflows; when in
+  doubt, prefer the root docs in this branch.

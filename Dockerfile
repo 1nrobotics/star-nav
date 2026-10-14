@@ -2,6 +2,8 @@
 ARG BASE_IMAGE=ros:noetic-ros-core-focal
 FROM ${BASE_IMAGE}
 
+ARG ENABLE_VK180_SDK=false
+
 LABEL maintainer="1nrobotics@github"
 LABEL description="Docker image for Star Nav - Multi-package ROS Navigation System (px4ctrl, vk180-ros, utils)"
 
@@ -32,7 +34,7 @@ RUN rosdep init && \
 
 # Install ROS packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-noetic-ros-base=1.5.0-1* \
+    ros-${ROS_DISTRO}-ros-base \
     && rm -rf /var/lib/apt/lists/*
 
 # Install MAVROS and related dependencies
@@ -66,46 +68,45 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpcl-dev \
     libyaml-cpp-dev \
     libyaml-cpp0.6 \
+    libarmadillo-dev \
+    qtbase5-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install eCAL using Vilota software installer
-# Copy the installer from docker tools
+# Install optional VK180 / Vilota dependencies for hardware builds only
 COPY docker/tools/VilotaSoftwareInstaller_v2.0-bba1a93f.py /tmp/installer.py
-# Ensure helper tools needed by the Vilota installer are available during build
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        python3-requests \
-        software-properties-common \
-        sudo \
-        iputils-ping \
-        apt-transport-https \
-        ca-certificates \
-        gnupg && \
+RUN if [ "$ENABLE_VK180_SDK" = "true" ]; then \
+      apt-get update && \
+      apt-get install -y --no-install-recommends \
+          python3-requests \
+          software-properties-common \
+          sudo \
+          iputils-ping \
+          apt-transport-https \
+          ca-certificates \
+          gnupg && \
+      python3 /tmp/installer.py -s -u deployment -p vilota-dep --no-update-script && \
+      (apt-get install -y --no-install-recommends python3-ecal5 || echo "Warning: python3-ecal5 package not available"); \
+    else \
+      echo "Skipping VK180 SDK installation for simulation-focused build"; \
+    fi && \
     rm -rf /var/lib/apt/lists/*
 
-# Install eCAL, capnp and dependencies with Vilota installer (requires credentials to be passed as build args)
-RUN apt-get update && \
-    python3 /tmp/installer.py -s -u deployment -p vilota-dep --no-update-script && \
-    rm -rf /var/lib/apt/lists/*
+# Verify optional SDK dependencies when enabled
+RUN if [ "$ENABLE_VK180_SDK" = "true" ]; then \
+      python3 -c "import ecal; print('eCAL imported successfully')" || echo "Warning: eCAL import failed"; \
+      python3 -c "import capnp; print(f'pycapnp {capnp.__version__} imported successfully')" || echo "Warning: pycapnp import failed"; \
+      mkdir -p /etc/udev/rules.d && \
+      echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"' > /etc/udev/rules.d/80-movidius.rules || true; \
+    fi
 
-# Install eCAL Python bindings explicitly
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3-ecal5 && \
-    rm -rf /var/lib/apt/lists/* || \
-    echo "Warning: python3-ecal5 package not available"
-
-# Verify eCAL and pycapnp installation
-RUN python3 -c "import ecal; print('eCAL imported successfully')" || echo "Warning: eCAL import failed"
-RUN python3 -c "import capnp; print(f'pycapnp {capnp.__version__} imported successfully')" || echo "Warning: pycapnp import failed"
-
-# Ensure udev rules directory exists and add Movidius udev rule
-RUN mkdir -p /etc/udev/rules.d && \
-    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"' > /etc/udev/rules.d/80-movidius.rules || true
-
-# Install MAVROS geographic datasets
-RUN wget https://raw.githubusercontent.com/mavlink/mavros/master/mavros/scripts/install_geographiclib_datasets.sh \
-    && bash ./install_geographiclib_datasets.sh \
-    && rm install_geographiclib_datasets.sh
+# Install MAVROS geographic datasets for hardware builds.
+COPY scripts/install_geographiclib_datasets.sh /tmp/install_geographiclib_datasets.sh
+RUN if [ "$ENABLE_VK180_SDK" = "true" ]; then \
+      bash /tmp/install_geographiclib_datasets.sh; \
+    else \
+      echo "Skipping MAVROS GeographicLib datasets for simulation-focused build"; \
+    fi && \
+    rm /tmp/install_geographiclib_datasets.sh
 
 # Enable the use of `source` keyword
 SHELL ["/bin/bash", "-c"]
@@ -122,7 +123,11 @@ WORKDIR /catkin_ws/
 RUN source /opt/ros/noetic/setup.bash \
     && rosdep update \
     && rosdep install --from-paths src --ignore-src -r -y \
-    && catkin_make -DCMAKE_BUILD_TYPE=Release
+    && if [ "$ENABLE_VK180_SDK" = "true" ]; then \
+         catkin_make -DCMAKE_BUILD_TYPE=Release; \
+       else \
+         catkin_make -DCMAKE_BUILD_TYPE=Release -DENABLE_VK180_SDK=OFF; \
+       fi
 
 # Build argument to control source code cleanup (default: keep source for development)
 # Declared here AFTER build to allow layer caching regardless of build arg value

@@ -46,7 +46,8 @@ if(ENABLE_CUDA)
     #include 
     ${catkin_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
-    ${Eigen_INCLUDE_DIRS}
+    ${EIGEN3_INCLUDE_DIR}
+    ${EIGEN3_INCLUDE_DIRS}
     ${Boost_INCLUDE_DIRS}
   )
 
@@ -77,7 +78,8 @@ else(ENABLE_CUDA)
   include_directories(
     SYSTEM 
     ${catkin_INCLUDE_DIRS}
-    ${Eigen_INCLUDE_DIRS}.
+    ${EIGEN3_INCLUDE_DIR}
+    ${EIGEN3_INCLUDE_DIRS}
   )
 
   add_executable(
