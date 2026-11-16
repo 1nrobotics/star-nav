@@ -39,6 +39,14 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/min_ray_length", mp_.min_ray_length_, -0.1);
   node_.param("grid_map/max_ray_length", mp_.max_ray_length_, -0.1);
   node_.param("grid_map/enable_pointcloud_raycasting", mp_.enable_pointcloud_raycasting_, false);
+  std::vector<double> lidar_offset;
+  node_.param("grid_map/lidar_offset", lidar_offset, std::vector<double>(3, 0.0));
+  if (lidar_offset.size() != 3)
+  {
+    ROS_ERROR("grid_map/lidar_offset needs 3 values, ignoring it");
+    lidar_offset.assign(3, 0.0);
+  }
+  mp_.lidar_offset_ = Eigen::Vector3d(lidar_offset[0], lidar_offset[1], lidar_offset[2]);
 
   node_.param("grid_map/visualization_truncate_height", mp_.visualization_truncate_height_, -0.1);
   node_.param("grid_map/visualization_min_height", mp_.visualization_min_height_, -1.0e9);
@@ -359,6 +367,14 @@ void GridMap::raycastProcess()
 
   RayCaster raycaster;
   Eigen::Vector3d half = Eigen::Vector3d(0.5, 0.5, 0.5);
+
+  // A ray normally stops at the first voxel another ray has already cleared in
+  // this update. Rays only share that voxel, not the rest of the path, so the
+  // voxels behind it are skipped. Depth pixels are dense enough to cover them,
+  // but lidar beams are ~1.5 deg apart (a voxel at 4 m): with a steady vehicle
+  // the same voxels are skipped every scan and an obstacle that moved away is
+  // never cleared. Point clouds therefore trace every ray to the vehicle.
+  const bool full_rays = !md_.flag_use_depth_fusion;
   Eigen::Vector3d ray_pt, pt_w;
 
   for (int i = 0; i < md_.proj_points_cnt; ++i)
@@ -415,11 +431,15 @@ void GridMap::raycastProcess()
       }
     }
 
-    raycaster.setInput(pt_w / mp_.resolution_, md_.camera_pos_ / mp_.resolution_);
+    // Trace in map grid coordinates: the map origin (ground_height in z) is
+    // not a multiple of the resolution, and world-aligned cells would put the
+    // ray in a neighbouring voxel near cell boundaries.
+    raycaster.setInput((pt_w - mp_.map_origin_) / mp_.resolution_,
+                       (md_.camera_pos_ - mp_.map_origin_) / mp_.resolution_);
 
     while (raycaster.step(ray_pt))
     {
-      Eigen::Vector3d tmp = (ray_pt + half) * mp_.resolution_;
+      Eigen::Vector3d tmp = (ray_pt + half) * mp_.resolution_ + mp_.map_origin_;
       length = (tmp - md_.camera_pos_).norm();
 
       // if (length < mp_.min_ray_length_) break;
@@ -430,7 +450,8 @@ void GridMap::raycastProcess()
       {
         if (md_.flag_traverse_[vox_idx] == md_.raycast_num_)
         {
-          break;
+          if (!full_rays)
+            break;
         }
         else
         {
@@ -746,6 +767,11 @@ void GridMap::odomCallback(const nav_msgs::OdometryConstPtr &odom)
   md_.camera_pos_(1) = odom->pose.pose.position.y;
   md_.camera_pos_(2) = odom->pose.pose.position.z;
 
+  // Cast rays from the sensor, not the body centre: a few centimetres move
+  // the rays to neighbouring voxels, which then never get cleared.
+  const geometry_msgs::Quaternion &q = odom->pose.pose.orientation;
+  md_.camera_pos_ += Eigen::Quaterniond(q.w, q.x, q.y, q.z) * mp_.lidar_offset_;
+
   md_.has_odom_ = true;
 }
 
@@ -799,26 +825,25 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
     pt = latest_cloud.points[i];
     p3d(0) = pt.x, p3d(1) = pt.y, p3d(2) = pt.z;
 
-    /* point inside update range */
     Eigen::Vector3d devi = p3d - md_.camera_pos_;
     Eigen::Vector3i inf_pt;
 
+    // Add point to projection buffer for raycasting (only if enabled). Returns
+    // beyond max_ray_length are kept too: raycastProcess() shortens them to a
+    // free-only ray, so the space in front of a distant return is cleared,
+    // the same way a far depth pixel clears it.
+    if (mp_.enable_pointcloud_raycasting_ && devi.norm() > mp_.min_ray_length_)
+    {
+      // The buffer is sized for a depth image; a lidar scan can be larger.
+      if (md_.proj_points_cnt >= (int)md_.proj_points_.size())
+        md_.proj_points_.resize(2 * md_.proj_points_.size());
+      md_.proj_points_[md_.proj_points_cnt++] = p3d;
+    }
+
+    /* point inside update range */
     if (fabs(devi(0)) < mp_.local_update_range_(0) && fabs(devi(1)) < mp_.local_update_range_(1) &&
         fabs(devi(2)) < mp_.local_update_range_(2))
     {
-      // Add point to projection buffer for raycasting (only if enabled)
-      if (mp_.enable_pointcloud_raycasting_)
-      {
-        double dist = devi.norm();
-        if (dist > mp_.min_ray_length_ && dist < mp_.max_ray_length_)
-        {
-          // The buffer is sized for a depth image; a lidar scan can be larger.
-          if (md_.proj_points_cnt >= (int)md_.proj_points_.size())
-            md_.proj_points_.resize(2 * md_.proj_points_.size());
-          md_.proj_points_[md_.proj_points_cnt++] = p3d;
-        }
-      }
-
       /* inflate the point */
       for (int x = -inf_step; x <= inf_step; ++x)
         for (int y = -inf_step; y <= inf_step; ++y)

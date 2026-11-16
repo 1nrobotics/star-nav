@@ -74,6 +74,7 @@ struct MappingParameters {
       min_occupancy_log_;                   // logit of occupancy probability
   double min_ray_length_, max_ray_length_;  // range of doing raycasting
   bool enable_pointcloud_raycasting_;       // enable raycasting for pointcloud data (needed for exploration)
+  Eigen::Vector3d lidar_offset_;            // point cloud sensor position in the odometry body frame
 
   /* local map update and clear */
   int local_map_margin_;

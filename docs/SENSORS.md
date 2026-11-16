@@ -26,7 +26,8 @@ lidar:  MuJoCo ray casting (32 x 1024, 10 Hz) ──► bridge ──► /drone_
         points in the sensor frame + sensor pose      └─► /drone_0_lidar/pose
         bridge transforms every point with the pose at scan time (like a
         lidar-inertial odometry "registered" cloud); grid_map ray-casts each
-        point from the vehicle position into the same probabilistic map
+        point from the lidar position (odometry + grid_map/lidar_offset) into
+        the same probabilistic map
 ```
 
 ## Main Differences
@@ -37,9 +38,9 @@ lidar:  MuJoCo ray casting (32 x 1024, 10 Hz) ──► bridge ──► /drone_
 | Samples | 640 x 480 at 30 Hz (planner uses every 2nd pixel) | 32 beams x 1024 columns at 10 Hz, ~13 k returns per scan |
 | Resolution at 5 m | ~1.3 cm per pixel | 0.35° x 1.45°: ~3 cm horizontally, ~13 cm between beams |
 | Range used | 0.2 … 5 m (`depth_filter_*`), ray-cast up to 4.5 m | 0.3 … 10 m, ray-cast up to 4.5 m |
-| No return | pixel value 0 is treated as free space up to `max_ray_length` | no point at all: the ray carries no free-space information |
+| No return | pixel value 0 is treated as free space up to `max_ray_length` | no point at all: the ray carries no free-space information (see "Clearing" below) |
 | Message | image + camera pose; grid_map projects with `cx, cy, fx, fy` | point cloud already in the world frame |
-| Ray origin in grid_map | camera optical centre from `camera_pose` | vehicle position from odometry (the sensor is 6 cm above it) |
+| Ray origin in grid_map | camera optical centre from `camera_pose` | odometry position plus `grid_map/lidar_offset` (body frame; 6 cm up in MuJoCo) |
 | What the planner knows | only what the camera has looked at; turning the yaw reveals more | everything around the vehicle within the beam fan |
 | Blind spots | everything outside the forward frustum | above +22.5° and below −22.5° elevation, i.e. close below and above the vehicle; gaps between beams for thin horizontal structures |
 | Ground | seen from ~1.6 m ahead | seen in a ring from ~2.6 m around the vehicle |
@@ -74,6 +75,7 @@ Notes:
 | Free space | cleared along every ray | not represented |
 | Noise / stray returns | filtered: a voxel needs ~6 consecutive hits | every return is an obstacle at once |
 | Latency for a new obstacle | ~0.6 s (6 scans at 10 Hz; 0.9 m at 1.5 m/s) | one scan (0.1 s) |
+| Obstacle that moves away | cleared after 2 scans that see through it (0.12 s measured) | gone with the next scan |
 | Mission on seed 1 (≥ 3 runs each) | 12/12 waypoints, 0 contacts, 0 phantom voxels, all nearby pillars mapped | same |
 
 In this static forest both work equally well. Ray-casting is the default
@@ -82,6 +84,29 @@ two sensors can be compared directly, and because it tolerates noisy returns
 and blind zones the way a real lidar needs. The latency is safe here because
 obstacles enter the map while still more than 3.5 m away (rays are used up to
 4.5 m). Use the per-scan mode to study a lower-latency, memoryless map.
+
+## Clearing Obstacles That Moved
+
+With ray-casting, a voxel that was occupied becomes free again only when rays
+pass through it (2 rays from saturated occupied to free with the default
+`p_hit`/`p_miss`/`p_max`). For a lidar this requires:
+
+- **Distant returns count.** A return beyond `max_ray_length` (4.5 m) becomes
+  a free-only ray of 4.5 m, as a far depth pixel does. Without that, the space
+  in front of a wall 6 m away is never cleared.
+- **Rays start at the sensor.** `grid_map/lidar_offset` is the lidar position
+  in the odometry body frame. A ray cast from the body centre runs a few
+  centimetres off the real beam and misses the voxel the beam hit.
+- **Every voxel along the ray is visited.** The map uses exact voxel
+  traversal and, for point clouds, follows each ray all the way to the sensor.
+
+What is still not cleared: a direction with **no return at all** (open sky,
+beyond 10 m, or below/above the beam fan). If an obstacle moves away and
+nothing is behind it within range, its voxels stay occupied until the vehicle
+moves on. Real lidars also return nothing from black, specular or glass
+surfaces, so treating a missing return as free space would erase real
+obstacles, so grid_map does not do it. Implementation
+details and measurements: [planner/plan_env/POINTCLOUD_RAYCASTING_FIX.md](../planner/plan_env/POINTCLOUD_RAYCASTING_FIX.md).
 
 ## Lidar Options
 
@@ -97,7 +122,8 @@ Simulator flags, passed with `sim_args:="..."`:
 | `--lidar-noise` | 0 | Range noise standard deviation (m) |
 
 The sensor sits 6 cm above the body centre, aligned with the body (x forward,
-z up). Rays ignore the quadrotor itself and visual-only markers such as the
+z up); `exploration_mujoco.launch` passes the same offset to the planner as
+`grid_map/lidar_offset`. Rays ignore the quadrotor itself and visual-only markers such as the
 blue setpoint sphere. Casting runs in parallel threads: ~7 ms per scan on 4
 cores of an i7-12700H, ~13 ms while the planner runs.
 

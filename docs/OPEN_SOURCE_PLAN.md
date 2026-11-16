@@ -64,6 +64,11 @@ a public-facing codebase.
 - [x] 360-degree lidar in the MuJoCo simulator as an alternative obstacle
       sensor, with accuracy checks of the sensor data and the planner map
       (docs/SENSORS.md).
+- [x] Point cloud ray casting clears obstacles that moved away: distant
+      returns, sensor ray origin, exact voxel traversal
+      (planner/plan_env/POINTCLOUD_RAYCASTING_FIX.md).
+- [ ] Lidar beams with no return as free space (per-sensor option).
+- [ ] Moving obstacle in the MuJoCo world with a map clearing-time check.
 
 ## Known Follow-Ups
 

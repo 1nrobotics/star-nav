@@ -21,6 +21,9 @@
   <!-- Point cloud input: ray-cast it into the probabilistic map (true) or
        replace the local map with each cloud (false, upstream default). -->
   <arg name="pointcloud_raycasting" default="false"/>
+  <!-- Position [x, y, z] of the point cloud sensor in the odometry body frame;
+       rays are cast from there. -->
+  <arg name="lidar_offset" default="[0.0, 0.0, 0.0]"/>
   <!-- Map voxels below this height are not published for RViz (display only) -->
   <arg name="visualization_min_height" default="-1000.0"/>
 
@@ -124,6 +127,7 @@
     <param name="grid_map/min_ray_length" value="0.1"/>
     <param name="grid_map/max_ray_length" value="4.5"/>
     <param name="grid_map/enable_pointcloud_raycasting" value="$(arg pointcloud_raycasting)"/>
+    <rosparam param="grid_map/lidar_offset" subst_value="true">$(arg lidar_offset)</rosparam>
 
     <param name="grid_map/virtual_ceil_height"   value="2.9"/>
     <param name="grid_map/visualization_truncate_height"   value="1.8"/>
