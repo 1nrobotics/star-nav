@@ -22,6 +22,7 @@ Two simulators are available behind the same ROS topics:
 | Depth camera | CPU point-cloud rendering | OpenGL rendering (EGL or OSMesa) |
 | Collisions | not detected | counted on `/mujoco/contacts` |
 | Visualisation | RViz | browser (http://localhost:8080) and RViz |
+| Clock | wall time | simulation time (`/clock` from the bridge) |
 | Requirements | ROS Noetic | ROS Noetic + Python >= 3.11 (or Docker) |
 
 The kinematic simulator is the quickest check of planner logic; MuJoCo shows

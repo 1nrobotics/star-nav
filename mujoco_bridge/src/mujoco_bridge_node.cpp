@@ -10,6 +10,10 @@
 //             --world--> sensor_msgs/PointCloud2    global_cloud (latched)
 //                        std_msgs/UInt32            contacts
 //   simulator <--cmd---- quadrotor_msgs/PositionCommand  pos_cmd
+//
+// With /use_sim_time the bridge also publishes /clock from the simulator, so
+// the planning stack runs on simulated time and stays consistent with the
+// physics even when the simulator runs slower than real time.
 
 #include <atomic>
 #include <cmath>
@@ -25,6 +29,7 @@
 #include <nav_msgs/Odometry.h>
 #include <quadrotor_msgs/PositionCommand.h>
 #include <ros/ros.h>
+#include <rosgraph_msgs/Clock.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
@@ -48,6 +53,8 @@ class Bridge {
     pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>("camera_pose", 5);
     cloud_pub_ = nh.advertise<sensor_msgs::PointCloud2>("global_cloud", 1, true);
     contacts_pub_ = nh.advertise<std_msgs::UInt32>("contacts", 1, true);
+    sim_time_ = ros::Time::isSimTime();
+    if (sim_time_) clock_pub_ = nh.advertise<rosgraph_msgs::Clock>("/clock", 10);
     cmd_sub_ = nh.subscribe("pos_cmd", 10, &Bridge::onCommand, this,
                             ros::TransportHints().tcpNoDelay());
 
@@ -154,8 +161,21 @@ class Bridge {
     return true;
   }
 
-  // Maps simulator time onto ROS time (the simulator runs in real time).
+  // Maps simulator time onto ROS time. With /use_sim_time the simulator is the
+  // clock; otherwise it is assumed to run in real time and is offset to now.
   ros::Time stamp(double sim_t) {
+    if (sim_time_) {
+      const ros::Time t(sim_t);
+      const bool jumped_back = t + ros::Duration(1.0) < last_clock_;
+      if (jumped_back) ROS_WARN("[mujoco_bridge] simulator time jumped back (restarted?)");
+      if (t > last_clock_ || jumped_back) {
+        rosgraph_msgs::Clock clock;
+        clock.clock = t;
+        clock_pub_.publish(clock);
+        last_clock_ = t;
+      }
+      return t;
+    }
     const double now = ros::Time::now().toSec();
     if (!have_offset_ || std::fabs(now - (sim_t + offset_)) > 0.2) {
       if (have_offset_) ROS_WARN("[mujoco_bridge] resynchronising simulator clock");
@@ -312,7 +332,7 @@ class Bridge {
   std::string state_address_, cmd_address_, world_frame_, camera_frame_;
   double cloud_resolution_ = 0.1;
 
-  ros::Publisher odom_pub_, depth_pub_, pose_pub_, cloud_pub_, contacts_pub_;
+  ros::Publisher odom_pub_, depth_pub_, pose_pub_, cloud_pub_, contacts_pub_, clock_pub_;
   ros::Subscriber cmd_sub_;
 
   void* ctx_ = nullptr;
@@ -322,6 +342,8 @@ class Bridge {
   std::atomic<bool> running_{false};
   std::thread thread_;
 
+  bool sim_time_ = false;
+  ros::Time last_clock_;
   bool have_offset_ = false;
   double offset_ = 0.0;
   uint32_t last_contacts_ = UINT32_MAX;  // publish the first value

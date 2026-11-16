@@ -20,6 +20,12 @@ collision detection and a browser viewer. It does not use ROS.
 The bridge publishes the same topics as the kinematic simulator, so the
 planner, exploration manager and RViz configuration are unchanged.
 
+ROS runs on the simulator's clock: the launch file sets `/use_sim_time` and
+the bridge publishes `/clock` from the simulation time. If the machine cannot
+keep up (`rt` below 1.00 in the simulator log), the whole stack slows down with
+the physics instead of commanding the quadrotor faster than it can fly. Pass
+`use_sim_time:=false` to `exploration_mujoco.launch` to use wall-clock time.
+
 ## Run
 
 Docker (any OS):
