@@ -1,0 +1,39 @@
+# Star Nav docker compose services.
+#
+#   docker compose build                 # build the image (amd64 or arm64)
+#   docker compose run --rm test         # headless end-to-end smoke test, any OS
+#   docker compose up -d dev             # Linux dev container with X11 / RViz
+#
+# A future MuJoCo simulator will run as its own service next to these, with
+# its browser viewer exposed on a published port instead of X11.
+
+x-star-nav-image: &star-nav-image
+  image: ${IMAGE_NAME:-1nrobotics/star-nav}:${IMAGE_TAG:-local}
+  build:
+    context: .
+    dockerfile: Dockerfile
+
+services:
+  test:
+    <<: *star-nav-image
+    command: >
+      bash -c "source /catkin_ws/devel/setup.bash &&
+               rostest star_nav_bringup sim_smoke.test"
+
+  dev:
+    <<: *star-nav-image
+    container_name: ${CONTAINER_NAME:-star_nav}
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY:-}
+      - ROS_MASTER_URI=${ROS_MASTER_URI:-http://localhost:11311}
+      - ROS_HOSTNAME=${ROS_HOSTNAME:-localhost}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./planner:/catkin_ws/src/planner:rw
+      - ./px4ctrl:/catkin_ws/src/px4ctrl:rw
+      - ./rviz_gcs_plugin:/catkin_ws/src/rviz_gcs_plugin:rw
+      - ./star_nav_bringup:/catkin_ws/src/star_nav_bringup:rw
+      - ./uav_simulator:/catkin_ws/src/uav_simulator:rw
+      - ./utils:/catkin_ws/src/utils:rw
+    command: sleep infinity

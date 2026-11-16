@@ -1,0 +1,23 @@
+name: sim-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint shell scripts
+        run: |
+          for f in $(git ls-files '*.sh'); do bash -n "$f"; done
+
+      - name: Build image
+        run: docker compose build test
+
+      - name: Run headless exploration smoke test
+        run: docker compose run --rm test

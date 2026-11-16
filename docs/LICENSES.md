@@ -18,7 +18,7 @@ repository under GPLv3 terms for redistribution of this combined codebase.
 
 - `px4ctrl/` already ships its own GPLv3 license file.
 - `utils/DecompROS/` already ships its own BSD 3-Clause license file.
-- `vk180-ros/` declares MIT in its package metadata.
+- `star_nav_bringup/` declares MIT in its package metadata.
 - Several imported planning packages inherited `TODO` license placeholders in
   `package.xml`; for the main planning/simulation path, this branch aligns those
   placeholders with the GPLv3 license used by the upstream EGO-Planner /

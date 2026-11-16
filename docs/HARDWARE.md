@@ -1,84 +1,30 @@
 # Hardware Guide
 
-This guide documents the real-system path after the simulation workflow is
-working.
+`main` contains no sensor-specific hardware code. Real-flight integrations live
+on dedicated branches that track `main`:
 
-## Scope
+| Branch | Hardware | Contents |
+| --- | --- | --- |
+| `hardware/vk180` | VK180 vision module + PX4 (Jetson or x86 onboard computer) | `vk180-ros` bridge, real-flight launch files, Jetson Docker image and onboard setup scripts |
 
-The hardware stack integrates:
+Hardware branches depend on proprietary vendor SDKs that are not part of the
+open-source release.
 
-- VK180 sensor bridge
-- PX4 via MAVROS
-- `px4ctrl`
-- EGO planner
-- exploration manager
+## Hardware-independent parts on `main`
 
-## Important Limitation
+- `px4ctrl`: PX4 attitude/thrust controller over MAVROS. It consumes
+  `quadrotor_msgs/PositionCommand` on `/drone_<id>_planning/pos_cmd` and
+  odometry on `/mavros/local_position/odom`.
+- The planner expects odometry and a forward depth image
+  (`sensor_msgs/Image`, 16UC1 in millimetres); any sensor that provides these
+  can be integrated the same way the VK180 branch does.
 
-The hardware bridge depends on proprietary VK180/Vilota SDK components that are
-not required for public simulation.
-
-For public contributors, the simulation flow in
-[docs/SIMULATION.md](SIMULATION.md) is the
-recommended starting point.
-
-## Onboard Preparation
-
-Typical host preparation scripts:
+## Working on a hardware branch
 
 ```bash
-./scripts/onboard_setup.sh
-./scripts/start_onboard.sh
+git checkout hardware/vk180
+git merge main            # pick up planner and simulation changes
 ```
 
-Jetson-specific setup helpers are available in:
-
-- `scripts/setup_jetson.sh`
-- `scripts/build_jetson.sh`
-- `docker/run-jetson-release.sh`
-
-## Local Development Image With VK180 SDK
-
-If you have access to the proprietary dependencies, build the local image with:
-
-```bash
-ENABLE_VK180_SDK=true REBUILD_IMAGE=true ./docker/local-deploy.sh
-```
-
-## Launch the Real Exploration Stack
-
-With the container running:
-
-```bash
-./scripts/run_real_exploration.sh
-```
-
-Equivalent direct ROS command inside the container:
-
-```bash
-source /catkin_ws/devel/setup.bash
-roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=false
-```
-
-## Typical Runtime Checks
-
-```bash
-rostopic echo /mavros/local_position/odom
-rostopic echo /drone_0_planning/pos_cmd
-rostopic echo /mavros/setpoint_raw/attitude
-rostopic echo /exploration/state
-```
-
-## Trigger Exploration
-
-```bash
-rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
-```
-
-## Safety Notes
-
-- Verify manual takeover and emergency-stop procedures before autonomous flight.
-- Treat the simulation-tuned parameters as a starting point, not field-ready
-  guarantees.
-- Validate frame conventions, depth topics, and PX4 estimator health before
-  issuing goals.
+Keep hardware-only changes on the hardware branch and send generic planner or
+simulation fixes to `main` first.

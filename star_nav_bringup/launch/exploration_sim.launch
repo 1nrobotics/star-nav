@@ -141,7 +141,7 @@
     <!-- 5. RViz Visualization          -->
     <!-- ============================== -->
     <node name="rviz" pkg="rviz" type="rviz"
-          args="-d $(find vk180_ros)/config/vk180_planner_visualization.rviz"
+          args="-d $(find star_nav_bringup)/config/star_nav.rviz"
           if="$(arg use_rviz)" />
 
     <!-- ============================== -->

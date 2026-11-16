@@ -50,7 +50,7 @@
     
     <!-- Topic remapping -->
     <remap from="/exploration_node/odom" to="/mavros/local_position/odom"/>
-    <remap from="/exploration_node/cloud" to="/vk180/pointcloud"/>
+    <remap from="/exploration_node/cloud" to="/sensor/pointcloud"/>
     
   </node>
   

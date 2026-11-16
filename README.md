@@ -1,28 +1,36 @@
 # Star Nav
 
-Star Nav is a ROS Noetic workspace for quadrotor planning, simulation, PX4
-control, and optional VK180-based onboard perception.
+Star Nav is a ROS Noetic workspace for quadrotor waypoint exploration: an
+EGO-Planner based local planner, a waypoint exploration manager, a lightweight
+simulator, and a PX4 controller.
 
-This open-source branch is organized around a simple rule:
-
-- use simulation first
-- document real hardware second
+The `main` branch is simulation-first and hardware-independent. Integration
+with specific onboard sensors lives on dedicated hardware branches (see
+[Hardware Guide](docs/HARDWARE.md)).
 
 ## Status
 
-- Simulation is the recommended public entrypoint.
-- Real-hardware support remains available, but it depends on proprietary
-  VK180/Vilota tooling.
+- Simulation is the recommended entrypoint and is covered by an automated
+  end-to-end test.
 - The repository contains mixed licensing inherited from upstream components.
   Start with [docs/LICENSES.md](docs/LICENSES.md).
 
 ## Quick Start
 
-### Recommended: Docker simulation workflow
+### Fastest check: headless test in Docker (Linux, macOS, Windows/WSL2)
 
 ```bash
 cd /path/to/star-nav
-ENABLE_VK180_SDK=false REBUILD_IMAGE=true ./docker/local-deploy.sh
+./scripts/run_smoke_test.sh
+```
+
+This builds the image, runs a full exploration mission without any GUI, and
+exits non-zero if the mission fails.
+
+### Interactive simulation with RViz (Linux host)
+
+```bash
+./docker/local-deploy.sh
 ```
 
 Terminal 1:
@@ -48,9 +56,9 @@ To customize the search area:
 ```bash
 source /opt/ros/noetic/setup.bash
 rosdep install --from-paths . --ignore-src -r -y
-catkin_make -DCMAKE_BUILD_TYPE=Release -DENABLE_VK180_SDK=OFF
+catkin_make -DCMAKE_BUILD_TYPE=Release
 source devel/setup.bash
-roslaunch vk180_ros exploration_sim.launch use_rviz:=true
+roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
 rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 ```
 
@@ -64,32 +72,23 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 
 ## Repository Layout
 
+- `star_nav_bringup/`: launch files, RViz config and the simulation smoke test
 - `planner/`: EGO-Planner-based planning stack and exploration manager
-- `px4ctrl/`: PX4 controller integration
 - `uav_simulator/`: simulation, mapping, and local sensing components
-- `vk180-ros/`: VK180 launch files and hardware bridge code
+- `px4ctrl/`: PX4 controller integration
+- `rviz_gcs_plugin/`: RViz panel to trigger and monitor exploration
 - `utils/`: shared ROS messages, plugins, and utilities
-- `docker/`: Docker-based developer and release workflows
-- `scripts/`: helper scripts for local build and deployment
+- `docker/`, `docker-compose.yml`: container build and development workflow
+- `scripts/`: helper scripts for the Docker workflow
 
 ## Main Entry Points
 
-### Simulation
-
 ```bash
-roslaunch vk180_ros exploration_sim.launch use_rviz:=true
-```
-
-### Real exploration flight
-
-```bash
-roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=false
+roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true   # simulation
+rostest star_nav_bringup sim_smoke.test                            # end-to-end test
 ```
 
 ## Notes for Public Users
 
-- The Docker simulation path can now be built without the VK180 SDK.
-- The hardware bridge binaries in `vk180-ros` are optional and only build when
-  VK180 SDK support is enabled.
 - Some subpackage READMEs still reflect earlier internal workflows; when in
   doubt, prefer the root docs in this branch.

@@ -25,12 +25,6 @@ alias rosenv='env | grep ROS'
 alias catkin_build_release='catkin build -DCMAKE_BUILD_TYPE=Release'
 alias catkin_clean_all='catkin clean --all'
 
-# VK180 Navigation aliases
-alias nav_launch='roslaunch vk180_ros vk180_autonomous_flight.launch'
-alias nav_launch_rviz='roslaunch vk180_ros vk180_autonomous_flight.launch use_rviz:=true'
-alias explore_launch='roslaunch vk180_ros vk180_exploration_flight.launch'
-alias explore_launch_rviz='roslaunch vk180_ros vk180_exploration_flight.launch use_rviz:=true'
-
 # PX4 Control aliases
 alias ctrl_launch='roslaunch px4ctrl run_ctrl.launch'
 alias thrust_cal='roslaunch px4ctrl thrust_calibrate.launch'
@@ -47,19 +41,18 @@ alias planner_cmd='rostopic echo /drone_0_planning/pos_cmd'
 alias px4_state='rostopic echo /mavros/state'
 alias px4_odom='rostopic echo /mavros/local_position/odom'
 alias px4_cmd='rostopic echo /mavros/setpoint_raw/attitude'
-alias vk180_odom='rostopic echo /vk180/odom_raw'
 
 # EGO Planner simulation aliases
 alias planner_single_sim='roslaunch ego_planner single_run_in_sim.launch'
-alias exploration_sim='roslaunch vk180_ros exploration_sim.launch'
-alias exploration_sim_rviz='roslaunch vk180_ros exploration_sim.launch use_rviz:=true'
-alias exploration_rviz='rosrun rviz rviz -d $(rospack find vk180_ros)/config/vk180_planner_visualization.rviz'
+alias exploration_sim='roslaunch star_nav_bringup exploration_sim.launch'
+alias exploration_sim_rviz='roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true'
+alias exploration_rviz='rosrun rviz rviz -d $(rospack find star_nav_bringup)/config/star_nav.rviz'
+alias exploration_smoke_test='rostest star_nav_bringup sim_smoke.test'
 alias exploration_trigger='rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}"'
 
 
 # Development helpers
 alias kill_ros='killall -9 rosmaster roscore; tmux kill-server 2>/dev/null || true'
-alias restart_planner='rosnode kill drone_0_ego_planner_node && sleep 2 && nav_launch'
 alias restart_px4ctrl='rosnode kill px4ctrl && sleep 2 && ctrl_launch'
 
 # tmux convenience
@@ -81,27 +74,14 @@ if ! shopt -oq posix; then
 fi
 
 # Welcome message
-echo "🚁 Star Nav Docker Environment"
+echo "Star Nav Docker Environment"
 echo "   ROS Master: $ROS_MASTER_URI"
-echo "   PX4 Host: $PX4_SIM_HOST"
-echo ""
-echo "Available packages:"
-echo "  - px4ctrl (PX4 Controller)"
-echo "  - vk180-ros (VK180 Vision + EGO Planner Integration)"
-echo "  - ego_planner (Autonomous Navigation Planner)"
-echo "  - utils (quadrotor_msgs, uav_utils, DecompROS, etc.)"
 echo ""
 echo "Quick commands:"
-echo "  nav_launch      - Start VK180 autonomous navigation without rviz"
-echo "  nav_launch_rviz - Start VK180 autonomous navigation with rviz"
-echo "  planner_single_sim - Launch planner single run in simulation"
-echo "  explore_launch - Start VK180 exploration flight with rviz"
-echo "  explore_launch_rviz - Start VK180 exploration flight with rviz"
-echo "  exploration_sim - Launch planner exploration simulation without rviz"
-echo "  exploration_sim_rviz - Launch planner exploration simulation with rviz"
-echo "  planner_status  - Monitor planner execution state"
-echo "  planner_cmd     - Monitor planner traj pos cmd"
-echo "  px4_cmd         - Monitor PX4 ctrl cmd"
-echo "  vk180_odom      - View VK180 odometry"
-echo "  px4_odom        - View PX4 odometry"
+echo "  exploration_sim         - Launch the exploration simulation (headless)"
+echo "  exploration_sim_rviz    - Launch the exploration simulation with RViz"
+echo "  exploration_trigger     - Trigger waypoint exploration"
+echo "  exploration_smoke_test  - Run the end-to-end simulation test"
+echo "  planner_status          - Monitor planner execution state"
+echo "  planner_cmd             - Monitor planner trajectory position command"
 echo ""
