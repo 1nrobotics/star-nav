@@ -142,7 +142,12 @@
     <!-- ============================== -->
     <node name="rviz" pkg="rviz" type="rviz"
           args="-d $(find star_nav_bringup)/config/star_nav.rviz"
-          if="$(arg use_rviz)" />
+          if="$(arg use_rviz)">
+        <!-- Suppress the modal Noetic end-of-life dialog -->
+        <env name="DISABLE_ROS1_EOL_WARNINGS" value="1" />
+        <!-- GCS panel listens to the PX4 odometry topic -->
+        <remap from="/mavros/local_position/odom" to="/drone_0_visual_slam/odom" />
+    </node>
 
     <!-- ============================== -->
     <!-- 6. Simulator                   -->

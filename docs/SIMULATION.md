@@ -73,13 +73,27 @@ Open a second terminal in the repository root and run:
 ./scripts/trigger_exploration.sh
 ```
 
+or press **Start Exploration** in the RViz GCS panel.
+
+### What RViz shows
+
+- coloured point cloud: the generated forest map (pillars and rings, colour =
+  height) and the planner's inflated occupancy map
+- blue line: the path the vehicle has flown
+- red line: the optimized trajectory currently being executed
+- axes marker: the vehicle pose
+- GCS panel: start button, exploration area and current position
+
 ## Native ROS Noetic Workflow
 
-Useful on Ubuntu 20.04 without Docker:
+Useful on Ubuntu 20.04 without Docker. The repository is the `src` folder of
+a catkin workspace:
 
 ```bash
+git clone https://github.com/1nrobotics/star-nav.git ~/catkin_ws/src
+cd ~/catkin_ws
 source /opt/ros/noetic/setup.bash
-rosdep install --from-paths . --ignore-src -r -y
+rosdep install --from-paths src --ignore-src -r -y
 catkin_make -DCMAKE_BUILD_TYPE=Release
 source devel/setup.bash
 roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true

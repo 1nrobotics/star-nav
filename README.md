@@ -51,11 +51,18 @@ To customize the search area:
 ./scripts/run_sim_exploration.sh exploration_width:=12 exploration_height:=12 line_spacing:=4
 ```
 
-### Native ROS Noetic workflow
+Instead of the trigger script you can also press **Start Exploration** in the
+RViz GCS panel.
+
+### Native ROS Noetic workflow (Ubuntu 20.04)
+
+The repository is the `src` folder of a catkin workspace:
 
 ```bash
+git clone https://github.com/1nrobotics/star-nav.git ~/catkin_ws/src
+cd ~/catkin_ws
 source /opt/ros/noetic/setup.bash
-rosdep install --from-paths . --ignore-src -r -y
+rosdep install --from-paths src --ignore-src -r -y
 catkin_make -DCMAKE_BUILD_TYPE=Release
 source devel/setup.bash
 roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
