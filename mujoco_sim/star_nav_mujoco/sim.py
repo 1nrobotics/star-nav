@@ -179,6 +179,7 @@ class RunConfig:
   viewer_port: int = 8080
   viewer_rate: float = 30.0
   duration: float = 0.0  # stop after this much sim time (0 = forever)
+  record: str = ''  # write a follow-camera video to this file
 
 
 def run(sim: Simulator, rc: RunConfig) -> None:
@@ -213,6 +214,12 @@ def run(sim: Simulator, rc: RunConfig) -> None:
       handle = viewer.launch(rc.viewer_port, stack)
       handle.sync(sim.model, sim.data)
     viewer_period = 1.0 / rc.viewer_rate
+    recorder = None
+    if rc.record:
+      from star_nav_mujoco import record  # pylint: disable=g-import-not-at-top
+      recorder = stack.enter_context(
+          contextlib.closing(record.Recorder(sim.model, rc.record)))
+      log.info('Recording to %s', rc.record)
     next_view = 0.0
 
     wall0 = time.monotonic()
@@ -242,6 +249,8 @@ def run(sim: Simulator, rc: RunConfig) -> None:
           pub.send_multipart([protocol.TOPIC_DEPTH, protocol.pack_depth(depth)],
                              copy=False)
           next_depth = max(next_depth + depth_period, sim.time)
+        if recorder is not None:
+          recorder.maybe_capture(sim.data)
 
       while sub.poll(0):
         topic, payload = sub.recv_multipart()

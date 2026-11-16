@@ -9,6 +9,9 @@ The `main` branch is simulation-first and hardware-independent. Integration
 with specific onboard sensors lives on dedicated hardware branches (see
 [Hardware Guide](docs/HARDWARE.md)).
 
+Project page with a demo video and the simulation architecture:
+https://1nrobotics.github.io/star-nav/ (source in [`site/`](site/)).
+
 ## Status
 
 - Simulation is the recommended entrypoint and is covered by an automated
@@ -102,6 +105,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 - `utils/`: shared ROS messages, plugins, and utilities
 - `docker/`, `docker-compose.yml`: container build and development workflow
 - `scripts/`: helper scripts for the Docker workflow
+- `site/`: project page, published to GitHub Pages by `.github/workflows/pages.yml`
 
 ## Main Entry Points
 

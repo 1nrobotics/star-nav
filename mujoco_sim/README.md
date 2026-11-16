@@ -58,6 +58,7 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | `--depth-rate` | 30 | Depth camera rate (Hz) |
 | `--realtime-factor` | 1.0 | Simulated seconds per wall-clock second |
 | `--no-viewer`, `--viewer-port` | off, 8080 | Web viewer |
+| `--record FILE` | off | Write an MP4 from the viewer's follow camera (needs `ffmpeg`) |
 
 The web viewer listens on all network interfaces (a MuJoCo Studio default
 that cannot be changed yet); do not expose the port on untrusted networks.
