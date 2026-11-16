@@ -47,8 +47,15 @@ jobs:
   mujoco-smoke-test:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        sensor: [depth, lidar]
+    name: mujoco-smoke-test (${{ matrix.sensor }})
     steps:
       - uses: actions/checkout@v4
 
       - name: Run headless MuJoCo exploration smoke test
+        env:
+          SENSOR: ${{ matrix.sensor }}
         run: ./scripts/run_mujoco_smoke_test.sh

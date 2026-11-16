@@ -22,6 +22,10 @@
     <arg name="fy"/>
     <!-- Planner obstacle inflation (m): at least the vehicle radius -->
     <arg name="obstacles_inflation" default="0.099"/>
+    <!-- Ray-cast point cloud input into the probabilistic map -->
+    <arg name="pointcloud_raycasting" default="false"/>
+    <!-- Hide map voxels below this height in RViz (e.g. the ground) -->
+    <arg name="visualization_min_height" default="-1000.0"/>
 
     <!-- ============================== -->
     <!-- 2. EGO Planner                 -->
@@ -45,6 +49,8 @@
         <arg name="fx" value="$(arg fx)"/>
         <arg name="fy" value="$(arg fy)"/>
         <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
+        <arg name="pointcloud_raycasting" value="$(arg pointcloud_raycasting)"/>
+        <arg name="visualization_min_height" value="$(arg visualization_min_height)"/>
 
         <!-- Planning parameters -->
         <arg name="max_vel" value="1.5" />

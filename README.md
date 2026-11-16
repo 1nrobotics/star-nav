@@ -43,7 +43,9 @@ the same mission on the MuJoCo simulator and also fails on any collision.
 roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true
 ```
 
-Open http://localhost:8080 and trigger exploration as below. In Docker, use
+Open http://localhost:8080 and trigger exploration as below. Add
+`sensor:=lidar` to avoid obstacles with a 360° lidar instead of the depth
+camera ([Obstacle Sensors](docs/SENSORS.md)). In Docker, use
 `SIM=mujoco ./scripts/run_sim_exploration.sh`. See
 [mujoco_sim/README.md](mujoco_sim/README.md).
 
@@ -92,6 +94,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 ## Documentation
 
 - [Simulation Guide](docs/SIMULATION.md)
+- [Obstacle Sensors: depth camera or lidar](docs/SENSORS.md)
 - [Hardware Guide](docs/HARDWARE.md)
 - [Licensing Notes](docs/LICENSES.md)
 - [Contributing](CONTRIBUTING.md)

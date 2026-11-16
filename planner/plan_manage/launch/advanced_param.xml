@@ -18,6 +18,11 @@
   <arg name="planning_horizon"/>
   <!-- Obstacle inflation (m); should cover the vehicle radius. -->
   <arg name="obstacles_inflation" default="0.099"/>
+  <!-- Point cloud input: ray-cast it into the probabilistic map (true) or
+       replace the local map with each cloud (false, upstream default). -->
+  <arg name="pointcloud_raycasting" default="false"/>
+  <!-- Map voxels below this height are not published for RViz (display only) -->
+  <arg name="visualization_min_height" default="-1000.0"/>
 
   <arg name="point_num"/>
   <arg name="point0_x"/>
@@ -118,9 +123,11 @@
     <param name="grid_map/p_occ"  value="0.80"/>
     <param name="grid_map/min_ray_length" value="0.1"/>
     <param name="grid_map/max_ray_length" value="4.5"/>
+    <param name="grid_map/enable_pointcloud_raycasting" value="$(arg pointcloud_raycasting)"/>
 
     <param name="grid_map/virtual_ceil_height"   value="2.9"/>
     <param name="grid_map/visualization_truncate_height"   value="1.8"/>
+    <param name="grid_map/visualization_min_height"   value="$(arg visualization_min_height)"/>
     <param name="grid_map/show_occ_time"  value="false"/>
     <param name="grid_map/pose_type"     value="1"/>  
     <param name="grid_map/frame_id"      value="world"/>

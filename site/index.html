@@ -258,7 +258,7 @@
 
     <div class="stats">
       <div class="stat"><div class="v">500 Hz</div><div class="k">physics and flight control</div></div>
-      <div class="stat"><div class="v">30 Hz</div><div class="k">640&times;480 depth camera</div></div>
+      <div class="stat"><div class="v">30 / 10 Hz</div><div class="k">depth camera / 360° lidar</div></div>
       <div class="stat"><div class="v">~6 ms</div><div class="k">depth frame on GPU (EGL)</div></div>
       <div class="stat"><div class="v">0 ROS</div><div class="k">imports in the simulator</div></div>
     </div>
@@ -289,8 +289,8 @@
           <text x="42" y="110" font-size="14" font-weight="600">Rigid-body physics</text>
           <text x="42" y="130" font-size="12.5" class="t-muted">500 Hz · collisions counted</text>
           <rect class="box-inner" x="28" y="154" width="234" height="58" rx="8"/>
-          <text x="42" y="178" font-size="14" font-weight="600">Depth camera</text>
-          <text x="42" y="198" font-size="12.5" class="t-muted">640×480 · 30 Hz · EGL / OSMesa</text>
+          <text x="42" y="178" font-size="14" font-weight="600">Depth camera or lidar</text>
+          <text x="42" y="198" font-size="12.5" class="t-muted">640×480 30 Hz · 32×1024 10 Hz</text>
           <rect class="box-inner" x="28" y="222" width="234" height="58" rx="8"/>
           <text x="42" y="246" font-size="14" font-weight="600">Forest world</text>
           <text x="42" y="266" font-size="12.5" class="t-muted">pillars + tilted rings, per seed</text>
@@ -304,8 +304,8 @@
           <text x="398" y="50" font-size="17" font-weight="650" class="head-ros">mujoco_bridge</text>
           <text x="398" y="70" font-size="12.5" class="t-muted">C++ ROS node · libzmq</text>
           <text x="398" y="115" font-size="12.5" class="t-mono">nav_msgs/Odometry</text>
-          <text x="398" y="183" font-size="12.5" class="t-mono">Image 16UC1 (mm)</text>
-          <text x="398" y="201" font-size="12.5" class="t-mono">+ camera_pose</text>
+          <text x="398" y="183" font-size="12.5" class="t-mono">Image + camera_pose</text>
+          <text x="398" y="201" font-size="12.5" class="t-mono">or world PointCloud2</text>
           <text x="398" y="251" font-size="12.5" class="t-mono">PointCloud2 (RViz)</text>
           <text x="398" y="269" font-size="12.5" class="t-mono">UInt32 contacts</text>
           <text x="398" y="329" font-size="12.5" class="t-mono lbl-cmd">PositionCommand</text>
@@ -332,7 +332,7 @@
           <path class="flow" d="M262 115 H380" marker-end="url(#ah)"/>
           <text x="284" y="107" font-size="12" class="t-muted">state 200 Hz</text>
           <path class="flow" d="M262 183 H380" marker-end="url(#ah)"/>
-          <text x="284" y="175" font-size="12" class="t-muted">depth 30 Hz</text>
+          <text x="284" y="175" font-size="12" class="t-muted">depth / lidar</text>
           <path class="flow" d="M262 251 H380" marker-end="url(#ah)"/>
           <text x="284" y="243" font-size="12" class="t-muted">world 1 Hz</text>
           <text x="284" y="276" font-size="11" class="t-muted">ZeroMQ :5555</text>
@@ -341,7 +341,7 @@
           <path class="flow" d="M620 115 H738" marker-end="url(#ah)"/>
           <text x="634" y="107" font-size="12" class="t-muted">/…/odom</text>
           <path class="flow" d="M620 183 H738" marker-end="url(#ah)"/>
-          <text x="634" y="175" font-size="12" class="t-muted">/…/depth</text>
+          <text x="634" y="175" font-size="12" class="t-muted">depth / cloud</text>
           <path class="flow" d="M620 251 H738" marker-end="url(#ah)"/>
           <text x="634" y="243" font-size="12" class="t-muted">global_cloud</text>
 
@@ -370,7 +370,7 @@
       <h2>How the loop closes</h2>
       <p class="sub">
         The planner never sees the simulator's ground truth. It only gets what a real
-        drone would get: odometry and a depth image.
+        drone would get: odometry and a depth image or lidar scan.
       </p>
       <div class="grid2">
         <div class="card">
@@ -394,6 +394,47 @@
           </ol>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="sensors">
+    <div class="wrap">
+      <h2>Depth camera or 360° lidar</h2>
+      <p class="sub">
+        The planner can avoid obstacles with the forward depth camera or with a
+        simulated 32-beam lidar (<code>sensor:=lidar</code>). Both feed the same
+        occupancy map; the lidar sees all around the vehicle but only between its
+        beams. Every run checks the data against the true world: lidar points land
+        within 5&nbsp;mm of the obstacle surfaces, and the planner's map has no
+        phantom obstacles.
+      </p>
+      <figure class="video">
+        <div class="video-frame">
+          <video controls muted loop playsinline preload="metadata" poster="assets/lidar-exploration-demo.jpg">
+            <source src="assets/lidar-exploration-demo.mp4" type="video/mp4">
+            Your browser cannot play this video. <a href="assets/lidar-exploration-demo.mp4">Download it</a>.
+          </video>
+        </div>
+        <div class="video-labels">
+          <div><b>MuJoCo.</b> Lidar returns as dots: rings on the ground, columns on pillars and rings.</div>
+          <div><b>RViz.</b> Red: the current scan. Coloured: obstacles in the planner's map. Blue: flown path.</div>
+        </div>
+      </figure>
+      <div class="table-scroll" style="margin-top:20px">
+        <table>
+          <thead>
+            <tr><th></th><th>Depth camera</th><th>360° lidar</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Field of view</td><td>79° × 64°, forward</td><td>360° × 45°</td></tr>
+            <tr><td>Samples</td><td>640 × 480 at 30&nbsp;Hz</td><td>32 × 1024 at 10&nbsp;Hz</td></tr>
+            <tr><td>Into the planner</td><td>image + camera pose, projected with intrinsics</td><td>world-frame point cloud</td></tr>
+            <tr><td>No return</td><td>free space up to 4.5&nbsp;m</td><td>no information</td></tr>
+            <tr><td>Blind spots</td><td>everything outside the frustum</td><td>above and below the beam fan, gaps between beams</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:14px"><a href="https://github.com/1nrobotics/star-nav/blob/main/docs/SENSORS.md">How the two inputs differ and how accuracy is checked →</a></p>
     </div>
   </section>
 

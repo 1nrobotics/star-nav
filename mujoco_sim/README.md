@@ -2,8 +2,8 @@
 
 Standalone MuJoCo 4 quadrotor simulator for Star Nav. It replaces the
 kinematic simulator (`poscmd_2_odom` + `pcl_render_node` + `random_forest`)
-with rigid-body dynamics, a flight controller, a GPU/OSMesa depth camera,
-collision detection and a browser viewer. It does not use ROS.
+with rigid-body dynamics, a flight controller, a GPU/OSMesa depth camera or a
+360° lidar, collision detection and a browser viewer. It does not use ROS.
 
 ```
  mujoco_sim (Python >= 3.11, no ROS)            ROS Noetic
@@ -61,10 +61,12 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | `--pillars`, `--rings` | 100, 50 | Obstacle counts |
 | `--start X Y Z` | 0 0 1 | Spawn and initial hover point |
 | `--bind` | 127.0.0.1 | ZeroMQ address (`0.0.0.0` for a bridge on another host) |
+| `--sensor` | depth | `depth`, `lidar` or `both` ([docs/SENSORS.md](../docs/SENSORS.md)) |
 | `--depth-rate` | 30 | Depth camera rate (Hz) |
+| `--lidar-*` | 32 x 1024, 10 Hz | Lidar beams, columns, vertical FOV, rate, range, noise |
 | `--realtime-factor` | 1.0 | Simulated seconds per wall-clock second |
 | `--no-viewer`, `--viewer-port` | off, 8080 | Web viewer |
-| `--record FILE` | off | Write an MP4 from the viewer's follow camera (needs `ffmpeg`) |
+| `--record FILE` | off | Write an MP4 from the viewer's follow camera, with lidar returns as dots (needs `ffmpeg`) |
 
 The web viewer listens on all network interfaces (a MuJoCo Studio default
 that cannot be changed yet); do not expose the port on untrusted networks.
@@ -82,11 +84,19 @@ that cannot be changed yet); do not expose the port on untrusted networks.
 - Depth camera: 640x480, fx = fy = 387.2, principal point at the image centre,
   mounted 0.14 m ahead of the centre, looking along body x. Depth is published
   in millimetres (16UC1, 0 = no return beyond 10 m).
-- Unlike the kinematic simulator, the depth camera also sees the ground, so
-  RViz shows the floor in the planner's occupancy map (bottom 0.1 m layer,
-  well below the 1 m flight altitude), as it would with a real camera.
+- Lidar (`--sensor lidar`): 32 beams over −22.5° … +22.5°, 1024 columns,
+  10 Hz, 0.3–10 m, mounted 6 cm above the body centre. Each revolution is
+  cast at one instant with `mj_multiRay` in parallel threads; points are sent
+  in the sensor frame with the sensor pose. Sensors ignore visual-only
+  markers (geom group 2), such as the setpoint sphere.
+- Unlike the kinematic simulator, both sensors also see the ground, so the
+  planner's occupancy map contains the floor (below 0.35 m with inflation,
+  well under the 1 m flight altitude), as it would with a real sensor. RViz
+  hides map voxels below 0.35 m (`visualization_min_height`) so obstacles stay
+  visible.
 - Contacts: the number of physics steps in which the quadrotor touched
-  anything, published by the bridge on `/mujoco/contacts`.
+  anything, published by the bridge on `/mujoco/contacts`. The simulator log
+  names the geoms and the position of each new contact.
 - The quadrotor is 0.19 m from centre to prop tip, so
   `exploration_mujoco.launch` sets the planner's obstacle inflation to 0.2 m
   (`obstacles_inflation`) instead of the 0.1 m point-mass default used with the
@@ -102,7 +112,8 @@ Two-frame ZeroMQ messages (`topic`, little-endian payload); layouts are in
 | --- | --- | --- | --- |
 | `state` | sim → bridge | 200 Hz | time, pose, velocity, angular rate, contacts |
 | `depth` | sim → bridge | 30 Hz | time, optical-frame pose, intrinsics, uint16 mm image |
-| `world` | sim → bridge | 1 Hz | obstacle primitives (rasterised into the RViz cloud) |
+| `lidar` | sim → bridge | 10 Hz | time, sensor pose, float32 x y z per return (sensor frame) |
+| `world` | sim → bridge | 1 Hz | obstacle primitives (RViz cloud, exact markers for tests) |
 | `cmd` | bridge → sim | as published | position, velocity, acceleration, yaw, yaw rate |
 
 ## Performance

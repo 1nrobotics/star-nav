@@ -23,6 +23,7 @@ Two simulators are available behind the same ROS topics:
 | Collisions | not detected | counted on `/mujoco/contacts` |
 | Visualisation | RViz | browser (http://localhost:8080) and RViz |
 | Clock | wall time | simulation time (`/clock` from the bridge) |
+| Obstacle sensor | depth camera | depth camera or 360° lidar (`sensor:=lidar`) |
 | Requirements | ROS Noetic | ROS Noetic + Python >= 3.11 (or Docker) |
 
 The kinematic simulator is the quickest check of planner logic; MuJoCo shows
@@ -72,6 +73,17 @@ Native (Ubuntu 20.04 with ROS Noetic, plus any Python >= 3.11):
 ./scripts/setup_mujoco_env.sh
 roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true
 rostest star_nav_bringup mujoco_smoke.test          # headless test
+```
+
+Obstacle sensor: the planner uses the forward depth camera by default; add
+`sensor:=lidar` for a 360° lidar (with Docker: `SENSOR=lidar` before the
+script). How the two inputs differ and how their accuracy is checked:
+[SENSORS.md](SENSORS.md).
+
+```bash
+roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true sensor:=lidar
+rostest star_nav_bringup mujoco_smoke.test sensor:=lidar
+SENSOR=lidar ./scripts/run_mujoco_smoke_test.sh
 ```
 
 Details, options and the bridge protocol: [mujoco_sim/README.md](../mujoco_sim/README.md).

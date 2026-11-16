@@ -58,4 +58,4 @@ services:
       - mujoco
     command: >
       bash -c "source /catkin_ws/devel/setup.bash &&
-               rostest star_nav_bringup mujoco_smoke.test start_sim:=false sim_host:=mujoco"
+               rostest star_nav_bringup mujoco_smoke.test start_sim:=false sim_host:=mujoco ${MUJOCO_TEST_ARGS:-}"

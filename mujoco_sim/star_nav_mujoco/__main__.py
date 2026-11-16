@@ -43,7 +43,20 @@ def main(argv: list[str] | None = None) -> int:
                   'accept a bridge on another host)')
   ap.add_argument('--state-port', type=int, default=5555)
   ap.add_argument('--cmd-port', type=int, default=5556)
+  ap.add_argument('--sensor', choices=('depth', 'lidar', 'both'),
+                  default='depth', help='onboard sensor(s) to simulate')
   ap.add_argument('--depth-rate', type=float, default=30.0)
+  lid = ap.add_argument_group('lidar (with --sensor lidar or both)')
+  lid.add_argument('--lidar-beams', type=int, default=32)
+  lid.add_argument('--lidar-columns', type=int, default=1024,
+                   help='azimuth samples per revolution')
+  lid.add_argument('--lidar-vfov', type=float, nargs=2, default=(-22.5, 22.5),
+                   metavar=('LOW', 'HIGH'), help='beam elevations (deg)')
+  lid.add_argument('--lidar-rate', type=float, default=10.0)
+  lid.add_argument('--lidar-range', type=float, default=10.0,
+                   help='maximum range (m)')
+  lid.add_argument('--lidar-noise', type=float, default=0.0,
+                   help='range noise standard deviation (m)')
   ap.add_argument('--realtime-factor', type=float, default=1.0)
   ap.add_argument('--no-viewer', action='store_true',
                   help='do not start the web viewer')
@@ -61,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
   logging.getLogger('OpenGL').setLevel(logging.WARNING)
   _select_gl()
 
+  from star_nav_mujoco import lidar  # pylint: disable=g-import-not-at-top
   from star_nav_mujoco import sim  # pylint: disable=g-import-not-at-top
   from star_nav_mujoco import world  # pylint: disable=g-import-not-at-top
 
@@ -69,15 +83,20 @@ def main(argv: list[str] | None = None) -> int:
                               seed=args.seed, pillar_num=args.pillars,
                               ring_num=args.rings),
       start=tuple(args.start))
+  if args.sensor != 'depth':
+    cfg.lidar = lidar.LidarConfig(
+        beams=args.lidar_beams, vfov=tuple(args.lidar_vfov),
+        columns=args.lidar_columns, rate=args.lidar_rate,
+        range_max=args.lidar_range, noise=args.lidar_noise)
   rc = sim.RunConfig(bind=args.bind, state_port=args.state_port,
                      cmd_port=args.cmd_port, depth_rate=args.depth_rate,
                      realtime_factor=args.realtime_factor,
                      viewer=not args.no_viewer, viewer_port=args.viewer_port,
                      duration=args.duration, record=args.record)
-  simulator = sim.Simulator(cfg)
-  logging.info('World: %d obstacles (seed %d), GL backend %s, MuJoCo %s',
-               len(simulator.obstacles), args.seed, os.environ['MUJOCO_GL'],
-               __import__('mujoco').__version__)
+  simulator = sim.Simulator(cfg, render_depth=args.sensor != 'lidar')
+  logging.info('World: %d obstacles (seed %d), sensor %s, GL backend %s, '
+               'MuJoCo %s', len(simulator.obstacles), args.seed, args.sensor,
+               os.environ['MUJOCO_GL'], __import__('mujoco').__version__)
   # roslaunch stops nodes with SIGINT, then SIGTERM; both should let the
   # recording finish cleanly.
   signal.signal(signal.SIGTERM, signal.default_int_handler)

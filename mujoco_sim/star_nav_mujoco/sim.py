@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 import struct
 import time
 
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import lidar as lidar_lib
 from star_nav_mujoco import protocol
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
@@ -31,6 +33,7 @@ class SimConfig:
   timestep: float = 0.002
   depth_range: float = 10.0  # returns beyond this are reported as 0
   cmd_timeout: float = 0.5  # hold position when commands stop (s)
+  lidar: lidar_lib.LidarConfig | None = None  # 360-degree lidar, off by default
 
 
 class Simulator:
@@ -47,8 +50,9 @@ class Simulator:
       obstacles = world.generate(
           dataclasses.replace(self.cfg.world, start=self.cfg.start[:2]))
     self.obstacles = obstacles
+    lidar_mount = self.cfg.lidar.mount if self.cfg.lidar else None
     xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
-                          self.cfg.timestep)
+                          self.cfg.timestep, lidar_mount=lidar_mount)
     self.model = mujoco.MjModel.from_xml_string(xml)
     self.data = mujoco.MjData(self.model)
     self.controller = quadrotor.Controller(self.cfg.params, self.cfg.gains)
@@ -58,6 +62,7 @@ class Simulator:
     self._cam = m.camera('depth').id
     self._mocap = m.body_mocapid[m.body('setpoint').id]
     self.contact_steps = 0
+    self._contact_pairs = set()
     self.reset()
 
     self._renderer = None
@@ -73,6 +78,13 @@ class Simulator:
       finally:
         quality.numslices, quality.numstacks = saved
       self._renderer.enable_depth_rendering()
+      # Sensors only see physical geoms, not visual markers (the setpoint).
+      self._depth_option = mujoco.MjvOption()
+      self._depth_option.geomgroup[scene.MARKER_GROUP] = 0
+
+    self.lidar = None
+    if self.cfg.lidar is not None:
+      self.lidar = lidar_lib.Lidar(m, self.cfg.lidar, self._body)
 
   # -- state -----------------------------------------------------------------
 
@@ -85,6 +97,10 @@ class Simulator:
     self.contact_steps = 0
     self.set_command(quadrotor.Command.hover(self.cfg.start), t=0.0)
     mujoco.mj_forward(self.model, self.data)
+
+  @property
+  def has_depth(self) -> bool:
+    return self._renderer is not None
 
   @property
   def time(self) -> float:
@@ -106,10 +122,29 @@ class Simulator:
 
   # -- commands ----------------------------------------------------------------
 
-  def set_command(self, cmd: quadrotor.Command, t: float | None = None) -> None:
+  def set_command(self, cmd: quadrotor.Command, t: float | None = None) -> bool:
+    """Sets the tracking target. Returns False if any field was not finite.
+
+    Like a flight controller, non-finite fields are treated as not set: a
+    non-finite position rejects the command, non-finite velocity,
+    acceleration or yaw rate become zero, a non-finite yaw keeps the last one.
+    """
+    if not np.all(np.isfinite(cmd.pos)):
+      return False
+    finite = (np.all(np.isfinite(cmd.vel)) and np.all(np.isfinite(cmd.acc)) and
+              math.isfinite(cmd.yaw) and math.isfinite(cmd.yaw_rate))
+    if not finite:
+      last_yaw = getattr(self, '_cmd', None)
+      cmd = quadrotor.Command(
+          np.asarray(cmd.pos, float),
+          np.nan_to_num(np.asarray(cmd.vel, float), nan=0.0, posinf=0.0, neginf=0.0),
+          np.nan_to_num(np.asarray(cmd.acc, float), nan=0.0, posinf=0.0, neginf=0.0),
+          cmd.yaw if math.isfinite(cmd.yaw) else (last_yaw.yaw if last_yaw else 0.0),
+          cmd.yaw_rate if math.isfinite(cmd.yaw_rate) else 0.0)
     self._cmd = cmd
     self._cmd_time = self.data.time if t is None else t
     self.data.mocap_pos[self._mocap] = cmd.pos
+    return bool(finite)
 
   def _active_command(self) -> quadrotor.Command:
     if self.data.time - self._cmd_time > self.cfg.cmd_timeout:
@@ -131,13 +166,33 @@ class Simulator:
       mujoco.mj_step(m, d)
       if d.ncon and self._touching():
         self.contact_steps += 1
+      elif self._contact_pairs:
+        self._contact_pairs = set()
 
   def _touching(self) -> bool:
     bodies = self.model.geom_bodyid
+    touching = False
+    pairs = set()
     for c in self.data.contact[:self.data.ncon]:
       if bodies[c.geom1] == self._body or bodies[c.geom2] == self._body:
-        return True
-    return False
+        touching = True
+        pair = (int(c.geom1), int(c.geom2))
+        pairs.add(pair)
+        if pair not in self._contact_pairs:
+          log.warning('Contact at t=%.3f: %s / %s at %s (body at %s, setpoint %s)',
+                      self.data.time, self._geom_label(c.geom1),
+                      self._geom_label(c.geom2), np.round(c.pos, 3),
+                      np.round(self.data.qpos[0:3], 3), np.round(self._cmd.pos, 3))
+    self._contact_pairs = pairs
+    return touching
+
+  def _geom_label(self, g: int) -> str:
+    m = self.model
+    name = m.geom(g).name or f'geom{g}'
+    body = m.body(m.geom_bodyid[g]).name or 'world'
+    kind = mujoco.mjtGeom(m.geom_type[g]).name.removeprefix('mjGEOM_').lower()
+    return f'{body}:{name}({kind} size={np.round(m.geom_size[g], 3)})'
+
 
   # -- sensing -----------------------------------------------------------------
 
@@ -152,7 +207,8 @@ class Simulator:
     """Renders the onboard depth camera (millimetres, 0 = no return)."""
     if self._renderer is None:
       raise RuntimeError('Simulator was created with render_depth=False')
-    self._renderer.update_scene(self.data, camera=self._cam)
+    self._renderer.update_scene(self.data, camera=self._cam,
+                                scene_option=self._depth_option)
     depth = self._renderer.render()
     valid = (depth > 0) & (depth < self.cfg.depth_range)
     mm = np.where(valid, depth * 1000.0 + 0.5, 0).astype(np.uint16)
@@ -161,7 +217,16 @@ class Simulator:
     intr = (f, f, scene.CAM_WIDTH / 2.0, scene.CAM_HEIGHT / 2.0)
     return protocol.Depth(self.data.time, pos, quat, intr, mm)
 
+  def scan_lidar(self) -> lidar_lib.Scan:
+    """Casts one lidar revolution (points in the sensor frame)."""
+    if self.lidar is None:
+      raise RuntimeError('Simulator was created without a lidar')
+    return self.lidar.scan(self.data)
+
   def close(self) -> None:
+    if self.lidar is not None:
+      self.lidar.close()
+      self.lidar = None
     if self._renderer is not None:
       self._renderer.close()
       self._renderer = None
@@ -201,10 +266,14 @@ def run(sim: Simulator, rc: RunConfig) -> None:
   dt = sim.model.opt.timestep
   state_every = max(1, round(1.0 / (rc.state_rate * dt)))
   depth_period = 1.0 / rc.depth_rate
-  next_depth = 0.0
+  next_depth = 0.0 if sim.has_depth else float('inf')
+  lidar_period = 1.0 / sim.cfg.lidar.rate if sim.lidar else 0.0
+  next_lidar = 0.0 if sim.lidar else float('inf')
+  lidar_world = None  # last scan in world coordinates, for the recording
   next_world = 0.0
   steps = 0
-  stats = {'steps': 0, 'depth': 0, 'render': 0.0, 'cmds': 0}
+  stats = {'steps': 0, 'depth': 0, 'render': 0.0, 'lidar': 0, 'cast': 0.0,
+           'cmds': 0, 'bad_cmds': 0}
   stats_at = time.monotonic()
 
   with contextlib.ExitStack() as stack:
@@ -249,8 +318,19 @@ def run(sim: Simulator, rc: RunConfig) -> None:
           pub.send_multipart([protocol.TOPIC_DEPTH, protocol.pack_depth(depth)],
                              copy=False)
           next_depth = max(next_depth + depth_period, sim.time)
+        if sim.time >= next_lidar:
+          t0 = time.perf_counter()
+          scan = sim.scan_lidar()
+          stats['cast'] += time.perf_counter() - t0
+          stats['lidar'] += 1
+          pub.send_multipart([protocol.TOPIC_LIDAR,
+                              protocol.pack_lidar(scan, sim.cfg.lidar.beams)],
+                             copy=False)
+          next_lidar = max(next_lidar + lidar_period, sim.time)
+          if recorder is not None:
+            lidar_world = scan.pos + scan.points @ sim.rot.T
         if recorder is not None:
-          recorder.maybe_capture(sim.data)
+          recorder.maybe_capture(sim.data, lidar_world)
 
       while sub.poll(0):
         topic, payload = sub.recv_multipart()
@@ -261,7 +341,8 @@ def run(sim: Simulator, rc: RunConfig) -> None:
         except (protocol.ProtocolError, struct.error) as e:
           log.warning('Dropping bad command: %s', e)
           continue
-        sim.set_command(quadrotor.Command(pos, vel, acc, yaw, yaw_rate))
+        if not sim.set_command(quadrotor.Command(pos, vel, acc, yaw, yaw_rate)):
+          stats['bad_cmds'] += 1
         stats['cmds'] += 1
 
       if sim.time >= next_world:
@@ -278,13 +359,21 @@ def run(sim: Simulator, rc: RunConfig) -> None:
 
       if wall - stats_at >= 10.0:
         span = wall - stats_at
-        log.info('rt=%.2f physics=%.0fHz depth=%.1fHz (%.1fms) cmds=%.0fHz '
-                 'contacts=%d', stats['steps'] * dt / span,
-                 stats['steps'] / span, stats['depth'] / span,
-                 1000 * stats['render'] / max(stats['depth'], 1),
+        sensors = ''
+        if sim.has_depth:
+          sensors += ' depth=%.1fHz (%.1fms)' % (
+              stats['depth'] / span, 1000 * stats['render'] / max(stats['depth'], 1))
+        if sim.lidar:
+          sensors += ' lidar=%.1fHz (%.1fms)' % (
+              stats['lidar'] / span, 1000 * stats['cast'] / max(stats['lidar'], 1))
+        if stats['bad_cmds']:
+          log.warning('%d commands with non-finite fields in the last %.0fs',
+                      stats['bad_cmds'], span)
+        log.info('rt=%.2f physics=%.0fHz%s cmds=%.0fHz contacts=%d',
+                 stats['steps'] * dt / span, stats['steps'] / span, sensors,
                  stats['cmds'] / span, sim.contact_steps)
         stats = dict.fromkeys(stats, 0)
-        stats['render'] = 0.0
+        stats['render'] = stats['cast'] = 0.0
         stats_at = wall
 
       if rc.duration and sim.time >= rc.duration:

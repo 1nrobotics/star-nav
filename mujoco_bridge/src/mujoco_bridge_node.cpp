@@ -7,7 +7,11 @@
 //   simulator --state--> nav_msgs/Odometry          odom
 //             --depth--> sensor_msgs/Image (16UC1)  depth
 //                        geometry_msgs/PoseStamped  camera_pose
+//             --lidar--> sensor_msgs/PointCloud2    lidar_cloud (world frame)
+//                        geometry_msgs/PoseStamped  lidar_pose
 //             --world--> sensor_msgs/PointCloud2    global_cloud (latched)
+//                        visualization_msgs/MarkerArray  obstacles (latched,
+//                        exact geometry for RViz and accuracy tests)
 //                        std_msgs/UInt32            contacts
 //   simulator <--cmd---- quadrotor_msgs/PositionCommand  pos_cmd
 //
@@ -34,6 +38,7 @@
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <std_msgs/UInt32.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include "protocol.h"
 
@@ -47,12 +52,18 @@ class Bridge {
     pnh.param<std::string>("world_frame", world_frame_, "world");
     pnh.param<std::string>("camera_frame", camera_frame_, "camera");
     pnh.param("cloud_resolution", cloud_resolution_, 0.1);
+    // Ring geometry in the simulator (scene.RING_SEGMENTS, scene.RING_TUBE).
+    pnh.param("ring_segments", ring_segments_, 24);
+    pnh.param("ring_tube", ring_tube_, 0.04);
 
     odom_pub_ = nh.advertise<nav_msgs::Odometry>("odom", 50);
     depth_pub_ = nh.advertise<sensor_msgs::Image>("depth", 5);
     pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>("camera_pose", 5);
     cloud_pub_ = nh.advertise<sensor_msgs::PointCloud2>("global_cloud", 1, true);
     contacts_pub_ = nh.advertise<std_msgs::UInt32>("contacts", 1, true);
+    obstacles_pub_ = nh.advertise<visualization_msgs::MarkerArray>("obstacles", 1, true);
+    lidar_pub_ = nh.advertise<sensor_msgs::PointCloud2>("lidar_cloud", 5);
+    lidar_pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>("lidar_pose", 5);
     sim_time_ = ros::Time::isSimTime();
     if (sim_time_) clock_pub_ = nh.advertise<rosgraph_msgs::Clock>("/clock", 10);
     cmd_sub_ = nh.subscribe("pos_cmd", 10, &Bridge::onCommand, this,
@@ -60,7 +71,7 @@ class Bridge {
 
     ctx_ = zmq_ctx_new();
     sub_ = zmq_socket(ctx_, ZMQ_SUB);
-    for (const char* topic : {kTopicState, kTopicDepth, kTopicWorld}) {
+    for (const char* topic : {kTopicState, kTopicDepth, kTopicLidar, kTopicWorld}) {
       zmq_setsockopt(sub_, ZMQ_SUBSCRIBE, topic, std::strlen(topic));
     }
     int hwm = 20;
@@ -114,6 +125,8 @@ class Bridge {
         onState(payload);
       } else if (name == kTopicDepth) {
         onDepth(payload);
+      } else if (name == kTopicLidar) {
+        onLidar(payload);
       } else if (name == kTopicWorld) {
         onWorld(payload);
       }
@@ -254,6 +267,53 @@ class Bridge {
     depth_pub_.publish(img);
   }
 
+  // Publishes the scan in the world frame, transformed with the sensor pose at
+  // the time of the scan (what a lidar-inertial odometry front end provides).
+  void onLidar(const std::vector<char>& payload) {
+    LidarHeader h;
+    if (!checkHeader(payload, "lidar", &h)) return;
+    if (payload.size() != sizeof(h) + size_t(h.count) * 3 * sizeof(float)) {
+      ROS_WARN_THROTTLE(5.0, "[mujoco_bridge] lidar size mismatch");
+      return;
+    }
+    const ros::Time t = stamp(h.t);
+    const double w = h.quat[0], x = h.quat[1], y = h.quat[2], z = h.quat[3];
+    const double r[3][3] = {
+        {1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)},
+        {2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)},
+        {2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)}};
+
+    sensor_msgs::PointCloud2 cloud;
+    cloud.header.stamp = t;
+    cloud.header.frame_id = world_frame_;
+    sensor_msgs::PointCloud2Modifier mod(cloud);
+    mod.setPointCloud2FieldsByString(1, "xyz");
+    mod.resize(h.count);
+    sensor_msgs::PointCloud2Iterator<float> it(cloud, "x");
+    const char* data = payload.data() + sizeof(h);
+    for (uint32_t i = 0; i < h.count; ++i, ++it) {
+      float p[3];
+      std::memcpy(p, data + i * sizeof(p), sizeof(p));
+      for (int k = 0; k < 3; ++k) {
+        it[k] = float(h.pos[k] + r[k][0] * p[0] + r[k][1] * p[1] + r[k][2] * p[2]);
+      }
+    }
+
+    geometry_msgs::PoseStamped pose;
+    pose.header.stamp = t;
+    pose.header.frame_id = world_frame_;
+    pose.pose.position.x = h.pos[0];
+    pose.pose.position.y = h.pos[1];
+    pose.pose.position.z = h.pos[2];
+    pose.pose.orientation.w = w;
+    pose.pose.orientation.x = x;
+    pose.pose.orientation.y = y;
+    pose.pose.orientation.z = z;
+
+    lidar_pose_pub_.publish(pose);
+    lidar_pub_.publish(cloud);
+  }
+
   void onWorld(const std::vector<char>& payload) {
     WorldHeader h;
     if (!checkHeader(payload, "world", &h)) return;
@@ -303,8 +363,53 @@ class Bridge {
       it[2] = pts[i + 2];
     }
     cloud_pub_.publish(cloud);
+    publishObstacles(payload, h.count);
     ROS_INFO("[mujoco_bridge] world: %u obstacles, %zu cloud points", h.count,
              pts.size() / 3);
+  }
+
+  // Pillars as cylinders; rings as the same closed polyline of capsules the
+  // simulator builds (marker width = tube diameter).
+  void publishObstacles(const std::vector<char>& payload, uint32_t count) {
+    visualization_msgs::MarkerArray arr;
+    for (uint32_t i = 0; i < count; ++i) {
+      ObstacleMsg o;
+      std::memcpy(&o, payload.data() + sizeof(WorldHeader) + i * sizeof(o), sizeof(o));
+      visualization_msgs::Marker m;
+      m.header.frame_id = world_frame_;
+      m.header.stamp = ros::Time::now();
+      m.id = int(i);
+      m.action = visualization_msgs::Marker::ADD;
+      m.pose.orientation.w = 1.0;
+      m.color.a = 1.0;
+      if (o.kind == kPillar) {
+        m.ns = "pillar";
+        m.type = visualization_msgs::Marker::CYLINDER;
+        m.pose.position.x = o.x;
+        m.pose.position.y = o.y;
+        m.pose.position.z = o.b / 2.0;
+        m.scale.x = m.scale.y = 2.0 * o.a;
+        m.scale.z = o.b;
+        m.color.r = 0.35, m.color.g = 0.55, m.color.b = 0.3;
+      } else {
+        m.ns = "ring";
+        m.type = visualization_msgs::Marker::LINE_STRIP;
+        m.scale.x = 2.0 * ring_tube_;
+        m.color.r = 0.85, m.color.g = 0.55, m.color.b = 0.2;
+        const double c = std::cos(o.yaw), s = std::sin(o.yaw);
+        for (int k = 0; k <= ring_segments_; ++k) {
+          const double ang = 2.0 * M_PI * k / ring_segments_;
+          const double ly = o.a * std::cos(ang), lz = o.b * std::sin(ang);
+          geometry_msgs::Point p;
+          p.x = o.x - s * ly;
+          p.y = o.y + c * ly;
+          p.z = o.z + lz;
+          m.points.push_back(p);
+        }
+      }
+      arr.markers.push_back(m);
+    }
+    obstacles_pub_.publish(arr);
   }
 
   // -- ROS -> simulator ------------------------------------------------------
@@ -333,6 +438,9 @@ class Bridge {
   double cloud_resolution_ = 0.1;
 
   ros::Publisher odom_pub_, depth_pub_, pose_pub_, cloud_pub_, contacts_pub_, clock_pub_;
+  ros::Publisher lidar_pub_, lidar_pose_pub_, obstacles_pub_;
+  int ring_segments_ = 24;
+  double ring_tube_ = 0.04;
   ros::Subscriber cmd_sub_;
 
   void* ctx_ = nullptr;

@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   rosgraph_msgs
   geometry_msgs
   quadrotor_msgs
+  visualization_msgs
 )
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZMQ REQUIRED libzmq)
