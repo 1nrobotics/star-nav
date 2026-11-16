@@ -37,6 +37,7 @@
     <arg name="sim_host" default="127.0.0.1"/>
     <arg name="sim_args" default=""/>
     <arg name="use_sim_time" default="true"/>
+    <arg name="obstacles_inflation" default="0.2"/>
     <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
     <!-- ============================== -->
@@ -83,6 +84,9 @@
         <arg name="cy" value="240.0"/>
         <arg name="fx" value="387.229248046875"/>
         <arg name="fy" value="387.229248046875"/>
+        <!-- The MuJoCo quadrotor collides: 0.19 m from centre to prop tip,
+             so inflate by two 0.1 m voxels instead of the point-mass default. -->
+        <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
     </include>
 
     <!-- ============================== -->

@@ -87,6 +87,10 @@ that cannot be changed yet); do not expose the port on untrusted networks.
   well below the 1 m flight altitude), as it would with a real camera.
 - Contacts: the number of physics steps in which the quadrotor touched
   anything, published by the bridge on `/mujoco/contacts`.
+- The quadrotor is 0.19 m from centre to prop tip, so
+  `exploration_mujoco.launch` sets the planner's obstacle inflation to 0.2 m
+  (`obstacles_inflation`) instead of the 0.1 m point-mass default used with the
+  kinematic simulator, which has no collisions.
 
 ## Protocol
 

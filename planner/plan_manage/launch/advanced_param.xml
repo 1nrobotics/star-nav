@@ -16,6 +16,8 @@
   <arg name="max_vel"/>
   <arg name="max_acc"/>
   <arg name="planning_horizon"/>
+  <!-- Obstacle inflation (m); should cover the vehicle radius. -->
+  <arg name="obstacles_inflation" default="0.099"/>
 
   <arg name="point_num"/>
   <arg name="point0_x"/>
@@ -92,7 +94,7 @@
     <param name="grid_map/local_update_range_x"  value="5.5" /> 
     <param name="grid_map/local_update_range_y"  value="5.5" /> 
     <param name="grid_map/local_update_range_z"  value="4.5" /> 
-    <param name="grid_map/obstacles_inflation"     value="0.099" /> 
+    <param name="grid_map/obstacles_inflation"     value="$(arg obstacles_inflation)" /> 
     <param name="grid_map/local_map_margin" value="10"/>
     <param name="grid_map/ground_height"        value="-0.01"/>
     <!-- camera parameter -->
