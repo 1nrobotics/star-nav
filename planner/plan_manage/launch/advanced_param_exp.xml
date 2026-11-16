@@ -56,7 +56,7 @@
     <remap from="~grid_map/cloud" to="$(arg cloud_topic)"/>
     <remap from="~grid_map/pose"   to = "$(arg camera_pose_topic)"/> 
     <remap from="~grid_map/depth" to = "$(arg depth_topic)"/>
-    <remap from="/vins_fusion/extrinsic" to="/vk180/camera_extrinsic"/>
+    <remap from="/vins_fusion/extrinsic" to="/camera/extrinsic"/>
     
 
     <!-- planning fsm -->

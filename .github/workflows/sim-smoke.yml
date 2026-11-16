@@ -1,0 +1,54 @@
+name: sim-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint shell scripts
+        run: |
+          for f in $(git ls-files '*.sh'); do bash -n "$f"; done
+
+      - name: Build image
+        run: docker compose build test
+
+      - name: Run headless exploration smoke test
+        run: docker compose run --rm test
+
+  mujoco-unit-tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install OSMesa
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libosmesa6
+
+      - name: Install simulator
+        run: pip install "./mujoco_sim[test]"
+
+      - name: Run simulator tests
+        env:
+          MUJOCO_GL: osmesa
+          PYOPENGL_PLATFORM: osmesa
+        run: python -m pytest mujoco_sim/tests -v
+
+  mujoco-smoke-test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run headless MuJoCo exploration smoke test
+        run: ./scripts/run_mujoco_smoke_test.sh

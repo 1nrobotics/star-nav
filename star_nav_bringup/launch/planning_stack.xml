@@ -1,0 +1,123 @@
+<launch>
+    <!-- Planning stack shared by all simulators: EGO planner, trajectory
+         server, exploration manager and RViz. The simulator must provide
+         odometry, a depth image and the camera pose (see the args below). -->
+    <arg name="drone_id"/>
+    <arg name="obj_num"/>
+    <arg name="use_rviz"/>
+    <arg name="map_size_x"/>
+    <arg name="map_size_y"/>
+    <arg name="map_size_z"/>
+    <arg name="odom_topic"/>
+    <arg name="exploration_center_x"/>
+    <arg name="exploration_center_y"/>
+    <arg name="exploration_width"/>
+    <arg name="exploration_height"/>
+    <arg name="line_spacing"/>
+    <arg name="enable_corner_smoothing"/>
+    <!-- Depth camera intrinsics -->
+    <arg name="cx"/>
+    <arg name="cy"/>
+    <arg name="fx"/>
+    <arg name="fy"/>
+
+    <!-- ============================== -->
+    <!-- 2. EGO Planner                 -->
+    <!-- ============================== -->
+    <include file="$(find ego_planner)/launch/advanced_param.xml">
+        <arg name="drone_id" value="$(arg drone_id)"/>
+        <arg name="map_size_x_" value="$(arg map_size_x)"/>
+        <arg name="map_size_y_" value="$(arg map_size_y)"/>
+        <arg name="map_size_z_" value="$(arg map_size_z)"/>
+        <arg name="odometry_topic" value="$(arg odom_topic)"/>
+        <arg name="obj_num_set" value="$(arg obj_num)" />
+
+        <!-- Use simulated sensing -->
+        <arg name="camera_pose_topic" value="pcl_render_node/camera_pose"/>
+        <arg name="depth_topic" value="pcl_render_node/depth"/>
+        <arg name="cloud_topic" value="pcl_render_node/cloud"/>
+
+        <!-- Camera intrinsics -->
+        <arg name="cx" value="$(arg cx)"/>
+        <arg name="cy" value="$(arg cy)"/>
+        <arg name="fx" value="$(arg fx)"/>
+        <arg name="fy" value="$(arg fy)"/>
+
+        <!-- Planning parameters -->
+        <arg name="max_vel" value="1.5" />
+        <arg name="max_acc" value="3.0" />
+        <arg name="planning_horizon" value="7.5" />
+        <arg name="use_distinctive_trajs" value="false" />
+
+        <!-- Manual target mode for exploration -->
+        <arg name="flight_type" value="1" />
+
+        <!-- Dummy waypoints (not used in manual mode) -->
+        <arg name="point_num" value="0" />
+        <arg name="point0_x" value="0" />
+        <arg name="point0_y" value="0" />
+        <arg name="point0_z" value="0" />
+        <arg name="point1_x" value="0" />
+        <arg name="point1_y" value="0" />
+        <arg name="point1_z" value="0" />
+        <arg name="point2_x" value="0" />
+        <arg name="point2_y" value="0" />
+        <arg name="point2_z" value="0" />
+        <arg name="point3_x" value="0" />
+        <arg name="point3_y" value="0" />
+        <arg name="point3_z" value="0" />
+        <arg name="point4_x" value="0" />
+        <arg name="point4_y" value="0" />
+        <arg name="point4_z" value="0" />
+    </include>
+
+    <!-- ============================== -->
+    <!-- 3. Trajectory Server           -->
+    <!-- ============================== -->
+    <node pkg="ego_planner" name="drone_$(arg drone_id)_traj_server" type="traj_server" output="screen">
+        <remap from="~planning/bspline" to="drone_$(arg drone_id)_planning/bspline"/>
+        <remap from="/position_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
+        <param name="traj_server/time_forward" value="1.0" type="double"/>
+    </node>
+
+    <!-- ============================== -->
+    <!-- 4. Exploration Manager         -->
+    <!-- ============================== -->
+    <node pkg="exploration_manager" type="exploration_node" name="exploration_node" output="screen">
+        
+        <!-- Remap odometry for simulation -->
+        <remap from="/mavros/local_position/odom" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>
+        
+        <!-- Simulation mode -->
+        <param name="use_sim" value="true" />
+
+        <!-- FSM Parameters -->
+        <param name="fsm/fsm_exec_dt" value="0.1" type="double"/>
+        <param name="fsm/replan_time" value="0.05" type="double"/>
+        <param name="fsm/max_exploration_time" value="300.0" type="double"/>
+        <param name="fsm/waypoint_timeout" value="30.0" type="double"/>
+
+        <!-- Waypoint Mode Parameters -->
+        <param name="exploration/center_x" value="$(arg exploration_center_x)" type="double"/>
+        <param name="exploration/center_y" value="$(arg exploration_center_y)" type="double"/>
+        <param name="exploration/center_z" value="1.0" type="double"/>
+        <param name="exploration/width" value="$(arg exploration_width)" type="double"/>
+        <param name="exploration/height" value="$(arg exploration_height)" type="double"/>
+        <param name="exploration/altitude" value="1.0" type="double"/>
+        <param name="exploration/line_spacing" value="$(arg line_spacing)" type="double"/>
+        <param name="exploration/enable_corner_smoothing" value="$(arg enable_corner_smoothing)" type="bool"/>
+    </node>
+
+    <!-- ============================== -->
+    <!-- 5. RViz Visualization          -->
+    <!-- ============================== -->
+    <node name="rviz" pkg="rviz" type="rviz"
+          args="-d $(find star_nav_bringup)/config/star_nav.rviz"
+          if="$(arg use_rviz)">
+        <!-- Suppress the modal Noetic end-of-life dialog -->
+        <env name="DISABLE_ROS1_EOL_WARNINGS" value="1" />
+        <!-- GCS panel listens to the PX4 odometry topic -->
+        <remap from="/mavros/local_position/odom" to="/drone_0_visual_slam/odom" />
+    </node>
+
+</launch>

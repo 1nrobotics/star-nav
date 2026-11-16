@@ -75,7 +75,9 @@ node_modules/
 # Python virtual environments
 venv/
 env/
-.venv/
+**/.venv/
+**/*.egg-info/
+**/.pytest_cache/
 
 # CMake artifacts in pose_utils/build
 utils/pose_utils/build/

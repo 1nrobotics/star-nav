@@ -6,7 +6,8 @@ a public-facing codebase.
 ## Goals
 
 - Provide a clear, simulation-first quick start.
-- Document the real-hardware workflow without blocking public users.
+- Keep `main` hardware-independent; sensor-specific integration lives on
+  `hardware/*` branches.
 - Clean up repository hygiene issues that make the repo look internal-only.
 - Clarify mixed licensing inherited from upstream planning/control components.
 
@@ -29,10 +30,12 @@ a public-facing codebase.
 
 - [x] Add simple helper scripts for launching simulation and triggering
       exploration.
-- [x] Make the Docker-based simulation path work without the proprietary VK180
-      SDK.
-- [ ] Run a full end-to-end simulation smoke test in a clean ROS Noetic
-      environment.
+- [x] Make the Docker-based simulation path work without proprietary SDKs.
+- [x] Move VK180 hardware integration to the `hardware/vk180` branch and the
+      simulation launch files to `star_nav_bringup`.
+- [x] Add a headless end-to-end simulation smoke test
+      (`rostest star_nav_bringup sim_smoke.test`) runnable through
+      `docker compose run --rm test`.
 
 ## Phase 4: Metadata and Cleanup
 
@@ -47,7 +50,7 @@ a public-facing codebase.
 
 - Some peripheral packages still carry inherited placeholder metadata from
   upstream ROS packages.
-- Hardware integration depends on proprietary VK180/Vilota tooling and cannot
-  be fully validated in a public environment without those dependencies.
-- A public CI workflow is still desirable after the simulation build path is
-  exercised in a clean container/runtime.
+- Hardware branches depend on proprietary vendor tooling and cannot be fully
+  validated in a public environment.
+- The `sim-smoke` GitHub Actions workflow builds the image and runs the smoke
+  test on every pull request.

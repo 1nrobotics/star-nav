@@ -1,0 +1,61 @@
+# Star Nav docker compose services.
+#
+#   docker compose build                     # build the images (amd64 or arm64)
+#   docker compose run --rm test             # headless smoke test, kinematic sim
+#   ./scripts/run_mujoco_smoke_test.sh       # headless smoke test, MuJoCo sim
+#   docker compose up -d mujoco              # MuJoCo sim, viewer on http://localhost:8080
+#   docker compose up -d dev                 # Linux dev container with X11 / RViz
+#
+# The MuJoCo simulator runs in its own container (Python 3.12, no ROS) and
+# talks to the ROS bridge over ZeroMQ.
+
+x-star-nav-image: &star-nav-image
+  image: ${IMAGE_NAME:-1nrobotics/star-nav}:${IMAGE_TAG:-local}
+  build:
+    context: .
+    dockerfile: Dockerfile
+
+services:
+  test:
+    <<: *star-nav-image
+    command: >
+      bash -c "source /catkin_ws/devel/setup.bash &&
+               rostest star_nav_bringup sim_smoke.test"
+
+  dev:
+    <<: *star-nav-image
+    container_name: ${CONTAINER_NAME:-star_nav}
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY:-}
+      - ROS_MASTER_URI=${ROS_MASTER_URI:-http://localhost:11311}
+      - ROS_HOSTNAME=${ROS_HOSTNAME:-localhost}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./mujoco_bridge:/catkin_ws/src/mujoco_bridge:rw
+      - ./planner:/catkin_ws/src/planner:rw
+      - ./px4ctrl:/catkin_ws/src/px4ctrl:rw
+      - ./rviz_gcs_plugin:/catkin_ws/src/rviz_gcs_plugin:rw
+      - ./star_nav_bringup:/catkin_ws/src/star_nav_bringup:rw
+      - ./uav_simulator:/catkin_ws/src/uav_simulator:rw
+      - ./utils:/catkin_ws/src/utils:rw
+    command: sleep infinity
+
+  mujoco:
+    image: ${MUJOCO_IMAGE_NAME:-1nrobotics/star-nav-mujoco}:${IMAGE_TAG:-local}
+    build:
+      context: mujoco_sim
+    command: --bind 0.0.0.0 ${MUJOCO_ARGS:-}
+    ports:
+      - "${MUJOCO_VIEWER_PORT:-8080}:8080"
+      # ZeroMQ, reachable only from this machine (dev container or native ROS)
+      - "127.0.0.1:5555:5555"
+      - "127.0.0.1:5556:5556"
+
+  test-mujoco:
+    <<: *star-nav-image
+    depends_on:
+      - mujoco
+    command: >
+      bash -c "source /catkin_ws/devel/setup.bash &&
+               rostest star_nav_bringup mujoco_smoke.test start_sim:=false sim_host:=mujoco"

@@ -1,9 +1,0 @@
-<?xml version="1.0"?>
-<launch>
-    <!-- Launch file to start RViz with VK180 planner visualization config -->
-    
-    <node name="rviz" pkg="rviz" type="rviz" 
-          args="-d $(find vk180_ros)/config/vk180_planner_visualization.rviz" 
-          output="screen" />
-    
-</launch>

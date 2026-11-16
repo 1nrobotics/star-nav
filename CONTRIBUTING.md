@@ -4,8 +4,9 @@ Thanks for helping improve Star Nav.
 
 ## Scope
 
-This repository combines a public simulation and planning stack with optional
-hardware integration for the VK180 sensor and PX4-based flight systems.
+`main` holds the simulation and planning stack and stays hardware-independent.
+Sensor-specific integration lives on `hardware/*` branches (see
+[docs/HARDWARE.md](docs/HARDWARE.md)).
 
 Please prioritize changes that keep the simulation workflow reproducible and
 easy to review.
@@ -16,18 +17,24 @@ easy to review.
 
 ```bash
 cd /path/to/star-nav
-ENABLE_VK180_SDK=false REBUILD_IMAGE=true ./docker/local-deploy.sh
-./scripts/run_sim_exploration.sh
+./scripts/run_smoke_test.sh          # headless end-to-end test, any Docker host
+./scripts/run_mujoco_smoke_test.sh   # same, on the MuJoCo simulator
+./docker/local-deploy.sh             # Linux dev container with RViz
+./scripts/run_sim_exploration.sh     # SIM=mujoco for the MuJoCo simulator
 ```
 
 ### Native ROS Noetic workflow
 
+The repository is the `src` folder of a catkin workspace:
+
 ```bash
+git clone https://github.com/1nrobotics/star-nav.git ~/catkin_ws/src
+cd ~/catkin_ws
 source /opt/ros/noetic/setup.bash
-rosdep install --from-paths . --ignore-src -r -y
+rosdep install --from-paths src --ignore-src -r -y
 catkin_make -DCMAKE_BUILD_TYPE=Release
 source devel/setup.bash
-roslaunch vk180_ros exploration_sim.launch use_rviz:=true
+roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
 ```
 
 ## Before Opening a PR
@@ -36,7 +43,10 @@ roslaunch vk180_ros exploration_sim.launch use_rviz:=true
 - Keep package license metadata accurate when moving or importing code.
 - Run lightweight checks that match your change:
   - `bash -n` for shell scripts
-  - a simulation launch smoke test when launch or Docker behavior changes
+  - `./scripts/run_smoke_test.sh` (or `rostest star_nav_bringup sim_smoke.test`)
+    when planner, launch or Docker behavior changes; CI runs it on every PR
+  - `pytest` in `mujoco_sim/` and `./scripts/run_mujoco_smoke_test.sh` when
+    the MuJoCo simulator, the bridge or its protocol changes
   - targeted catkin build if you touched package build files
 
 ## Style

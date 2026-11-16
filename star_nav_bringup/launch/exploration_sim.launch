@@ -1,0 +1,99 @@
+<launch>
+    <!-- ============================================ -->
+    <!-- Exploration System Simulation               -->
+    <!-- Based on single_run_in_sim.launch           -->
+    <!-- ============================================ -->
+    <!-- Trigger exploration: rostopic pub /exploration/trigger geometry_msgs/PoseStamped "{}" -->
+    <!-- 2D Nav Goal in RViz goes to EGO planner directly -->
+    <!-- Launch RViz separately: exploration_rviz -->
+
+    <!-- Arguments -->
+    <arg name="drone_id" default="0"/>
+    <arg name="obj_num" default="10" />
+    <arg name="use_rviz" default="false"/>
+
+    <!-- Map Parameters -->
+    <arg name="map_size_x" default="50.0"/>
+    <arg name="map_size_y" default="50.0"/>
+    <arg name="map_size_z" default="5.0"/>
+    <arg name="odom_topic" default="visual_slam/odom" />
+
+    <!-- Exploration Parameters -->
+    <arg name="exploration_center_x" default="0.0"/>
+    <arg name="exploration_center_y" default="0.0"/>
+    <arg name="exploration_width" default="9.0"/>
+    <arg name="exploration_height" default="9.0"/>
+    <arg name="line_spacing" default="3.0"/>
+    <arg name="enable_corner_smoothing" default="false"/>
+
+    <!-- ============================== -->
+    <!-- 1. Map Generator               -->
+    <!-- ============================== -->
+    <node pkg ="map_generator" name ="random_forest" type ="random_forest" output = "screen">
+        <param name="map/x_size" value="$(arg map_size_x)" />
+        <param name="map/y_size" value="$(arg map_size_y)" />
+        <param name="map/z_size" value="$(arg map_size_z)" />
+        <param name="map/resolution" value="0.1"/>
+        <param name="ObstacleShape/seed" value="1"/>
+        <param name="map/obs_num" value="100"/>
+        <param name="ObstacleShape/lower_rad" value="0.5"/>
+        <param name="ObstacleShape/upper_rad" value="0.7"/>
+        <param name="ObstacleShape/lower_hei" value="0.0"/>
+        <param name="ObstacleShape/upper_hei" value="3.0"/>
+        <param name="map/circle_num" value="50"/>
+        <param name="ObstacleShape/radius_l" value="0.7"/>
+        <param name="ObstacleShape/radius_h" value="0.5"/>
+        <param name="ObstacleShape/z_l" value="0.7"/>
+        <param name="ObstacleShape/z_h" value="0.8"/>
+        <param name="ObstacleShape/theta" value="0.5"/>
+        <param name="pub_rate" value="1.0"/>
+        <param name="min_distance" value="0.8"/>
+    </node>
+
+    <!-- ============================== -->
+    <!-- 2-5. Planning stack and RViz   -->
+    <!-- ============================== -->
+    <include file="$(find star_nav_bringup)/launch/planning_stack.xml">
+        <arg name="drone_id" value="$(arg drone_id)"/>
+        <arg name="obj_num" value="$(arg obj_num)"/>
+        <arg name="use_rviz" value="$(arg use_rviz)"/>
+        <arg name="map_size_x" value="$(arg map_size_x)"/>
+        <arg name="map_size_y" value="$(arg map_size_y)"/>
+        <arg name="map_size_z" value="$(arg map_size_z)"/>
+        <arg name="odom_topic" value="$(arg odom_topic)"/>
+        <arg name="exploration_center_x" value="$(arg exploration_center_x)"/>
+        <arg name="exploration_center_y" value="$(arg exploration_center_y)"/>
+        <arg name="exploration_width" value="$(arg exploration_width)"/>
+        <arg name="exploration_height" value="$(arg exploration_height)"/>
+        <arg name="line_spacing" value="$(arg line_spacing)"/>
+        <arg name="enable_corner_smoothing" value="$(arg enable_corner_smoothing)"/>
+        <arg name="cx" value="321.04638671875"/>
+        <arg name="cy" value="243.44969177246094"/>
+        <arg name="fx" value="387.229248046875"/>
+        <arg name="fy" value="387.229248046875"/>
+    </include>
+
+    <!-- ============================== -->
+    <!-- 6. Simulator                   -->
+    <!-- ============================== -->
+    <include file="$(find ego_planner)/launch/simulator.xml">
+        <arg name="drone_id" value="$(arg drone_id)"/>
+        <arg name="map_size_x_" value="$(arg map_size_x)"/>
+        <arg name="map_size_y_" value="$(arg map_size_y)"/>
+        <arg name="map_size_z_" value="$(arg map_size_z)"/>
+        <arg name="init_x_" value="0"/>
+        <arg name="init_y_" value="0"/>
+        <arg name="init_z_" value="1.0"/>
+        <arg name="odometry_topic" value="$(arg odom_topic)" />
+    </include>
+
+    <!-- ============================== -->
+    <!-- 7. Static TF Publishers        -->
+    <!-- ============================== -->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_map"
+          args="0 0 0 0 0 0 world map" />
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_odom"
+          args="0 0 0 0 0 0 world odom" />
+
+</launch>

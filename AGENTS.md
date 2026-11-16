@@ -6,7 +6,8 @@ working here should optimize for a clean public contributor experience.
 ## Priorities
 
 1. Keep the simulation workflow easy to discover and easy to run.
-2. Treat real-hardware support as a documented secondary path.
+2. Keep `main` hardware-independent; sensor-specific code belongs on
+   `hardware/*` branches (see docs/HARDWARE.md).
 3. Preserve and clarify upstream licensing instead of simplifying it away.
 4. Prefer small, reviewable cleanup steps over broad rewrites.
 
@@ -17,8 +18,7 @@ working here should optimize for a clean public contributor experience.
   including GPLv3 components from the planning/control stack.
 - Keep root documentation public-facing and task-oriented.
 - When changing launch or Docker behavior, verify the simulation path first.
-- Avoid introducing new hard dependencies on proprietary VK180 tooling unless
-  the feature is explicitly hardware-only.
+- Do not add proprietary SDK or sensor-specific dependencies to `main`.
 
 ## Recommended Workflow
 
@@ -38,4 +38,12 @@ working here should optimize for a clean public contributor experience.
 - Shell scripts: run `bash -n`.
 - XML/package metadata: keep package names and launch file references accurate.
 - Documentation: make simulation commands copy-pasteable.
-- Build changes: avoid breaking simulation-only builds when VK180 SDK is absent.
+- Simulation: `rostest star_nav_bringup sim_smoke.test` (or
+  `docker compose run --rm test`) must pass.
+- MuJoCo simulator or bridge changes: `pytest` in `mujoco_sim/` and
+  `rostest star_nav_bringup mujoco_smoke.test` (or
+  `./scripts/run_mujoco_smoke_test.sh`) must pass. Keep
+  `mujoco_sim/star_nav_mujoco/protocol.py` and `mujoco_bridge/src/protocol.h`
+  in sync.
+- Keep `mujoco_sim/` free of ROS imports; ROS-specific code belongs in
+  `mujoco_bridge/`.
