@@ -38,3 +38,6 @@ Makefile
 
 # Demo video is hosted outside git (see site/README.md)
 site/assets/*.mp4
+
+# MuJoCo writes warnings here
+MUJOCO_LOG.TXT

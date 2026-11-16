@@ -10,6 +10,7 @@ constexpr uint16_t kProtocolVersion = 1;
 
 constexpr char kTopicState[] = "state";
 constexpr char kTopicDepth[] = "depth";
+constexpr char kTopicLidar[] = "lidar";
 constexpr char kTopicWorld[] = "world";
 constexpr char kTopicCmd[] = "cmd";
 
@@ -37,6 +38,16 @@ struct DepthHeader {
   double pos[3];   // optical frame in world
   double quat[4];  // w, x, y, z
   float fx, fy, cx, cy;
+};
+
+// Followed by count * 3 float32 x, y, z in the sensor frame (x forward, z up).
+struct LidarHeader {
+  uint16_t version;
+  uint16_t beams;
+  uint32_t count;
+  double t;
+  double pos[3];   // sensor origin in world
+  double quat[4];  // w, x, y, z
 };
 
 // Followed by `count` ObstacleMsg records.
@@ -72,6 +83,7 @@ struct CmdMsg {
 
 static_assert(sizeof(StateMsg) == 124, "StateMsg layout");
 static_assert(sizeof(DepthHeader) == 88, "DepthHeader layout");
+static_assert(sizeof(LidarHeader) == 72, "LidarHeader layout");
 static_assert(sizeof(WorldHeader) == 8, "WorldHeader layout");
 static_assert(sizeof(ObstacleMsg) == 28, "ObstacleMsg layout");
 static_assert(sizeof(CmdMsg) == 104, "CmdMsg layout");

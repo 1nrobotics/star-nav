@@ -55,7 +55,7 @@ To publish a new video, replace the release asset:
 ```bash
 gh release create site-assets --prerelease --title "Project page assets" \
   --notes "Media for the project page; not a software release."   # first time only
-gh release upload site-assets site/assets/exploration-demo.mp4 --clobber
+gh release upload site-assets site/assets/exploration-demo.mp4 site/assets/lidar-exploration-demo.mp4 --clobber
 ```
 
 It puts the simulator's follow camera next to the RViz window for one mission

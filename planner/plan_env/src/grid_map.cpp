@@ -42,6 +42,7 @@ void GridMap::initMap(ros::NodeHandle &nh)
 
   node_.param("grid_map/obstacle_min_height", mp_.obstacle_min_height_, -1.0e9);
   node_.param("grid_map/visualization_truncate_height", mp_.visualization_truncate_height_, -0.1);
+  node_.param("grid_map/visualization_min_height", mp_.visualization_min_height_, -1.0e9);
   node_.param("grid_map/virtual_ceil_yp", mp_.virtual_ceil_yp_, -0.1);
   node_.param("grid_map/virtual_ceil_yn", mp_.virtual_ceil_yn_, -0.1);
 
@@ -814,6 +815,9 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
         double dist = devi.norm();
         if (dist > mp_.min_ray_length_ && dist < mp_.max_ray_length_)
         {
+          // The buffer is sized for a depth image; a lidar scan can be larger.
+          if (md_.proj_points_cnt >= (int)md_.proj_points_.size())
+            md_.proj_points_.resize(2 * md_.proj_points_.size());
           md_.proj_points_[md_.proj_points_cnt++] = p3d;
         }
       }
@@ -900,7 +904,7 @@ void GridMap::publishMap()
 
         Eigen::Vector3d pos;
         indexToPos(Eigen::Vector3i(x, y, z), pos);
-        if (pos(2) > mp_.visualization_truncate_height_)
+        if (pos(2) > mp_.visualization_truncate_height_ || pos(2) < mp_.visualization_min_height_)
           continue;
 
         pt.x = pos(0);
@@ -954,7 +958,7 @@ void GridMap::publishMapInflate(bool all_info)
 
         Eigen::Vector3d pos;
         indexToPos(Eigen::Vector3i(x, y, z), pos);
-        if (pos(2) > mp_.visualization_truncate_height_)
+        if (pos(2) > mp_.visualization_truncate_height_ || pos(2) < mp_.visualization_min_height_)
           continue;
 
         pt.x = pos(0);

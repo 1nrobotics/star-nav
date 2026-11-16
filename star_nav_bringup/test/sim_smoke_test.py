@@ -4,7 +4,9 @@
 Triggers exploration and checks that the mission reaches FINISH, visits the
 expected number of waypoints without timeouts, and that the flown path covers
 the exploration area. With ~contacts_topic set (MuJoCo simulator), it also
-checks that the quadrotor never touched an obstacle.
+checks that the quadrotor never touched an obstacle. With ~obstacles_topic set,
+it also checks the sensor cloud and the planner's map against the true world
+(map_accuracy.py).
 """
 
 import threading
@@ -16,6 +18,8 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from rosgraph_msgs.msg import Log
 from std_msgs.msg import String, UInt32
+
+from map_accuracy import MapAccuracyMonitor
 
 PKG = "star_nav_bringup"
 
@@ -38,6 +42,18 @@ class SimSmokeTest(unittest.TestCase):
         self.mission_timeout = rospy.get_param("~mission_timeout", 180.0)
         self.contacts_topic = rospy.get_param("~contacts_topic", "")
         self.contacts = None
+
+        self.accuracy = None
+        obstacles_topic = rospy.get_param("~obstacles_topic", "")
+        if obstacles_topic:
+            self.accuracy = MapAccuracyMonitor(
+                obstacles_topic,
+                rospy.get_param("~map_topic", "/drone_0_ego_planner_node/grid_map/occupancy_inflate"),
+                self.odom_topic,
+                cloud_topic=rospy.get_param("~sensor_cloud_topic", ""))
+            self.max_cloud_error_ratio = rospy.get_param("~max_cloud_error_ratio", 0.001)
+            self.max_phantom_ratio = rospy.get_param("~max_phantom_ratio", 0.01)
+            self.min_map_recall = rospy.get_param("~min_map_recall", -1.0)
 
         rospy.Subscriber("/exploration/state", String, self.state_cb, queue_size=100)
         rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb, queue_size=10)
@@ -98,6 +114,8 @@ class SimSmokeTest(unittest.TestCase):
             self.assertIn("GENERATE_WAYPOINTS", self.states, "exploration was never triggered")
             self.min_xy = [float("inf"), float("inf")]
             self.max_xy = [float("-inf"), float("-inf")]
+        if self.accuracy:
+            self.accuracy.start()
 
         self.wait_for(lambda: "FINISH" in self.states, self.mission_timeout, "FINISH state")
 
@@ -117,6 +135,26 @@ class SimSmokeTest(unittest.TestCase):
         if self.contacts_topic:
             self.assertIsNotNone(contacts, "no message on %s" % self.contacts_topic)
             self.assertEqual(contacts, 0, "the quadrotor collided with an obstacle")
+        if self.accuracy:
+            self.check_accuracy(self.accuracy.stop())
+
+    def check_accuracy(self, s):
+        rospy.loginfo("[sim_smoke] map accuracy: %s", s)
+        self.assertGreater(s["voxels"], 0, "no planner map received")
+        phantom_ratio = float(s["phantoms"]) / s["voxels"]
+        self.assertLessEqual(phantom_ratio, self.max_phantom_ratio,
+                             "map has occupied voxels away from any obstacle")
+        if self.accuracy.cloud_topic:
+            self.assertGreater(s["cloud_points"], 0, "no sensor cloud received")
+            bad_ratio = float(s["cloud_bad"]) / s["cloud_points"]
+            self.assertLessEqual(bad_ratio, self.max_cloud_error_ratio,
+                                 "sensor points off the obstacle surfaces (max %.3f m)"
+                                 % s["cloud_max"])
+        if self.min_map_recall >= 0:
+            self.assertGreater(s["pillars"], 0, "no pillars passed near the drone")
+            recall = float(s["pillars_seen"]) / s["pillars"]
+            self.assertGreaterEqual(recall, self.min_map_recall,
+                                    "pillars near the drone missing from the map")
 
 
 if __name__ == "__main__":
