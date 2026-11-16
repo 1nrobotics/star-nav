@@ -19,6 +19,13 @@ jobs:
       - name: Build image
         run: docker compose build test
 
+      - name: Run planner unit tests
+        run: >
+          docker compose run --rm test bash -c
+          "cd /catkin_ws && source devel/setup.bash &&
+          catkin_make run_tests_plan_env &&
+          catkin_test_results build/test_results/plan_env"
+
       - name: Run headless exploration smoke test
         run: docker compose run --rm test
 

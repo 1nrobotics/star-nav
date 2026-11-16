@@ -98,6 +98,8 @@
              so inflate by two 0.1 m voxels instead of the point-mass default. -->
         <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
         <arg name="pointcloud_raycasting" value="$(eval arg('sensor') == 'lidar' and arg('lidar_raycasting'))"/>
+        <!-- The simulated lidar sits 6 cm above the body centre (LidarConfig.mount) -->
+        <arg name="lidar_offset" value="[0.0, 0.0, 0.06]"/>
         <!-- Both MuJoCo sensors see the ground; it is in the planner's map
              (below 0.35 m including inflation) but hidden in RViz. -->
         <arg name="visualization_min_height" value="0.35"/>
