@@ -43,14 +43,25 @@ a public-facing codebase.
       upstream GPLv3 provenance is clear.
 - [x] Remove tracked editor backups, Python bytecode, and nested package build
       outputs.
+- [x] Resolve the remaining `TODO` license placeholders and add `LICENSE`
+      files to original MIT packages (see docs/LICENSES.md).
 - [ ] Continue normalizing README quality inside subpackages with stale or
       conflicting instructions.
 
+## Phase 5: MuJoCo Simulator and Release Prep
+
+- [x] MuJoCo 4 simulator without ROS (`mujoco_sim/`) and a thin ROS bridge
+      (`mujoco_bridge/`), with unit tests, `mujoco_smoke.test` and CI jobs.
+- [x] Project page (`site/`) and GitHub Pages workflow.
+- [x] Community files: issue and PR templates, `CODE_OF_CONDUCT.md`,
+      `SECURITY.md`, `CITATION.cff`.
+- [ ] Attach the demo video to the `site-assets` release (site/README.md).
+- [ ] Make the repository public, then enable Pages (Source: GitHub Actions)
+      and private vulnerability reporting.
+
 ## Known Follow-Ups
 
-- Some peripheral packages still carry inherited placeholder metadata from
-  upstream ROS packages.
 - Hardware branches depend on proprietary vendor tooling and cannot be fully
   validated in a public environment.
-- The `sim-smoke` GitHub Actions workflow builds the image and runs the smoke
-  test on every pull request.
+- The `sim-smoke` GitHub Actions workflow runs both smoke tests and the
+  MuJoCo unit tests on every pull request.

@@ -14,8 +14,22 @@ python3 -m http.server -d site 8000   # then open http://localhost:8000
 ## Demo video
 
 `assets/exploration-demo.mp4` is not tracked in git, to keep the repository
-small (`.gitignore`). Place it in `assets/` before previewing; the page shows
-the poster image `assets/exploration-demo.jpg` when the video is missing.
+small (`.gitignore`). It is attached to the `site-assets` GitHub release, and
+the Pages workflow downloads it at deploy time. To preview locally, download it
+into `assets/`; without it the page shows the poster image
+`assets/exploration-demo.jpg`.
+
+```bash
+gh release download site-assets --pattern '*.mp4' --dir site/assets
+```
+
+To publish a new video, replace the release asset:
+
+```bash
+gh release create site-assets --prerelease --title "Project page assets" \
+  --notes "Media for the project page; not a software release."   # first time only
+gh release upload site-assets site/assets/exploration-demo.mp4 --clobber
+```
 
 It puts the simulator's follow camera next to the RViz window for one mission
 (seed 1, default exploration area). To regenerate it:

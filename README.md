@@ -9,8 +9,12 @@ The `main` branch is simulation-first and hardware-independent. Integration
 with specific onboard sensors lives on dedicated hardware branches (see
 [Hardware Guide](docs/HARDWARE.md)).
 
-Project page with a demo video and the simulation architecture:
-https://1nrobotics.github.io/star-nav/ (source in [`site/`](site/)).
+![MuJoCo simulator (left) and RViz (right) during an exploration mission](site/assets/exploration-demo.jpg)
+
+*Left: the MuJoCo simulator's follow camera. Right: RViz with the flown path
+and the planner's occupancy map.* The [project page](https://1nrobotics.github.io/star-nav/)
+has the full flight video and the simulation architecture (source in
+[`site/`](site/)).
 
 ## Status
 
@@ -91,6 +95,9 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 - [Hardware Guide](docs/HARDWARE.md)
 - [Licensing Notes](docs/LICENSES.md)
 - [Contributing](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+- [Citing Star Nav](CITATION.cff)
 - [Open-Source Branch Plan](docs/OPEN_SOURCE_PLAN.md)
 
 ## Repository Layout
