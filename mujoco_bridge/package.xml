@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>mujoco_bridge</name>
+  <version>0.1.0</version>
+  <description>
+    Thin ROS bridge between the standalone MuJoCo simulator (mujoco_sim) and
+    the Star Nav planning stack, over ZeroMQ.
+  </description>
+  <maintainer email="dev@1nrobotics.com">1nRobotics</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>quadrotor_msgs</depend>
+  <build_depend>pkg-config</build_depend>
+  <depend>libzmq3-dev</depend>
+</package>

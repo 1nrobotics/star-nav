@@ -42,6 +42,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpcl-dev \
     libarmadillo-dev \
     qtbase5-dev \
+    libzmq3-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 SHELL ["/bin/bash", "-c"]

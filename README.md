@@ -1,8 +1,9 @@
 # Star Nav
 
 Star Nav is a ROS Noetic workspace for quadrotor waypoint exploration: an
-EGO-Planner based local planner, a waypoint exploration manager, a lightweight
-simulator, and a PX4 controller.
+EGO-Planner based local planner, a waypoint exploration manager, two
+simulators (a lightweight kinematic one and a MuJoCo 4 one with dynamics and
+a browser viewer), and a PX4 controller.
 
 The `main` branch is simulation-first and hardware-independent. Integration
 with specific onboard sensors lives on dedicated hardware branches (see
@@ -25,7 +26,19 @@ cd /path/to/star-nav
 ```
 
 This builds the image, runs a full exploration mission without any GUI, and
-exits non-zero if the mission fails.
+exits non-zero if the mission fails. `./scripts/run_mujoco_smoke_test.sh` runs
+the same mission on the MuJoCo simulator and also fails on any collision.
+
+### MuJoCo simulation in the browser
+
+```bash
+./scripts/setup_mujoco_env.sh                                       # once
+roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true
+```
+
+Open http://localhost:8080 and trigger exploration as below. In Docker, use
+`SIM=mujoco ./scripts/run_sim_exploration.sh`. See
+[mujoco_sim/README.md](mujoco_sim/README.md).
 
 ### Interactive simulation with RViz (Linux host)
 
@@ -79,7 +92,9 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 
 ## Repository Layout
 
-- `star_nav_bringup/`: launch files, RViz config and the simulation smoke test
+- `star_nav_bringup/`: launch files, RViz config and the simulation smoke tests
+- `mujoco_sim/`: standalone MuJoCo simulator (Python, no ROS)
+- `mujoco_bridge/`: ROS bridge between `mujoco_sim` and the planning stack
 - `planner/`: EGO-Planner-based planning stack and exploration manager
 - `uav_simulator/`: simulation, mapping, and local sensing components
 - `px4ctrl/`: PX4 controller integration
@@ -91,8 +106,10 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 ## Main Entry Points
 
 ```bash
-roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true   # simulation
-rostest star_nav_bringup sim_smoke.test                            # end-to-end test
+roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true     # kinematic simulation
+roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true  # MuJoCo simulation
+rostest star_nav_bringup sim_smoke.test                              # end-to-end test
+rostest star_nav_bringup mujoco_smoke.test                           # end-to-end test, MuJoCo
 ```
 
 ## Notes for Public Users

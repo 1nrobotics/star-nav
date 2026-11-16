@@ -1,0 +1,29 @@
+<launch>
+    <!-- Headless end-to-end check with the MuJoCo simulator:
+         rostest star_nav_bringup mujoco_smoke.test
+         Use start_sim:=false when the simulator runs elsewhere (Docker). -->
+    <arg name="exploration_width" default="9.0"/>
+    <arg name="exploration_height" default="9.0"/>
+    <arg name="line_spacing" default="3.0"/>
+    <arg name="expected_waypoints" default="12"/>
+    <arg name="start_sim" default="true"/>
+    <arg name="sim_host" default="127.0.0.1"/>
+
+    <include file="$(find star_nav_bringup)/launch/exploration_mujoco.launch">
+        <arg name="use_rviz" value="false"/>
+        <arg name="viewer" value="false"/>
+        <arg name="start_sim" value="$(arg start_sim)"/>
+        <arg name="sim_host" value="$(arg sim_host)"/>
+        <arg name="exploration_width" value="$(arg exploration_width)"/>
+        <arg name="exploration_height" value="$(arg exploration_height)"/>
+        <arg name="line_spacing" value="$(arg line_spacing)"/>
+    </include>
+
+    <test test-name="mujoco_smoke" pkg="star_nav_bringup" type="sim_smoke_test.py" time-limit="300.0">
+        <param name="expected_waypoints" value="$(arg expected_waypoints)"/>
+        <param name="exploration_width" value="$(arg exploration_width)"/>
+        <param name="exploration_height" value="$(arg exploration_height)"/>
+        <param name="contacts_topic" value="/mujoco/contacts"/>
+        <param name="mission_timeout" value="180.0"/>
+    </test>
+</launch>

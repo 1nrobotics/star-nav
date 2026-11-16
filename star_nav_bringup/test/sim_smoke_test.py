@@ -3,7 +3,8 @@
 
 Triggers exploration and checks that the mission reaches FINISH, visits the
 expected number of waypoints without timeouts, and that the flown path covers
-the exploration area.
+the exploration area. With ~contacts_topic set (MuJoCo simulator), it also
+checks that the quadrotor never touched an obstacle.
 """
 
 import threading
@@ -14,7 +15,7 @@ import rostest
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from rosgraph_msgs.msg import Log
-from std_msgs.msg import String
+from std_msgs.msg import String, UInt32
 
 PKG = "star_nav_bringup"
 
@@ -35,11 +36,15 @@ class SimSmokeTest(unittest.TestCase):
         self.startup_timeout = rospy.get_param("~startup_timeout", 60.0)
         self.settle_time = rospy.get_param("~settle_time", 5.0)
         self.mission_timeout = rospy.get_param("~mission_timeout", 180.0)
+        self.contacts_topic = rospy.get_param("~contacts_topic", "")
+        self.contacts = None
 
         rospy.Subscriber("/exploration/state", String, self.state_cb, queue_size=100)
         rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb, queue_size=10)
         rospy.Subscriber("/rosout_agg", Log, self.log_cb, queue_size=100)
         self.trigger_pub = rospy.Publisher("/exploration/trigger", PoseStamped, queue_size=1)
+        if self.contacts_topic:
+            rospy.Subscriber(self.contacts_topic, UInt32, self.contacts_cb, queue_size=10)
 
     def state_cb(self, msg):
         # The state is republished periodically; keep transitions only.
@@ -52,6 +57,10 @@ class SimSmokeTest(unittest.TestCase):
         with self.lock:
             self.min_xy = [min(self.min_xy[0], p.x), min(self.min_xy[1], p.y)]
             self.max_xy = [max(self.max_xy[0], p.x), max(self.max_xy[1], p.y)]
+
+    def contacts_cb(self, msg):
+        with self.lock:
+            self.contacts = msg.data
 
     def log_cb(self, msg):
         if msg.name != "/exploration_node":
@@ -97,13 +106,17 @@ class SimSmokeTest(unittest.TestCase):
             span_x = self.max_xy[0] - self.min_xy[0]
             span_y = self.max_xy[1] - self.min_xy[1]
             problems = list(self.problems)
+            contacts = self.contacts
 
-        rospy.loginfo("[sim_smoke] waypoints=%d span=(%.2f, %.2f) problems=%d",
-                      reached, span_x, span_y, len(problems))
+        rospy.loginfo("[sim_smoke] waypoints=%d span=(%.2f, %.2f) problems=%d contacts=%s",
+                      reached, span_x, span_y, len(problems), contacts)
         self.assertEqual(problems, [], "exploration reported: %s" % problems)
         self.assertEqual(reached, self.expected_waypoints, "unexpected number of waypoints")
         self.assertGreaterEqual(span_x, self.coverage_ratio * self.width, "x coverage too small")
         self.assertGreaterEqual(span_y, self.coverage_ratio * self.height, "y coverage too small")
+        if self.contacts_topic:
+            self.assertIsNotNone(contacts, "no message on %s" % self.contacts_topic)
+            self.assertEqual(contacts, 0, "the quadrotor collided with an obstacle")
 
 
 if __name__ == "__main__":
