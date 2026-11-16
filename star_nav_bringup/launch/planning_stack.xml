@@ -20,6 +20,8 @@
     <arg name="cy"/>
     <arg name="fx"/>
     <arg name="fy"/>
+    <!-- Planner obstacle inflation (m): at least the vehicle radius -->
+    <arg name="obstacles_inflation" default="0.099"/>
 
     <!-- ============================== -->
     <!-- 2. EGO Planner                 -->
@@ -42,6 +44,7 @@
         <arg name="cy" value="$(arg cy)"/>
         <arg name="fx" value="$(arg fx)"/>
         <arg name="fy" value="$(arg fy)"/>
+        <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
 
         <!-- Planning parameters -->
         <arg name="max_vel" value="1.5" />

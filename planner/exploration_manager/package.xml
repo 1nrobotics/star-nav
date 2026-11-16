@@ -4,7 +4,7 @@
   <version>1.0.0</version>
   <description>Frontier-based exploration manager for EGO planner</description>
 
-  <maintainer email="your_email@example.com">Your Name</maintainer>
+  <maintainer email="dev@1nrobotics.com">1nRobotics</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>catkin</buildtool_depend>

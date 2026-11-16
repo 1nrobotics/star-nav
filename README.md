@@ -9,6 +9,13 @@ The `main` branch is simulation-first and hardware-independent. Integration
 with specific onboard sensors lives on dedicated hardware branches (see
 [Hardware Guide](docs/HARDWARE.md)).
 
+![MuJoCo simulator (left) and RViz (right) during an exploration mission](site/assets/exploration-demo.jpg)
+
+*Left: the MuJoCo simulator's follow camera. Right: RViz with the flown path
+and the planner's occupancy map.* The [project page](https://1nrobotics.github.io/star-nav/)
+has the full flight video and the simulation architecture (source in
+[`site/`](site/)).
+
 ## Status
 
 - Simulation is the recommended entrypoint and is covered by an automated
@@ -88,6 +95,9 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 - [Hardware Guide](docs/HARDWARE.md)
 - [Licensing Notes](docs/LICENSES.md)
 - [Contributing](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+- [Citing Star Nav](CITATION.cff)
 - [Open-Source Branch Plan](docs/OPEN_SOURCE_PLAN.md)
 
 ## Repository Layout
@@ -102,6 +112,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 - `utils/`: shared ROS messages, plugins, and utilities
 - `docker/`, `docker-compose.yml`: container build and development workflow
 - `scripts/`: helper scripts for the Docker workflow
+- `site/`: project page, published to GitHub Pages by `.github/workflows/pages.yml`
 
 ## Main Entry Points
 

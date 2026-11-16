@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: >-
+  If you use Star Nav in your research, please cite it as below, together
+  with EGO-Planner, on which the planning stack is based.
+title: "Star Nav: quadrotor waypoint exploration with EGO-Planner and a MuJoCo simulator"
+type: software
+authors:
+  - name: 1nRobotics
+repository-code: "https://github.com/1nrobotics/star-nav"
+url: "https://1nrobotics.github.io/star-nav/"
+license: GPL-3.0-only
+keywords:
+  - quadrotor
+  - motion planning
+  - exploration
+  - ROS
+  - MuJoCo
+references:
+  - type: article
+    title: "EGO-Planner: An ESDF-free Gradient-based Local Planner for Quadrotors"
+    authors:
+      - family-names: Zhou
+        given-names: Xin
+      - family-names: Wang
+        given-names: Zhepei
+      - family-names: Ye
+        given-names: Hongkai
+      - family-names: Xu
+        given-names: Chao
+      - family-names: Gao
+        given-names: Fei
+    journal: "IEEE Robotics and Automation Letters"
+    volume: 6
+    issue: 2
+    start: 478
+    end: 485
+    year: 2021
+    doi: 10.1109/LRA.2020.3047728

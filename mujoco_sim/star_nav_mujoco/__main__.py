@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import signal
 import subprocess
 import sys
 
@@ -49,6 +50,9 @@ def main(argv: list[str] | None = None) -> int:
   ap.add_argument('--viewer-port', type=int, default=8080)
   ap.add_argument('--duration', type=float, default=0.0,
                   help='stop after this many simulated seconds')
+  ap.add_argument('--record', default='', metavar='FILE',
+                  help='record a video that follows the quadrotor (needs '
+                  'ffmpeg)')
   args = ap.parse_args(argv)
 
   logging.basicConfig(level=logging.INFO,
@@ -69,11 +73,14 @@ def main(argv: list[str] | None = None) -> int:
                      cmd_port=args.cmd_port, depth_rate=args.depth_rate,
                      realtime_factor=args.realtime_factor,
                      viewer=not args.no_viewer, viewer_port=args.viewer_port,
-                     duration=args.duration)
+                     duration=args.duration, record=args.record)
   simulator = sim.Simulator(cfg)
   logging.info('World: %d obstacles (seed %d), GL backend %s, MuJoCo %s',
                len(simulator.obstacles), args.seed, os.environ['MUJOCO_GL'],
                __import__('mujoco').__version__)
+  # roslaunch stops nodes with SIGINT, then SIGTERM; both should let the
+  # recording finish cleanly.
+  signal.signal(signal.SIGTERM, signal.default_int_handler)
   try:
     sim.run(simulator, rc)
   except KeyboardInterrupt:

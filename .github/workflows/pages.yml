@@ -1,0 +1,42 @@
+name: pages
+
+# Publishes site/ to GitHub Pages. Enable it once in the repository settings:
+# Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read  # also lets gh download release assets
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch demo video
+        # The video is kept out of git and attached to the "site-assets"
+        # release (see site/README.md); without it the page shows the poster.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download site-assets --pattern '*.mp4' --dir site/assets \
+            || echo "::warning::No site-assets release; deploying without the demo video"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

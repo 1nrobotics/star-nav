@@ -20,6 +20,12 @@ collision detection and a browser viewer. It does not use ROS.
 The bridge publishes the same topics as the kinematic simulator, so the
 planner, exploration manager and RViz configuration are unchanged.
 
+ROS runs on the simulator's clock: the launch file sets `/use_sim_time` and
+the bridge publishes `/clock` from the simulation time. If the machine cannot
+keep up (`rt` below 1.00 in the simulator log), the whole stack slows down with
+the physics instead of commanding the quadrotor faster than it can fly. Pass
+`use_sim_time:=false` to `exploration_mujoco.launch` to use wall-clock time.
+
 ## Run
 
 Docker (any OS):
@@ -58,6 +64,7 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | `--depth-rate` | 30 | Depth camera rate (Hz) |
 | `--realtime-factor` | 1.0 | Simulated seconds per wall-clock second |
 | `--no-viewer`, `--viewer-port` | off, 8080 | Web viewer |
+| `--record FILE` | off | Write an MP4 from the viewer's follow camera (needs `ffmpeg`) |
 
 The web viewer listens on all network interfaces (a MuJoCo Studio default
 that cannot be changed yet); do not expose the port on untrusted networks.
@@ -80,6 +87,10 @@ that cannot be changed yet); do not expose the port on untrusted networks.
   well below the 1 m flight altitude), as it would with a real camera.
 - Contacts: the number of physics steps in which the quadrotor touched
   anything, published by the bridge on `/mujoco/contacts`.
+- The quadrotor is 0.19 m from centre to prop tip, so
+  `exploration_mujoco.launch` sets the planner's obstacle inflation to 0.2 m
+  (`obstacles_inflation`) instead of the 0.1 m point-mass default used with the
+  kinematic simulator, which has no collisions.
 
 ## Protocol
 

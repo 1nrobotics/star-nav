@@ -2,6 +2,7 @@
 
 import math
 import os
+import shutil
 
 os.environ.setdefault('MUJOCO_GL', 'egl')
 
@@ -169,3 +170,18 @@ def test_depth_back_projects_onto_pillar(depth_scene):
   assert math.hypot(p[0] - 3.0, p[1]) == pytest.approx(0.5, abs=0.03)
   # Optical axis is the body x axis.
   np.testing.assert_allclose(rot[:, 2], s.rot[:, 0], atol=1e-6)
+
+
+@pytest.mark.skipif(shutil.which('ffmpeg') is None, reason='needs ffmpeg')
+def test_recorder_writes_video(tmp_path):
+  from star_nav_mujoco import record  # pylint: disable=g-import-not-at-top
+  s = sim.Simulator(render_depth=False)
+  path = tmp_path / 'flight.mp4'
+  rec = record.Recorder(s.model, str(path), width=320, height=240, fps=10.0)
+  for _ in range(10):
+    s.step(50)  # 0.1 s
+    rec.maybe_capture(s.data)
+  rec.close()
+  s.close()
+  assert rec.frames == 10
+  assert path.stat().st_size > 1000

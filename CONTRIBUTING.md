@@ -39,7 +39,8 @@ roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
 
 ## Before Opening a PR
 
-- Update user-facing docs when launch commands or prerequisites change.
+- Update user-facing docs when launch commands or prerequisites change,
+  including the project page in `site/` (see `site/README.md`).
 - Keep package license metadata accurate when moving or importing code.
 - Run lightweight checks that match your change:
   - `bash -n` for shell scripts

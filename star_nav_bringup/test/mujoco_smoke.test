@@ -1,19 +1,23 @@
 <launch>
     <!-- Headless end-to-end check with the MuJoCo simulator:
          rostest star_nav_bringup mujoco_smoke.test
-         Use start_sim:=false when the simulator runs elsewhere (Docker). -->
+         Use start_sim:=false when the simulator runs elsewhere (Docker), and
+         sim_args (simulator options, e.g. a realtime factor of 0.5) to check
+         behaviour on a slow machine. -->
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
     <arg name="expected_waypoints" default="12"/>
     <arg name="start_sim" default="true"/>
     <arg name="sim_host" default="127.0.0.1"/>
+    <arg name="sim_args" default=""/>
 
     <include file="$(find star_nav_bringup)/launch/exploration_mujoco.launch">
         <arg name="use_rviz" value="false"/>
         <arg name="viewer" value="false"/>
         <arg name="start_sim" value="$(arg start_sim)"/>
         <arg name="sim_host" value="$(arg sim_host)"/>
+        <arg name="sim_args" value="$(arg sim_args)"/>
         <arg name="exploration_width" value="$(arg exploration_width)"/>
         <arg name="exploration_height" value="$(arg exploration_height)"/>
         <arg name="line_spacing" value="$(arg line_spacing)"/>

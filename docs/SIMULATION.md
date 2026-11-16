@@ -22,6 +22,7 @@ Two simulators are available behind the same ROS topics:
 | Depth camera | CPU point-cloud rendering | OpenGL rendering (EGL or OSMesa) |
 | Collisions | not detected | counted on `/mujoco/contacts` |
 | Visualisation | RViz | browser (http://localhost:8080) and RViz |
+| Clock | wall time | simulation time (`/clock` from the bridge) |
 | Requirements | ROS Noetic | ROS Noetic + Python >= 3.11 (or Docker) |
 
 The kinematic simulator is the quickest check of planner logic; MuJoCo shows
@@ -107,6 +108,10 @@ To override exploration area parameters:
 ```bash
 ./scripts/run_sim_exploration.sh exploration_width:=12 exploration_height:=12 line_spacing:=4
 ```
+
+The kinematic simulator draws a new forest on every run and logs its seed
+(`seed=N`); pass `map_seed:=N` to fly the same forest again. The spawn point is
+always kept clear of obstacles.
 
 ### 3. Trigger waypoint exploration
 

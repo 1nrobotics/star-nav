@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not build, launch or fly as documented
+labels: [bug]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Kinematic simulation (exploration_sim.launch)
+        - MuJoCo simulator / bridge
+        - Planner / exploration manager
+        - Docker / scripts
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ./scripts/run_mujoco_smoke_test.sh
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Docker or native, ROS distro, Python version, GPU / MUJOCO_GL backend, branch and commit.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant roslaunch / simulator output.
+      render: text

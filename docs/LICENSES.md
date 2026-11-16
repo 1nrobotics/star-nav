@@ -16,19 +16,34 @@ repository under GPLv3 terms for redistribution of this combined codebase.
 
 ## Important Subpackage Notes
 
-- `px4ctrl/` already ships its own GPLv3 license file.
-- `utils/DecompROS/` already ships its own BSD 3-Clause license file.
-- `star_nav_bringup/` declares MIT in its package metadata.
-- `mujoco_sim/` (MIT, `pyproject.toml`) and `mujoco_bridge/` (MIT,
-  `package.xml`) are original code. They use these third-party libraries,
-  installed as dependencies and not vendored: MuJoCo (Apache-2.0), NumPy
+Every package declares its license in `package.xml` (or `pyproject.toml`);
+packages with their own license file are marked.
+
+| Package | License | Origin |
+| --- | --- | --- |
+| `planner/bspline_opt`, `path_searching`, `plan_env`, `plan_manage`, `traj_utils` | GPLv3 | EGO-Planner / Fast-Planner |
+| `planner/rosmsg_tcp_bridge` | GPLv3 | EGO-Planner |
+| `planner/exploration_manager` | MIT (`LICENSE`) | original |
+| `px4ctrl` | GPLv3 (`LICENSE`) | upstream px4ctrl |
+| `uav_simulator/local_sensing`, `map_generator`, `mockamap`, `fake_drone` | GPLv3 | EGO-Planner simulator |
+| `uav_simulator/odom_visualization`, `so3_control`, `so3_quadrotor_simulator` | BSD | upstream simulator |
+| `utils/DecompROS/*` | BSD-3-Clause (`utils/DecompROS/LICENSE`) | DecompROS |
+| `utils/catkin_simple`, `utils/quadrotor_msgs` | BSD | upstream |
+| `utils/cmake_utils`, `pose_utils`, `rviz_plugins`, `uav_utils` | LGPLv3 | upstream |
+| `star_nav_bringup`, `rviz_gcs_plugin` | MIT (`LICENSE`) | original |
+| `mujoco_sim`, `mujoco_bridge` | MIT (`LICENSE`) | original |
+
+Notes:
+
+- `mujoco_sim` and `mujoco_bridge` use these third-party libraries, installed
+  as dependencies and not vendored: MuJoCo (Apache-2.0), NumPy
   (BSD-3-Clause), pyzmq (BSD-3-Clause) and libzmq (MPL-2.0).
 - The MuJoCo quadrotor controller implements the published geometric
   tracking controller of Lee, Leok and McClamroch (2010); no code was copied.
-- Several imported planning packages inherited `TODO` license placeholders in
-  `package.xml`; for the main planning/simulation path, this branch aligns those
-  placeholders with the GPLv3 license used by the upstream EGO-Planner /
-  Fast-Planner repositories.
+- Several imported packages inherited `TODO` license placeholders in
+  `package.xml`. They are aligned with their upstream: GPLv3 for the
+  EGO-Planner packages (`rosmsg_tcp_bridge`, `fake_drone`, and the planning
+  path), BSD-3-Clause for DecompROS, whose license file ships with it.
 
 ## Practical Guidance
 

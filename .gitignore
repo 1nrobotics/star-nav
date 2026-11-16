@@ -35,3 +35,6 @@ Makefile
 
 # Archives
 *.tar.gz
+
+# Demo video is hosted outside git (see site/README.md)
+site/assets/*.mp4
