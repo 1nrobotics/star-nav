@@ -8,11 +8,24 @@ The simulation flow launches:
 
 - procedural map generation
 - the EGO planner stack
-- a kinematic quadrotor model with a simulated depth camera
+- a simulated quadrotor with a depth camera
 - the exploration manager
 - optional RViz visualization
 
 No flight controller or sensor hardware is required.
+
+Two simulators are available behind the same ROS topics:
+
+| | Kinematic (`exploration_sim.launch`) | MuJoCo (`exploration_mujoco.launch`) |
+| --- | --- | --- |
+| Vehicle | follows the planner command exactly | rigid-body dynamics, motor lag, SE(3) flight controller |
+| Depth camera | CPU point-cloud rendering | OpenGL rendering (EGL or OSMesa) |
+| Collisions | not detected | counted on `/mujoco/contacts` |
+| Visualisation | RViz | browser (http://localhost:8080) and RViz |
+| Requirements | ROS Noetic | ROS Noetic + Python >= 3.11 (or Docker) |
+
+The kinematic simulator is the quickest check of planner logic; MuJoCo shows
+how well the plan can actually be flown.
 
 ## Headless Test (any Docker host)
 
@@ -31,6 +44,36 @@ default 9 m x 9 m mission and checks that:
 - the flown path covers at least 80% of the exploration area
 
 It exits non-zero on failure, so it can be used in CI and before every push.
+
+## MuJoCo Simulator
+
+Headless test in Docker (any OS):
+
+```bash
+./scripts/run_mujoco_smoke_test.sh
+```
+
+It runs the same mission as the kinematic test and additionally fails if the
+quadrotor touches an obstacle.
+
+Interactive, in Docker (Linux host, after `./docker/local-deploy.sh`):
+
+```bash
+SIM=mujoco ./scripts/run_sim_exploration.sh
+```
+
+This starts the simulator container and the planning stack; open
+http://localhost:8080 for the 3D view and trigger exploration as below.
+
+Native (Ubuntu 20.04 with ROS Noetic, plus any Python >= 3.11):
+
+```bash
+./scripts/setup_mujoco_env.sh
+roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true
+rostest star_nav_bringup mujoco_smoke.test          # headless test
+```
+
+Details, options and the bridge protocol: [mujoco_sim/README.md](../mujoco_sim/README.md).
 
 ## Interactive Workflow: Docker (Linux host)
 

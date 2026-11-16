@@ -18,15 +18,20 @@ easy to review.
 ```bash
 cd /path/to/star-nav
 ./scripts/run_smoke_test.sh          # headless end-to-end test, any Docker host
+./scripts/run_mujoco_smoke_test.sh   # same, on the MuJoCo simulator
 ./docker/local-deploy.sh             # Linux dev container with RViz
-./scripts/run_sim_exploration.sh
+./scripts/run_sim_exploration.sh     # SIM=mujoco for the MuJoCo simulator
 ```
 
 ### Native ROS Noetic workflow
 
+The repository is the `src` folder of a catkin workspace:
+
 ```bash
+git clone https://github.com/1nrobotics/star-nav.git ~/catkin_ws/src
+cd ~/catkin_ws
 source /opt/ros/noetic/setup.bash
-rosdep install --from-paths . --ignore-src -r -y
+rosdep install --from-paths src --ignore-src -r -y
 catkin_make -DCMAKE_BUILD_TYPE=Release
 source devel/setup.bash
 roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
@@ -40,6 +45,8 @@ roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
   - `bash -n` for shell scripts
   - `./scripts/run_smoke_test.sh` (or `rostest star_nav_bringup sim_smoke.test`)
     when planner, launch or Docker behavior changes; CI runs it on every PR
+  - `pytest` in `mujoco_sim/` and `./scripts/run_mujoco_smoke_test.sh` when
+    the MuJoCo simulator, the bridge or its protocol changes
   - targeted catkin build if you touched package build files
 
 ## Style

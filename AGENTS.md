@@ -40,3 +40,10 @@ working here should optimize for a clean public contributor experience.
 - Documentation: make simulation commands copy-pasteable.
 - Simulation: `rostest star_nav_bringup sim_smoke.test` (or
   `docker compose run --rm test`) must pass.
+- MuJoCo simulator or bridge changes: `pytest` in `mujoco_sim/` and
+  `rostest star_nav_bringup mujoco_smoke.test` (or
+  `./scripts/run_mujoco_smoke_test.sh`) must pass. Keep
+  `mujoco_sim/star_nav_mujoco/protocol.py` and `mujoco_bridge/src/protocol.h`
+  in sync.
+- Keep `mujoco_sim/` free of ROS imports; ROS-specific code belongs in
+  `mujoco_bridge/`.
