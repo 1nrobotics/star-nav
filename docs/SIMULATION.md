@@ -109,6 +109,10 @@ To override exploration area parameters:
 ./scripts/run_sim_exploration.sh exploration_width:=12 exploration_height:=12 line_spacing:=4
 ```
 
+The kinematic simulator draws a new forest on every run and logs its seed
+(`seed=N`); pass `map_seed:=N` to fly the same forest again. The spawn point is
+always kept clear of obstacles.
+
 ### 3. Trigger waypoint exploration
 
 Open a second terminal in the repository root and run:

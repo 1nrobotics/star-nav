@@ -43,6 +43,7 @@ double _x_size, _y_size, _z_size;
 double _x_l, _x_h, _y_l, _y_h, _w_l, _w_h, _h_l, _h_h;
 double _z_limit, _sensing_range, _resolution, _sense_rate, _init_x, _init_y;
 double _min_dist;
+double _start_clearance;  // keep obstacles away from the spawn point
 
 bool _map_ok = false;
 bool _has_odom = false;
@@ -120,6 +121,12 @@ void RandomMapGenerate() {
     double radius1 = rand_radius_(eng);
     double radius2 = rand_radius2_(eng);
 
+    if ((Eigen::Vector2d(x, y) - Eigen::Vector2d(_init_x, _init_y)).norm() <
+        _start_clearance + radius1) {
+      --i;
+      continue;
+    }
+
     // draw a circle centered at (x,y,z)
     Eigen::Vector3d cpt;
     for (double angle = 0.0; angle < 6.282; angle += _resolution / 2) {
@@ -177,7 +184,13 @@ void RandomMapGenerateCylinder() {
     y = rand_y(eng);
     w = rand_w(eng);
     inf = rand_inf(eng);
-    
+
+    if ((Eigen::Vector2d(x, y) - Eigen::Vector2d(_init_x, _init_y)).norm() <
+        _start_clearance + w * inf / 2.0) {
+      i--;
+      continue;
+    }
+
     bool flag_continue = false;
     for ( auto p : obs_position )
       if ( (Eigen::Vector2d(x,y) - p).norm() < _min_dist /*metres*/ )
@@ -406,6 +419,9 @@ int main(int argc, char** argv) {
   n.param("sensing/rate", _sense_rate, 10.0);
 
   n.param("min_distance", _min_dist, 1.0);
+  n.param("start_clearance", _start_clearance, 1.5);
+  int seed_param;
+  n.param("ObstacleShape/seed", seed_param, 0);  // 0: random map every run
 
   _x_l = -_x_size / 2.0;
   _x_h = +_x_size / 2.0;
@@ -418,8 +434,7 @@ int main(int argc, char** argv) {
 
   ros::Duration(0.5).sleep();
 
-  unsigned int seed = rd();
-  // unsigned int seed = 2433201515;
+  unsigned int seed = seed_param > 0 ? static_cast<unsigned int>(seed_param) : rd();
   cout << "seed=" << seed << endl;
   eng.seed(seed);
 

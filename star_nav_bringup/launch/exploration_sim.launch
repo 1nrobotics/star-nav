@@ -16,6 +16,9 @@
     <arg name="map_size_x" default="50.0"/>
     <arg name="map_size_y" default="50.0"/>
     <arg name="map_size_z" default="5.0"/>
+    <!-- Forest layout: 0 draws a new map each run (its seed is logged as
+         "seed=N"); set map_seed:=N to reproduce one. -->
+    <arg name="map_seed" default="0"/>
     <arg name="odom_topic" default="visual_slam/odom" />
 
     <!-- Exploration Parameters -->
@@ -34,7 +37,8 @@
         <param name="map/y_size" value="$(arg map_size_y)" />
         <param name="map/z_size" value="$(arg map_size_z)" />
         <param name="map/resolution" value="0.1"/>
-        <param name="ObstacleShape/seed" value="1"/>
+        <param name="ObstacleShape/seed" value="$(arg map_seed)"/>
+        <param name="start_clearance" value="1.5"/>
         <param name="map/obs_num" value="100"/>
         <param name="ObstacleShape/lower_rad" value="0.5"/>
         <param name="ObstacleShape/upper_rad" value="0.7"/>
