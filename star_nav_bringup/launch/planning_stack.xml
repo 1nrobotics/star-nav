@@ -22,6 +22,18 @@
     <arg name="fy"/>
     <!-- Planner obstacle inflation (m): at least the vehicle radius -->
     <arg name="obstacles_inflation" default="0.099"/>
+    <!-- Vehicle: speed limits, waypoint height, and for ground robots the
+         height below which depth returns are floor rather than obstacles -->
+    <arg name="max_vel" default="1.5"/>
+    <arg name="max_acc" default="3.0"/>
+    <arg name="planning_horizon" default="7.5"/>
+    <arg name="altitude" default="1.0"/>
+    <arg name="obstacle_min_height" default="-1000.0"/>
+    <!-- Exploration timing (s) and arrival distance (m) -->
+    <arg name="waypoint_timeout" default="30.0"/>
+    <arg name="waypoint_tolerance" default="0.5"/>
+    <arg name="max_exploration_time" default="300.0"/>
+    <arg name="rviz_config" default="$(find star_nav_bringup)/config/star_nav.rviz"/>
 
     <!-- ============================== -->
     <!-- 2. EGO Planner                 -->
@@ -45,11 +57,12 @@
         <arg name="fx" value="$(arg fx)"/>
         <arg name="fy" value="$(arg fy)"/>
         <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
+        <arg name="obstacle_min_height" value="$(arg obstacle_min_height)"/>
 
         <!-- Planning parameters -->
-        <arg name="max_vel" value="1.5" />
-        <arg name="max_acc" value="3.0" />
-        <arg name="planning_horizon" value="7.5" />
+        <arg name="max_vel" value="$(arg max_vel)" />
+        <arg name="max_acc" value="$(arg max_acc)" />
+        <arg name="planning_horizon" value="$(arg planning_horizon)" />
         <arg name="use_distinctive_trajs" value="false" />
 
         <!-- Manual target mode for exploration -->
@@ -97,16 +110,17 @@
         <!-- FSM Parameters -->
         <param name="fsm/fsm_exec_dt" value="0.1" type="double"/>
         <param name="fsm/replan_time" value="0.05" type="double"/>
-        <param name="fsm/max_exploration_time" value="300.0" type="double"/>
-        <param name="fsm/waypoint_timeout" value="30.0" type="double"/>
+        <param name="fsm/max_exploration_time" value="$(arg max_exploration_time)" type="double"/>
+        <param name="fsm/waypoint_timeout" value="$(arg waypoint_timeout)" type="double"/>
+        <param name="fsm/waypoint_tolerance" value="$(arg waypoint_tolerance)" type="double"/>
 
         <!-- Waypoint Mode Parameters -->
         <param name="exploration/center_x" value="$(arg exploration_center_x)" type="double"/>
         <param name="exploration/center_y" value="$(arg exploration_center_y)" type="double"/>
-        <param name="exploration/center_z" value="1.0" type="double"/>
+        <param name="exploration/center_z" value="$(arg altitude)" type="double"/>
         <param name="exploration/width" value="$(arg exploration_width)" type="double"/>
         <param name="exploration/height" value="$(arg exploration_height)" type="double"/>
-        <param name="exploration/altitude" value="1.0" type="double"/>
+        <param name="exploration/altitude" value="$(arg altitude)" type="double"/>
         <param name="exploration/line_spacing" value="$(arg line_spacing)" type="double"/>
         <param name="exploration/enable_corner_smoothing" value="$(arg enable_corner_smoothing)" type="bool"/>
     </node>
@@ -115,7 +129,7 @@
     <!-- 5. RViz Visualization          -->
     <!-- ============================== -->
     <node name="rviz" pkg="rviz" type="rviz"
-          args="-d $(find star_nav_bringup)/config/star_nav.rviz"
+          args="-d $(arg rviz_config)"
           if="$(arg use_rviz)">
         <!-- Suppress the modal Noetic end-of-life dialog -->
         <env name="DISABLE_ROS1_EOL_WARNINGS" value="1" />

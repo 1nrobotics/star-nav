@@ -40,6 +40,14 @@ Notes:
   (BSD-3-Clause), pyzmq (BSD-3-Clause) and libzmq (MPL-2.0).
 - The MuJoCo quadrotor controller implements the published geometric
   tracking controller of Lee, Leok and McClamroch (2010); no code was copied.
+- The optional Microduck robot (`--robot microduck`) is not in this
+  repository. `scripts/setup_mujoco_env.sh --microduck` downloads, for local
+  use, Pollen Robotics' model from `pollen-robotics/microduck_rl` (MJCF
+  Apache-2.0; meshes **CC BY-NC-SA 4.0, non-commercial**) and the
+  `velstand.onnx` walking policy from `pollen-robotics/microduck-policies`
+  (Apache-2.0), and installs onnxruntime (MIT) and Rhoban's BAM actuator
+  model (Apache-2.0). Do not commit or redistribute the meshes outside the
+  terms of their licence. Details: [mujoco_sim/README.md](../mujoco_sim/README.md#microduck).
 - Several imported packages inherited `TODO` license placeholders in
   `package.xml`. They are aligned with their upstream: GPLv3 for the
   EGO-Planner packages (`rosmsg_tcp_bridge`, `fake_drone`, and the planning

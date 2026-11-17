@@ -6,11 +6,24 @@
 #
 #   ./scripts/setup_mujoco_env.sh                 # pick a Python >= 3.11
 #   PYTHON=/path/to/python3.12 ./scripts/setup_mujoco_env.sh
+#   ./scripts/setup_mujoco_env.sh --microduck     # also the Microduck biped
+#
+# --microduck adds onnxruntime and the BAM servo model, and downloads the
+# Microduck model and walking policy (not in this repository; the meshes are
+# CC BY-NC-SA 4.0, see mujoco_sim/README.md) to ~/.cache/star_nav/microduck.
 
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 venv="${repo}/mujoco_sim/.venv"
+
+microduck=0
+for arg in "$@"; do
+  case "${arg}" in
+    --microduck) microduck=1 ;;
+    *) echo "Unknown option: ${arg}" >&2; exit 2 ;;
+  esac
+done
 
 find_python() {
   local c
@@ -36,4 +49,13 @@ echo "Using ${python} ($("${python}" --version))"
 "${venv}/bin/pip" install --quiet --upgrade pip
 "${venv}/bin/pip" install --quiet -e "${repo}/mujoco_sim[test]"
 "${venv}/bin/python" -c 'import mujoco, zmq; print("mujoco", mujoco.__version__, "pyzmq", zmq.__version__)'
+
+if (( microduck )); then
+  "${venv}/bin/pip" install --quiet -e "${repo}/mujoco_sim[test,microduck]"
+  # BAM pins requires-python < 3.13 but is pure Python; install the commit the
+  # walking policy was trained with.
+  bam="$("${venv}/bin/python" -c 'from star_nav_mujoco.microduck import BAM_REQUIREMENT; print(BAM_REQUIREMENT)')"
+  "${venv}/bin/pip" install --quiet --no-deps --ignore-requires-python "${bam}"
+  "${venv}/bin/python" -m star_nav_mujoco --fetch-microduck
+fi
 echo "Ready: ${venv}"

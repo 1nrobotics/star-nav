@@ -1,15 +1,21 @@
-"""Quadrotor simulator: MuJoCo physics, flight controller and depth camera."""
+"""Robot simulator: MuJoCo physics, controller and depth camera.
+
+The robot is the quadrotor (default) or the Microduck biped; both follow the
+planner's position setpoints and carry the same depth camera.
+"""
 
 from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 import struct
 import time
 
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import microduck
 from star_nav_mujoco import protocol
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
@@ -21,6 +27,10 @@ log = logging.getLogger('star_nav_mujoco')
 # looks along +z with +y down.
 _CAM_TO_OPTICAL = np.diag([1.0, -1.0, -1.0])
 
+QUADROTOR = 'quadrotor'
+MICRODUCK = 'microduck'
+ROBOTS = (QUADROTOR, MICRODUCK)
+
 
 @dataclasses.dataclass
 class SimConfig:
@@ -28,7 +38,8 @@ class SimConfig:
   params: quadrotor.Params = dataclasses.field(default_factory=quadrotor.Params)
   gains: quadrotor.Gains = dataclasses.field(default_factory=quadrotor.Gains)
   start: tuple[float, float, float] = (0.0, 0.0, 1.0)
-  timestep: float = 0.002
+  robot: str = QUADROTOR
+  timestep: float = 0.002  # the Microduck always uses microduck.TIMESTEP
   depth_range: float = 10.0  # returns beyond this are reported as 0
   cmd_timeout: float = 0.5  # hold position when commands stop (s)
 
@@ -47,18 +58,43 @@ class Simulator:
       obstacles = world.generate(
           dataclasses.replace(self.cfg.world, start=self.cfg.start[:2]))
     self.obstacles = obstacles
-    xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
-                          self.cfg.timestep)
-    self.model = mujoco.MjModel.from_xml_string(xml)
+    if self.cfg.robot not in ROBOTS:
+      raise ValueError(f'unknown robot {self.cfg.robot!r}')
+    self.duck = self.cfg.robot == MICRODUCK
+    if self.duck:
+      root = microduck.check_assets()
+      xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
+                            microduck.TIMESTEP, quadrotor_body=False,
+                            marker_radius=0.025)
+      spec = mujoco.MjSpec.from_string(xml)
+      microduck.attach(spec, self.cfg.start[:2], root)
+      self.model = spec.compile()
+      self.body_name, cam = microduck.TRUNK, microduck.CAMERA
+    else:
+      xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
+                            self.cfg.timestep)
+      self.model = mujoco.MjModel.from_xml_string(xml)
+      self.body_name, cam = 'quad', 'depth'
     self.data = mujoco.MjData(self.model)
     self.controller = quadrotor.Controller(self.cfg.params, self.cfg.gains)
 
     m = self.model
-    self._body = m.body('quad').id
-    self._cam = m.camera('depth').id
+    self._body = m.body(self.body_name).id
+    self._robot_bodies = {b for b in range(m.nbody)
+                          if m.body_rootid[b] == m.body_rootid[self._body]}
+    self._ground = m.geom('ground').id
+    self._cam = m.camera(cam).id
     self._mocap = m.body_mocapid[m.body('setpoint').id]
     self.contact_steps = 0
+    if self.duck:
+      self.walker = microduck.Walker(self.model, self.data)
+      self.tracker = microduck.Tracker()
+      self._fallen = False
     self.reset()
+
+    # The depth camera does not see visual-only geoms.
+    self._depth_option = mujoco.MjvOption()
+    self._depth_option.geomgroup[scene.MARKER_GROUP] = 0
 
     self._renderer = None
     if render_depth:
@@ -78,13 +114,27 @@ class Simulator:
 
   def reset(self) -> None:
     mujoco.mj_resetData(self.model, self.data)
-    hover = self.cfg.params.mass * quadrotor.GRAVITY / 4.0
-    self.data.ctrl[:] = hover
-    self.data.act[:] = hover
-    self.controller.reset()
     self.contact_steps = 0
-    self.set_command(quadrotor.Command.hover(self.cfg.start), t=0.0)
+    if self.duck:
+      self.data.qpos[2] = microduck.STAND_HEIGHT
+      self.walker.reset()
+      self._fallen = False
+      start = (*self.cfg.start[:2], microduck.STAND_HEIGHT)
+    else:
+      hover = self.cfg.params.mass * quadrotor.GRAVITY / 4.0
+      self.data.ctrl[:] = hover
+      self.data.act[:] = hover
+      self.controller.reset()
+      start = self.cfg.start
+    self.set_command(quadrotor.Command.hover(start), t=0.0)
     mujoco.mj_forward(self.model, self.data)
+
+  def replace_data(self, data: mujoco.MjData) -> None:
+    """Continues from ``data`` (e.g. after a reset in the web viewer)."""
+    self.data = data
+    if self.duck:
+      # The servo model and policy hold the MjData they act on.
+      self.walker = microduck.Walker(self.model, data)
 
   @property
   def time(self) -> float:
@@ -120,6 +170,9 @@ class Simulator:
   # -- stepping ----------------------------------------------------------------
 
   def step(self, n: int = 1) -> None:
+    if self.duck:
+      self._step_duck(n)
+      return
     m, d = self.model, self.data
     p = self.cfg.params
     for _ in range(n):
@@ -132,11 +185,33 @@ class Simulator:
       if d.ncon and self._touching():
         self.contact_steps += 1
 
+  def _step_duck(self, n: int) -> None:
+    m, d, w = self.model, self.data, self.walker
+    for _ in range(n):
+      if w.policy_due:
+        cmd = self._active_command()
+        yaw = 2.0 * math.atan2(d.qpos[6], d.qpos[3])  # trunk stays upright
+        w.twist = self.tracker.twist(cmd.pos, cmd.vel, d.qpos[0:3], yaw)
+      w.before_step()
+      mujoco.mj_step(m, d)
+      if d.ncon and self._touching():
+        self.contact_steps += 1
+    if not self._fallen and d.qpos[2] < 0.6 * microduck.STAND_HEIGHT:
+      self._fallen = True
+      log.warning('Microduck fell at t=%.2f (trunk at %s)', d.time,
+                  np.round(d.qpos[0:3], 3))
+
   def _touching(self) -> bool:
+    """True if the robot touches anything but the ground (it walks on it)."""
     bodies = self.model.geom_bodyid
+    robot = self._robot_bodies
     for c in self.data.contact[:self.data.ncon]:
-      if bodies[c.geom1] == self._body or bodies[c.geom2] == self._body:
-        return True
+      a, b = bodies[c.geom1] in robot, bodies[c.geom2] in robot
+      if a == b:
+        continue  # self-contact or not the robot
+      if self.duck and self._ground in (c.geom1, c.geom2):
+        continue
+      return True
     return False
 
   # -- sensing -----------------------------------------------------------------
@@ -152,7 +227,8 @@ class Simulator:
     """Renders the onboard depth camera (millimetres, 0 = no return)."""
     if self._renderer is None:
       raise RuntimeError('Simulator was created with render_depth=False')
-    self._renderer.update_scene(self.data, camera=self._cam)
+    self._renderer.update_scene(self.data, camera=self._cam,
+                                scene_option=self._depth_option)
     depth = self._renderer.render()
     valid = (depth > 0) & (depth < self.cfg.depth_range)
     mm = np.where(valid, depth * 1000.0 + 0.5, 0).astype(np.uint16)
@@ -211,14 +287,15 @@ def run(sim: Simulator, rc: RunConfig) -> None:
     handle = None
     if rc.viewer:
       from star_nav_mujoco import viewer  # pylint: disable=g-import-not-at-top
-      handle = viewer.launch(rc.viewer_port, stack)
+      handle = viewer.launch(rc.viewer_port, stack, sim.body_name)
       handle.sync(sim.model, sim.data)
     viewer_period = 1.0 / rc.viewer_rate
     recorder = None
     if rc.record:
       from star_nav_mujoco import record  # pylint: disable=g-import-not-at-top
       recorder = stack.enter_context(
-          contextlib.closing(record.Recorder(sim.model, rc.record)))
+          contextlib.closing(record.Recorder(sim.model, rc.record,
+                                             body=sim.body_name)))
       log.info('Recording to %s', rc.record)
     next_view = 0.0
 
@@ -273,7 +350,7 @@ def run(sim: Simulator, rc: RunConfig) -> None:
           break
         model, data = handle.sync(sim.model, sim.data)
         if data is not None and data is not sim.data:
-          sim.data = data  # the viewer reset or reloaded the state
+          sim.replace_data(data)  # the viewer reset or reloaded the state
         next_view = wall + viewer_period
 
       if wall - stats_at >= 10.0:

@@ -217,7 +217,9 @@ namespace ego_planner
     // trigger_ = true;
     init_pt_ = odom_pos_;
 
-    Eigen::Vector3d end_wp(msg->pose.position.x, msg->pose.position.y, 1.0);
+    // Plan to the waypoint's own height (the exploration altitude), not a
+    // fixed 1 m: a ground robot's waypoints are at its body height.
+    Eigen::Vector3d end_wp(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z);
 
     planNextWaypoint(end_wp);
   }

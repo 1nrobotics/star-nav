@@ -40,6 +40,7 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/max_ray_length", mp_.max_ray_length_, -0.1);
   node_.param("grid_map/enable_pointcloud_raycasting", mp_.enable_pointcloud_raycasting_, false);
 
+  node_.param("grid_map/obstacle_min_height", mp_.obstacle_min_height_, -1.0e9);
   node_.param("grid_map/visualization_truncate_height", mp_.visualization_truncate_height_, -0.1);
   node_.param("grid_map/virtual_ceil_yp", mp_.virtual_ceil_yp_, -0.1);
   node_.param("grid_map/virtual_ceil_yn", mp_.virtual_ceil_yn_, -0.1);
@@ -388,7 +389,9 @@ void GridMap::raycastProcess()
       }
       else
       {
-        vox_idx = setCacheOccupancy(pt_w, 1);
+        // A ground robot sees the floor it walks on: such returns clear the
+        // ray but are not obstacles.
+        vox_idx = setCacheOccupancy(pt_w, pt_w(2) < mp_.obstacle_min_height_ ? 0 : 1);
       }
     }
 
