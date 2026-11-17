@@ -86,6 +86,16 @@ rostest star_nav_bringup mujoco_smoke.test sensor:=lidar
 SENSOR=lidar ./scripts/run_mujoco_smoke_test.sh
 ```
 
+Quadruped: the same stack on DeepRobotics' Lite3, walking with its upstream
+velocity policy, with the lidar on its back by default. The model and policy
+(BSD-3-Clause) are downloaded, not committed:
+
+```bash
+./scripts/setup_mujoco_env.sh --lite3
+roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true
+rostest star_nav_bringup lite3_smoke.test
+```
+
 Details, options and the bridge protocol: [mujoco_sim/README.md](../mujoco_sim/README.md).
 
 ## Interactive Workflow: Docker (Linux host)

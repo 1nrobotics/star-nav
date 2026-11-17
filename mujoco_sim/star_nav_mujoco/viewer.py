@@ -15,17 +15,19 @@ from mujoco.studio import plugin
 from mujoco.studio import viewer_handle
 from mujoco.studio import viewer_protocol
 
+from star_nav_mujoco import scene
+
 log = logging.getLogger('star_nav_mujoco')
 
 
 class FollowQuadrotor(plugin.ViewerPlugin):
-  """Starts the browser camera orbiting around the quadrotor."""
+  """Starts the browser camera orbiting around the robot."""
 
   @messages.handler
   def on_post_model(self, event: messages.PostModelEvent) -> None:
     cam = self.viewer.camera
     cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-    cam.trackbodyid = event.model.body('quad').id
+    cam.trackbodyid = scene.robot_body(event.model)
     cam.distance = 5.0
     cam.azimuth = -135.0
     cam.elevation = -25.0

@@ -56,10 +56,12 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 
 | Option | Default | Meaning |
 | --- | --- | --- |
+| `--robot` | quadrotor | `quadrotor` or `lite3` (quadruped, see below) |
+| `--fetch-lite3` | | Download the Lite3 model and policy, then exit |
 | `--seed` | 1 | Forest layout |
 | `--map-size X Y` | 50 50 | Forest extent (m) |
-| `--pillars`, `--rings` | 100, 50 | Obstacle counts |
-| `--start X Y Z` | 0 0 1 | Spawn and initial hover point |
+| `--pillars`, `--rings` | 100, 50 (lite3: 0 rings) | Obstacle counts |
+| `--start X Y Z` | 0 0 1 (lite3: 0 0 0.34) | Spawn and initial hover point |
 | `--bind` | 127.0.0.1 | ZeroMQ address (`0.0.0.0` for a bridge on another host) |
 | `--sensor` | depth | `depth`, `lidar` or `both` ([docs/SENSORS.md](../docs/SENSORS.md)) |
 | `--depth-rate` | 30 | Depth camera rate (Hz) |
@@ -70,6 +72,38 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 
 The web viewer listens on all network interfaces (a MuJoCo Studio default
 that cannot be changed yet); do not expose the port on untrusted networks.
+
+## Lite3 quadruped
+
+DeepRobotics' Lite3 walks with DeepRobotics' own velocity policy:
+
+```bash
+./scripts/setup_mujoco_env.sh --lite3     # onnxruntime + model + policy
+roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true
+rostest star_nav_bringup lite3_smoke.test  # sensor:=depth for the camera
+```
+
+- Model and policy are downloaded at pinned commits into
+  `~/.cache/star_nav/lite3` (`STAR_NAV_LITE3_DIR` to change), not committed:
+  MJCF and meshes from
+  [deep_robotics_model](https://github.com/DeepRoboticsLab/deep_robotics_model),
+  `policy.onnx` from
+  [Lite3_rl_deploy](https://github.com/DeepRoboticsLab/Lite3_rl_deploy) (both
+  BSD-3-Clause; the policy is checked by SHA-256).
+- Walking: the policy runs at 83 Hz on body angular velocity, gravity
+  direction, the velocity command, joint positions and velocities and its
+  last action, as upstream's ONNX runner; joint PD (kp 30, kd 1, 30 N m) at
+  every 2 ms physics step. Measured on flat ground: forward 0.5 → 0.49 m/s,
+  sideways 0.3 → 0.24 m/s, turn 0.5 → 0.45 rad/s.
+- `lite3.Tracker` turns the planner's setpoint into a body-frame command
+  (setpoint velocity plus 1.5/s × position error, at most 0.8 m/s) and turns
+  towards the planner's yaw; it stands on a resting setpoint.
+- Sensors: the depth camera at the front of the torso, the lidar 10 cm above
+  the torso centre (`exploration_lite3.launch` uses a Mid-360-like −7° … 52°
+  field of view). Neither sees the robot's own legs (geom group 3).
+- Contacts with the floor do not count; anything else does.
+- The planner moves at 0.6 m/s with 0.3 m inflation, waypoints at torso
+  height, and treats returns below 10 cm as floor.
 
 ## Model
 
