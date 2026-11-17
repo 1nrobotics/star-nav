@@ -182,15 +182,13 @@ namespace ego_planner
       /*** FSM ***/
       if (exec_state_ == WAIT_TARGET)
         changeFSMExecState(GEN_NEW_TRAJ, "TRIG");
-      else
-      {
-        while (exec_state_ != EXEC_TRAJ)
-        {
-          ros::spinOnce();
-          ros::Duration(0.001).sleep();
-        }
+      else if (exec_state_ == EXEC_TRAJ)
         changeFSMExecState(REPLAN_TRAJ, "TRIG");
-      }
+      // In any other state the FSM is about to plan and uses the new global
+      // trajectory. Do not wait for EXEC_TRAJ here: this runs in a subscriber
+      // callback, so waiting blocks later waypoints, and if the current
+      // trajectory ends meanwhile the FSM settles in WAIT_TARGET with
+      // have_trigger_ false and the wait never ends.
 
       // visualization_->displayGoalPoint(end_pt_, Eigen::Vector4d(1, 0, 0, 1), 0.3, 0);
       visualization_->displayGlobalPathList(gloabl_traj, 0.1, 0);
