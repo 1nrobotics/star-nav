@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Records the planner's setpoints during one exploration mission.
 
-The browser demo replays them through the same quadrotor controller, so the
-drone flies the path EGO-Planner actually planned in this world. Run with the
-MuJoCo stack up (exploration_mujoco.launch); it triggers the mission and
-writes JSON when the exploration finishes:
+The browser demo replays them through the same controller as the simulator
+(the quadrotor's SE(3) controller, or the Microduck's tracker and policy), so
+the robot follows the path EGO-Planner actually planned in this world. Run
+with the MuJoCo stack up; it triggers the mission and writes JSON when the
+exploration finishes:
 
+    # with exploration_mujoco.launch running
     python3 site/tools/record_setpoints.py site/assets/mujoco/setpoints.json
+    # with exploration_microduck.launch running (slow robot: fewer samples)
+    python3 site/tools/record_setpoints.py site/assets/mujoco/microduck_setpoints.json 10
 """
 
 import json
@@ -17,11 +21,12 @@ from geometry_msgs.msg import PoseStamped
 from quadrotor_msgs.msg import PositionCommand
 from std_msgs.msg import String
 
-RATE = 25.0  # Hz kept in the file
+RATE = 25.0  # Hz kept in the file (default)
 
 
 def main():
     out = sys.argv[1]
+    rate = float(sys.argv[2]) if len(sys.argv) > 2 else RATE
     rospy.init_node("record_setpoints")
     rows, state = [], {"done": False, "t0": None, "last": -1.0}
 
@@ -30,7 +35,7 @@ def main():
         if state["t0"] is None:
             state["t0"] = t
         t -= state["t0"]
-        if t - state["last"] < 1.0 / RATE - 1e-6:
+        if t - state["last"] < 1.0 / rate - 1e-6:
             return
         state["last"] = t
         p, v, a = m.position, m.velocity, m.acceleration
@@ -52,7 +57,7 @@ def main():
         rospy.sleep(0.5)
     with open(out, "w") as f:
         json.dump({"fields": ["t", "x", "y", "z", "vx", "vy", "vz", "ax", "ay", "az",
-                              "yaw", "yaw_rate"], "rate": RATE, "rows": rows},
+                              "yaw", "yaw_rate"], "rate": rate, "rows": rows},
                   f, separators=(",", ":"))
     print("wrote %d setpoints (%.1f s) to %s" % (len(rows), rows[-1][0], out))
 
