@@ -1,0 +1,221 @@
+<mujoco model="star_nav">
+  <option timestep="0.002" integrator="implicitfast"/>
+  <statistic extent="6" center="0 0 0.5"/>
+  <visual>
+    <global offwidth="1280" offheight="720"
+            azimuth="-135" elevation="-30"/>
+    <map znear="0.008" zfar="15"/>
+    <quality shadowsize="4096"/>
+    <headlight ambient="0.35 0.35 0.35" diffuse="0.5 0.5 0.5"/>
+  </visual>
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient" rgb1="0.55 0.7 0.9"
+             rgb2="0.95 0.97 1" width="512" height="512"/>
+    <texture name="grid" type="2d" builtin="checker" rgb1="0.78 0.8 0.78"
+             rgb2="0.7 0.72 0.7" width="512" height="512"/>
+    <material name="ground" texture="grid" texrepeat="25 25"/>
+    <material name="pillar" rgba="0.35 0.55 0.3 1"/>
+    <material name="ring" rgba="0.85 0.55 0.2 1"/>
+    <material name="frame" rgba="0.15 0.15 0.18 1"/>
+    <material name="prop" rgba="0.9 0.4 0.1 0.8"/>
+    <material name="target" rgba="0.1 0.6 1 0.6"/>
+  </asset>
+  <default>
+    <default class="obstacle">
+      <geom contype="1" conaffinity="1"/>
+    </default>
+    <default class="drone">
+      <geom contype="2" conaffinity="1" mass="0"/>
+    </default>
+  </default>
+  <worldbody>
+    <light pos="4 -4 12" dir="-0.3 0.3 -1" diffuse="0.8 0.8 0.8" castshadow="true"/>
+    <geom name="ground" type="plane" size="30 30 0.1" material="ground"
+          contype="1" conaffinity="2"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="7.693 -3.439 1.215" size="0.3812 1.215"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="-7.91 2.183 0.3648" size="0.4034 0.3648"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="-2.659 -6.407 0.3338" size="0.1868 0.3338"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="3.103 -5.612 1.292" size="0.3638 1.292"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="-5.721 3.025 0.5989" size="0.234 0.5989"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="-0.7398 -6.185 0.15" size="0.3118 0.15"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="-1.169 6.974 0.609" size="0.429 0.609"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="2.827 -3.841 0.3315" size="0.4634 0.3315"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="-6.941 2.686 0.2434" size="0.172 0.2434"/>
+    <geom class="obstacle" type="cylinder" material="pillar" pos="-3.189 4.901 1.03" size="0.274 1.03"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.42 2.693 0.7497 1.414 2.674 1.037" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.414 2.674 1.037 1.397 2.618 1.304" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.397 2.618 1.304 1.37 2.529 1.534" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.37 2.529 1.534 1.335 2.412 1.711" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.335 2.412 1.711 1.294 2.277 1.821" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.294 2.277 1.821 1.25 2.131 1.859" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.25 2.131 1.859 1.206 1.986 1.821" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.206 1.986 1.821 1.165 1.851 1.711" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.165 1.851 1.711 1.13 1.734 1.534" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.13 1.734 1.534 1.103 1.645 1.304" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.103 1.645 1.304 1.086 1.589 1.037" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.086 1.589 1.037 1.08 1.57 0.7497" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.08 1.57 0.7497 1.086 1.589 0.4625" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.086 1.589 0.4625 1.103 1.645 0.1949" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.103 1.645 0.1949 1.13 1.734 -0.03495" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.13 1.734 -0.03495 1.165 1.851 -0.2113" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.165 1.851 -0.2113 1.206 1.986 -0.3221" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.206 1.986 -0.3221 1.25 2.131 -0.3599" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.25 2.131 -0.3599 1.294 2.277 -0.3221" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.294 2.277 -0.3221 1.335 2.412 -0.2113" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.335 2.412 -0.2113 1.37 2.529 -0.03495" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.37 2.529 -0.03495 1.397 2.618 0.1949" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.397 2.618 0.1949 1.414 2.674 0.4625" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.414 2.674 0.4625 1.42 2.693 0.7497" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.643 0.8215 0.793 -5.649 0.8003 1.01" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.649 0.8003 1.01 -5.666 0.7381 1.212" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.666 0.7381 1.212 -5.693 0.6392 1.386" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.693 0.6392 1.386 -5.728 0.5104 1.519" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.728 0.5104 1.519 -5.769 0.3603 1.603" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.769 0.3603 1.603 -5.813 0.1993 1.632" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.813 0.1993 1.632 -5.857 0.03822 1.603" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.857 0.03822 1.603 -5.898 -0.1118 1.519" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.898 -0.1118 1.519 -5.934 -0.2407 1.386" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.934 -0.2407 1.386 -5.961 -0.3396 1.212" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.961 -0.3396 1.212 -5.978 -0.4017 1.01" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.978 -0.4017 1.01 -5.984 -0.4229 0.793" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.984 -0.4229 0.793 -5.978 -0.4017 0.576" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.978 -0.4017 0.576 -5.961 -0.3396 0.3737" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.961 -0.3396 0.3737 -5.934 -0.2407 0.2" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.934 -0.2407 0.2 -5.898 -0.1118 0.0667" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.898 -0.1118 0.0667 -5.857 0.03822 -0.01709" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.857 0.03822 -0.01709 -5.813 0.1993 -0.04566" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.813 0.1993 -0.04566 -5.769 0.3603 -0.01709" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.769 0.3603 -0.01709 -5.728 0.5104 0.0667" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.728 0.5104 0.0667 -5.693 0.6392 0.2" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.693 0.6392 0.2 -5.666 0.7381 0.3737" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.666 0.7381 0.3737 -5.649 0.8003 0.576" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-5.649 0.8003 0.576 -5.643 0.8215 0.793" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.221 -5.955 0.7562 7.23 -5.976 1.053" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.23 -5.976 1.053 7.257 -6.037 1.329" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.257 -6.037 1.329 7.299 -6.136 1.566" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.299 -6.136 1.566 7.354 -6.264 1.748" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.354 -6.264 1.748 7.418 -6.413 1.862" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.418 -6.413 1.862 7.487 -6.572 1.901" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.487 -6.572 1.901 7.555 -6.732 1.862" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.555 -6.732 1.862 7.619 -6.881 1.748" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.619 -6.881 1.748 7.674 -7.009 1.566" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.674 -7.009 1.566 7.717 -7.107 1.329" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.717 -7.107 1.329 7.743 -7.169 1.053" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.743 -7.169 1.053 7.752 -7.19 0.7562" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.752 -7.19 0.7562 7.743 -7.169 0.4599" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.743 -7.169 0.4599 7.717 -7.107 0.1837" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.717 -7.107 0.1837 7.674 -7.009 -0.05351" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.674 -7.009 -0.05351 7.619 -6.881 -0.2355" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.619 -6.881 -0.2355 7.555 -6.732 -0.3499" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.555 -6.732 -0.3499 7.487 -6.572 -0.3889" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.487 -6.572 -0.3889 7.418 -6.413 -0.3499" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.418 -6.413 -0.3499 7.354 -6.264 -0.2355" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.354 -6.264 -0.2355 7.299 -6.136 -0.05351" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.299 -6.136 -0.05351 7.257 -6.037 0.1837" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.257 -6.037 0.1837 7.23 -5.976 0.4599" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="7.23 -5.976 0.4599 7.221 -5.955 0.7562" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.329 -2.24 0.758 1.335 -2.257 0.9775" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.335 -2.257 0.9775 1.352 -2.309 1.182" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.352 -2.309 1.182 1.378 -2.391 1.358" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.378 -2.391 1.358 1.413 -2.498 1.492" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.413 -2.498 1.492 1.454 -2.623 1.577" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.454 -2.623 1.577 1.497 -2.757 1.606" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.497 -2.757 1.606 1.54 -2.891 1.577" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.54 -2.891 1.577 1.581 -3.015 1.492" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.581 -3.015 1.492 1.616 -3.122 1.358" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.616 -3.122 1.358 1.642 -3.204 1.182" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.642 -3.204 1.182 1.659 -3.256 0.9775" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.659 -3.256 0.9775 1.665 -3.274 0.758" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.665 -3.274 0.758 1.659 -3.256 0.5385" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.659 -3.256 0.5385 1.642 -3.204 0.334" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.642 -3.204 0.334 1.616 -3.122 0.1584" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.616 -3.122 0.1584 1.581 -3.015 0.0236" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.581 -3.015 0.0236 1.54 -2.891 -0.06112" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.54 -2.891 -0.06112 1.497 -2.757 -0.09002" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.497 -2.757 -0.09002 1.454 -2.623 -0.06112" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.454 -2.623 -0.06112 1.413 -2.498 0.0236" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.413 -2.498 0.0236 1.378 -2.391 0.1584" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.378 -2.391 0.1584 1.352 -2.309 0.334" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.352 -2.309 0.334 1.335 -2.257 0.5385" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="1.335 -2.257 0.5385 1.329 -2.24 0.758" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.959 -5.753 0.7117 3.96 -5.775 1.003" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.96 -5.775 1.003 3.961 -5.841 1.274" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.961 -5.841 1.274 3.964 -5.946 1.506" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.964 -5.946 1.506 3.967 -6.083 1.685" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.967 -6.083 1.685 3.971 -6.242 1.797" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.971 -6.242 1.797 3.975 -6.412 1.835" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.975 -6.412 1.835 3.979 -6.583 1.797" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.979 -6.583 1.797 3.983 -6.742 1.685" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.983 -6.742 1.685 3.987 -6.879 1.506" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.987 -6.879 1.506 3.989 -6.984 1.274" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.989 -6.984 1.274 3.991 -7.05 1.003" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.991 -7.05 1.003 3.991 -7.072 0.7117" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.991 -7.072 0.7117 3.991 -7.05 0.4208" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.991 -7.05 0.4208 3.989 -6.984 0.1498" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.989 -6.984 0.1498 3.987 -6.879 -0.08294" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.987 -6.879 -0.08294 3.983 -6.742 -0.2615" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.983 -6.742 -0.2615 3.979 -6.583 -0.3738" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.979 -6.583 -0.3738 3.975 -6.412 -0.4121" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.975 -6.412 -0.4121 3.971 -6.242 -0.3738" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.971 -6.242 -0.3738 3.967 -6.083 -0.2615" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.967 -6.083 -0.2615 3.964 -5.946 -0.08294" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.964 -5.946 -0.08294 3.961 -5.841 0.1498" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.961 -5.841 0.1498 3.96 -5.775 0.4208" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="3.96 -5.775 0.4208 3.959 -5.753 0.7117" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.175 2.78 0.7603 -7.172 2.76 1.05" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.172 2.76 1.05 -7.164 2.702 1.321" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.164 2.702 1.321 -7.151 2.61 1.553" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.151 2.61 1.553 -7.134 2.49 1.731" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.134 2.49 1.731 -7.115 2.35 1.843" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.115 2.35 1.843 -7.093 2.199 1.881" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.093 2.199 1.881 -7.072 2.049 1.843" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.072 2.049 1.843 -7.052 1.909 1.731" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.052 1.909 1.731 -7.035 1.789 1.553" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.035 1.789 1.553 -7.022 1.696 1.321" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.022 1.696 1.321 -7.014 1.638 1.05" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.014 1.638 1.05 -7.011 1.619 0.7603" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.011 1.619 0.7603 -7.014 1.638 0.4702" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.014 1.638 0.4702 -7.022 1.696 0.1999" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.022 1.696 0.1999 -7.035 1.789 -0.03224" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.035 1.789 -0.03224 -7.052 1.909 -0.2104" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.052 1.909 -0.2104 -7.072 2.049 -0.3223" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.072 2.049 -0.3223 -7.093 2.199 -0.3605" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.093 2.199 -0.3605 -7.115 2.35 -0.3223" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.115 2.35 -0.3223 -7.134 2.49 -0.2104" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.134 2.49 -0.2104 -7.151 2.61 -0.03224" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.151 2.61 -0.03224 -7.164 2.702 0.1999" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.164 2.702 0.1999 -7.172 2.76 0.4702" size="0.04"/>
+    <geom class="obstacle" type="capsule" material="ring" fromto="-7.172 2.76 0.4702 -7.175 2.78 0.7603" size="0.04"/>
+    
+    <body name="quad" pos="0 0 1">
+      <freejoint name="quad"/>
+      <inertial pos="0 0 0" mass="1.0" diaginertia="0.0049 0.0049 0.0088"/>
+      <geom class="drone" type="box" material="frame" size="0.06 0.045 0.02"/>
+      <site name="rotor0" pos="0.12 0.12 0.02"/>
+      <geom class="drone" type="cylinder" material="prop" pos="0.12 0.12 0.025" size="0.065 0.004"/>
+      <geom class="drone" type="capsule" material="frame" fromto="0 0 0 0.12 0.12 0" size="0.008"/>
+      <site name="rotor1" pos="-0.12 -0.12 0.02"/>
+      <geom class="drone" type="cylinder" material="prop" pos="-0.12 -0.12 0.025" size="0.065 0.004"/>
+      <geom class="drone" type="capsule" material="frame" fromto="0 0 0 -0.12 -0.12 0" size="0.008"/>
+      <site name="rotor2" pos="0.12 -0.12 0.02"/>
+      <geom class="drone" type="cylinder" material="prop" pos="0.12 -0.12 0.025" size="0.065 0.004"/>
+      <geom class="drone" type="capsule" material="frame" fromto="0 0 0 0.12 -0.12 0" size="0.008"/>
+      <site name="rotor3" pos="-0.12 0.12 0.02"/>
+      <geom class="drone" type="cylinder" material="prop" pos="-0.12 0.12 0.025" size="0.065 0.004"/>
+      <geom class="drone" type="capsule" material="frame" fromto="0 0 0 -0.12 0.12 0" size="0.008"/>
+      <camera name="depth" pos="0.14 0 0" xyaxes="0 -1 0 0 0 1"
+              fovy="63.5803" resolution="640 480"/>
+      <camera name="chase" mode="trackcom" pos="-3 -1.5 1.4" xyaxes="0.45 -0.89 0 0.3 0.15 0.94"/>
+    </body>
+    <body name="setpoint" mocap="true" pos="0 0 1">
+      <geom type="sphere" size="0.06" material="target" contype="0" conaffinity="0"
+            group="2"/>
+    </body>
+  </worldbody>
+  <actuator>
+    <general name="motor0" site="rotor0" gear="0 0 1 0 0 0.016" dyntype="filter" dynprm="0.02" ctrlrange="0 6.0" ctrllimited="true"/>
+    <general name="motor1" site="rotor1" gear="0 0 1 0 0 0.016" dyntype="filter" dynprm="0.02" ctrlrange="0 6.0" ctrllimited="true"/>
+    <general name="motor2" site="rotor2" gear="0 0 1 0 0 -0.016" dyntype="filter" dynprm="0.02" ctrlrange="0 6.0" ctrllimited="true"/>
+    <general name="motor3" site="rotor3" gear="0 0 1 0 0 -0.016" dyntype="filter" dynprm="0.02" ctrlrange="0 6.0" ctrllimited="true"/>
+  </actuator>
+</mujoco>
