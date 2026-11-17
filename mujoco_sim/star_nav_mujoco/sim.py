@@ -15,6 +15,7 @@ import time
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import house
 from star_nav_mujoco import lidar as lidar_lib
 from star_nav_mujoco import lite3
 from star_nav_mujoco import protocol
@@ -40,6 +41,7 @@ class SimConfig:
   gains: quadrotor.Gains = dataclasses.field(default_factory=quadrotor.Gains)
   start: tuple[float, float, float] = (0.0, 0.0, 1.0)
   robot: str = QUADROTOR
+  house: bool = False  # the house (house.py) instead of the forest
   timestep: float = 0.002  # the Lite3 always uses lite3.TIMESTEP
   depth_range: float = 10.0  # returns beyond this are reported as 0
   cmd_timeout: float = 0.5  # hold position when commands stop (s)
@@ -56,6 +58,8 @@ class Simulator:
       obstacles: list[world.Obstacle] | None = None,
   ):
     self.cfg = cfg or SimConfig()
+    if obstacles is None and self.cfg.house:
+      obstacles = []
     if obstacles is None:
       obstacles = world.generate(
           dataclasses.replace(self.cfg.world, start=self.cfg.start[:2]))
@@ -63,10 +67,11 @@ class Simulator:
     if self.cfg.robot not in ROBOTS:
       raise ValueError(f'unknown robot {self.cfg.robot!r}')
     self.legged = self.cfg.robot == LITE3
+    extra = house.xml() if self.cfg.house else ''
     if self.legged:
       root = lite3.check_assets()
       xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
-                            lite3.TIMESTEP, quadrotor_body=False)
+                            lite3.TIMESTEP, quadrotor_body=False, extra=extra)
       spec = mujoco.MjSpec.from_string(xml)
       lite3.attach(spec, self.cfg.start[:2], root, lidar=self.cfg.lidar is not None)
       self.model = spec.compile()
@@ -74,7 +79,8 @@ class Simulator:
     else:
       lidar_mount = self.cfg.lidar.mount if self.cfg.lidar else None
       xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
-                            self.cfg.timestep, lidar_mount=lidar_mount)
+                            self.cfg.timestep, lidar_mount=lidar_mount,
+                            extra=extra)
       self.model = mujoco.MjModel.from_xml_string(xml)
       body, cam = 'quad', 'depth'
     self.data = mujoco.MjData(self.model)
@@ -85,6 +91,12 @@ class Simulator:
     self._robot_bodies = {b for b in range(m.nbody)
                           if m.body_rootid[b] == m.body_rootid[self._body]}
     self._ground = m.geom('ground').id
+    # Where a walking robot's feet and lower legs may touch: the ground, ramps,
+    # stairs.
+    self._walkable = {self._ground} | {
+        g for g in range(m.ngeom) if m.geom(g).name.startswith(house.WALKABLE)}
+    self._feet = {g for g in range(m.ngeom)  # and lower legs
+                  if m.geom(g).name.endswith(('FOOT_collision', 'SHANK_collision'))}
     self._cam = m.camera(cam).id
     self._mocap = m.body_mocapid[m.body('setpoint').id]
     if self.legged:
@@ -243,6 +255,8 @@ class Simulator:
       if a == b:
         continue  # self-contact or not the robot
       if self.legged and self._ground in (c.geom1, c.geom2):
+        continue
+      if ({c.geom1, c.geom2} & self._feet) and ({c.geom1, c.geom2} & self._walkable):
         continue
       touching = True
       pair = (int(c.geom1), int(c.geom2))

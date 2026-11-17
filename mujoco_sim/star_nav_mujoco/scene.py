@@ -107,8 +107,12 @@ def build_xml(
     timestep: float = 0.002,
     lidar_mount: tuple[float, float, float] | None = None,
     quadrotor_body: bool = True,
+    extra: str = '',
 ) -> str:
-  """Returns the scene; without ``quadrotor_body`` the robot is added later."""
+  """Returns the scene; without ``quadrotor_body`` the robot is added later.
+
+  ``extra`` is more worldbody XML (e.g. ``house.xml()``).
+  """
   robot = _quadrotor_xml(params, start, lidar_mount) if quadrotor_body else ''
   actuators = _actuators_xml(params) if quadrotor_body else ''
   return f'''<mujoco model="star_nav">
@@ -147,6 +151,7 @@ def build_xml(
     <geom name="ground" type="plane" size="{_f(30, 30, 0.1)}" material="ground"
           contype="1" conaffinity="2"/>
     {_obstacles_xml(obstacles)}
+    {extra}
     {robot}
     <body name="setpoint" mocap="true" pos="{_f(*start)}">
       <geom type="sphere" size="0.06" material="target" contype="0" conaffinity="0"

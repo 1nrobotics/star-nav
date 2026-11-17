@@ -94,7 +94,12 @@ velocity policy, with the lidar on its back by default. The model and policy
 ./scripts/setup_mujoco_env.sh --lite3
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true
 rostest star_nav_bringup lite3_smoke.test
+rostest star_nav_bringup lite3_smoke.test world:=house   # ramp, stairs, furniture
 ```
+
+`world:=house` is a furnished house with a ramp, a platform and stairs on the
+mission route; a terrain filter lets the planner walk over ramps and low
+steps instead of treating them as obstacles.
 
 Details, options and the bridge protocol: [mujoco_sim/README.md](../mujoco_sim/README.md).
 

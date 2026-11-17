@@ -39,6 +39,10 @@ class Recorder:
     self._camera.distance = 5.0
     self._camera.azimuth = -135.0
     self._camera.elevation = -25.0
+    if model.body(self._camera.trackbodyid).name != 'quad':
+      # A walking robot: closer and from above, so walls do not hide it.
+      self._camera.distance = 3.2
+      self._camera.elevation = -50.0
     self._ffmpeg = subprocess.Popen(
         [ffmpeg, '-loglevel', 'error', '-y', '-f', 'rawvideo',
          '-pix_fmt', 'rgb24', '-s', f'{width}x{height}', '-r', f'{fps:g}',

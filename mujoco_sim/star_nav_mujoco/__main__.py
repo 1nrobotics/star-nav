@@ -44,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
   ap.add_argument('--fetch-lite3', action='store_true',
                   help='download the Lite3 model and walking policy, then '
                   'exit')
+  ap.add_argument('--world', choices=('forest', 'house'), default='forest',
+                  help='forest (random pillars and rings) or house (rooms, a '
+                  'ramp and stairs; house.py)')
   ap.add_argument('--seed', type=int, default=1, help='forest seed')
   ap.add_argument('--map-size', type=float, nargs=2, default=(50.0, 50.0),
                   metavar=('X', 'Y'))
@@ -103,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
       world=world.WorldConfig(size_x=args.map_size[0], size_y=args.map_size[1],
                               seed=args.seed, pillar_num=args.pillars,
                               ring_num=args.rings),
-      start=tuple(args.start), robot=args.robot)
+      start=tuple(args.start), robot=args.robot, house=args.world == 'house')
   if args.sensor != 'depth':
     cfg.lidar = lidar.LidarConfig(
         beams=args.lidar_beams, vfov=tuple(args.lidar_vfov),

@@ -2,7 +2,9 @@
     <!-- Headless end-to-end check with the Lite3 quadruped in MuJoCo:
          rostest star_nav_bringup lite3_smoke.test
          Needs the robot: the lite3 option of scripts/setup_mujoco_env.sh. sensor:=depth
-         walks the same mission with the depth camera. -->
+         walks the same mission with the depth camera; world:=house walks it
+         through rooms and over a ramp, a platform and stairs (it must get
+         onto the platform). -->
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
@@ -11,6 +13,8 @@
     <arg name="sim_host" default="127.0.0.1"/>
     <arg name="sim_args" default=""/>
     <arg name="sensor" default="lidar"/>
+    <arg name="world" default="forest"/>
+    <arg name="terrain" default="true"/>
     <arg name="lidar_raycasting" default="true"/>
     <arg name="lidar_max_hits" default="6"/>
     <arg name="sliding_map" default="true"/>
@@ -23,6 +27,8 @@
         <arg name="sim_host" value="$(arg sim_host)"/>
         <arg name="sim_args" value="$(arg sim_args)"/>
         <arg name="sensor" value="$(arg sensor)"/>
+        <arg name="world" value="$(arg world)"/>
+        <arg name="terrain" value="$(arg terrain)"/>
         <arg name="lidar_raycasting" value="$(arg lidar_raycasting)"/>
         <arg name="lidar_max_hits" value="$(arg lidar_max_hits)"/>
         <arg name="sliding_map" value="$(arg sliding_map)"/>
@@ -38,11 +44,17 @@
         <param name="exploration_height" value="$(arg exploration_height)"/>
         <param name="contacts_topic" value="/mujoco/contacts"/>
         <!-- Check the sensor data and the planner's map against the world -->
-        <param name="obstacles_topic" value="/mujoco/obstacles"/>
-        <param name="sensor_cloud_topic" value="/drone_0_pcl_render_node/cloud" if="$(eval sensor == 'lidar')"/>
+        <param name="obstacles_topic" value="/mujoco/obstacles" if="$(eval world == 'forest')"/>
+        <!-- House: the torso (0.34 m above the feet) on the 0.21 m platform -->
+        <param name="min_peak_height" value="0.5" if="$(eval world == 'house')"/>
+        <!-- The raw lidar (the terrain filter's output is obstacle columns) -->
+        <param name="sensor_cloud_topic" value="$(eval '/drone_0_lidar/cloud' if terrain else '/drone_0_pcl_render_node/cloud')" if="$(eval sensor == 'lidar')"/>
         <param name="min_map_recall" value="0.95" if="$(eval sensor == 'lidar')"/>
         <param name="mission_timeout" value="420.0"/>
         <!-- 0.3 m inflation (three voxels): inflated voxels reach ~0.52 m -->
         <param name="phantom_tol" value="0.65"/>
+        <!-- The terrain filter extrudes each obstacle cell to the map top, so
+             voxels above a short pillar are expected: no phantom check -->
+        <param name="max_phantom_ratio" value="1.0" if="$(eval sensor == 'lidar' and terrain)"/>
     </test>
 </launch>

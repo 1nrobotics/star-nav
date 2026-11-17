@@ -41,6 +41,10 @@ class SimSmokeTest(unittest.TestCase):
         self.settle_time = rospy.get_param("~settle_time", 5.0)
         self.mission_timeout = rospy.get_param("~mission_timeout", 180.0)
         self.contacts_topic = rospy.get_param("~contacts_topic", "")
+        # The robot must get this high at least once (e.g. onto a platform);
+        # off by default.
+        self.min_peak_height = rospy.get_param("~min_peak_height", -1e9)
+        self.peak_height = -1e9
         self.contacts = None
 
         self.accuracy = None
@@ -60,7 +64,8 @@ class SimSmokeTest(unittest.TestCase):
 
         rospy.Subscriber("/exploration/state", String, self.state_cb, queue_size=100)
         rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb, queue_size=10)
-        rospy.Subscriber("/rosout_agg", Log, self.log_cb, queue_size=100)
+        # /rosout, not /rosout_agg: rostest runs no rosout node to aggregate.
+        rospy.Subscriber("/rosout", Log, self.log_cb, queue_size=100)
         self.trigger_pub = rospy.Publisher("/exploration/trigger", PoseStamped, queue_size=1)
         if self.contacts_topic:
             rospy.Subscriber(self.contacts_topic, UInt32, self.contacts_cb, queue_size=10)
@@ -76,6 +81,7 @@ class SimSmokeTest(unittest.TestCase):
         with self.lock:
             self.min_xy = [min(self.min_xy[0], p.x), min(self.min_xy[1], p.y)]
             self.max_xy = [max(self.max_xy[0], p.x), max(self.max_xy[1], p.y)]
+            self.peak_height = max(self.peak_height, p.z)
 
     def contacts_cb(self, msg):
         with self.lock:
@@ -128,9 +134,10 @@ class SimSmokeTest(unittest.TestCase):
             span_y = self.max_xy[1] - self.min_xy[1]
             problems = list(self.problems)
             contacts = self.contacts
-
-        rospy.loginfo("[sim_smoke] waypoints=%d span=(%.2f, %.2f) problems=%d contacts=%s",
-                      reached, span_x, span_y, len(problems), contacts)
+            peak = self.peak_height
+        rospy.loginfo("[sim_smoke] waypoints=%d span=(%.2f, %.2f) problems=%d contacts=%s peak_z=%.2f",
+                      reached, span_x, span_y, len(problems), contacts, peak)
+        self.assertGreaterEqual(peak, self.min_peak_height, "never got high enough")
         self.assertEqual(problems, [], "exploration reported: %s" % problems)
         self.assertEqual(reached, self.expected_waypoints, "unexpected number of waypoints")
         self.assertGreaterEqual(span_x, self.coverage_ratio * self.width, "x coverage too small")

@@ -124,3 +124,44 @@ def test_lidar_does_not_see_the_robot():
   assert nearest > 0.9 * height / math.sin(math.radians(22.5))
   assert np.allclose(scan.pos[:2], s.pos[:2] + 0.0, atol=0.05)
   s.close()
+
+
+def _house(start, yaw):
+  cfg = sim.SimConfig(start=(start[0], start[1], lite3.STAND_HEIGHT),
+                      robot=sim.LITE3, house=True)
+  s = sim.Simulator(cfg, render_depth=False)
+  s.data.qpos[3:7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
+  s.step(int(1.0 / lite3.TIMESTEP))
+  return s
+
+
+def _walk_y(s, y0, y1, speed, yaw):
+  """Moves the setpoint along x = 1.5 (the terrain corridor) at ``speed``."""
+  d = 1.0 if y1 > y0 else -1.0
+  y, peak = y0, 0.0
+  for _ in range(int(abs(y1 - y0) / speed / 0.02) + 300):
+    y = min(y + d * speed * 0.02, y1) if d > 0 else max(y + d * speed * 0.02, y1)
+    vel = np.array([0.0, d * speed if y != y1 else 0.0, 0.0])
+    s.set_command(quadrotor.Command(np.array([1.5, y, lite3.STAND_HEIGHT]), vel,
+                                    np.zeros(3), yaw, 0.0))
+    s.step(int(0.02 / lite3.TIMESTEP))
+    peak = max(peak, s.pos[2])
+  return peak
+
+
+@needs_lite3
+@pytest.mark.parametrize('up', ['ramp', 'stairs'])
+def test_walks_over_the_house_ramp_platform_and_stairs(up):
+  from star_nav_mujoco import house  # pylint: disable=g-import-not-at-top
+  if up == 'ramp':
+    s = _house((1.5, -4.0), math.pi / 2)
+    peak = _walk_y(s, -4.0, 3.0, 0.45, math.pi / 2)
+    end = 3.0
+  else:
+    s = _house((1.5, 3.0), -math.pi / 2)
+    peak = _walk_y(s, 3.0, -4.0, 0.45, -math.pi / 2)
+    end = -4.0
+  assert peak > lite3.STAND_HEIGHT + house.RISE - 0.03  # on the platform
+  assert abs(s.pos[1] - end) < 0.2
+  assert not s._fallen and s.contact_steps == 0
+  s.close()
