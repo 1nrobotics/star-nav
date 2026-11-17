@@ -76,9 +76,10 @@ void WaypointGenerator::generateWaypoints(const Eigen::Vector3d& start_pos) {
 }
 
 bool WaypointGenerator::isValidWaypoint(const Eigen::Vector3d& pos) {
-  // Check if position is in free space
-  if (grid_map_->getInflateOccupancy(pos) != 0) {
-    return false; // Occupied or unknown
+  // Not inside an inflated obstacle. Outside the stored map (-1, e.g. beyond
+  // a sliding map's window) nothing is known yet, so the waypoint is kept.
+  if (grid_map_->getInflateOccupancy(pos) == 1) {
+    return false;
   }
 
   // Check if within map bounds

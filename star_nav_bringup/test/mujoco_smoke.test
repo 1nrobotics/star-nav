@@ -14,6 +14,9 @@
     <arg name="sim_args" default=""/>
     <arg name="sensor" default="depth"/>
     <arg name="lidar_raycasting" default="true"/>
+    <arg name="lidar_max_hits" default="6"/>
+    <arg name="sliding_map" default="true"/>
+    <arg name="show_occ_time" default="false"/>
 
     <include file="$(find star_nav_bringup)/launch/exploration_mujoco.launch">
         <arg name="use_rviz" value="false"/>
@@ -23,6 +26,9 @@
         <arg name="sim_args" value="$(arg sim_args)"/>
         <arg name="sensor" value="$(arg sensor)"/>
         <arg name="lidar_raycasting" value="$(arg lidar_raycasting)"/>
+        <arg name="lidar_max_hits" value="$(arg lidar_max_hits)"/>
+        <arg name="sliding_map" value="$(arg sliding_map)"/>
+        <arg name="show_occ_time" value="$(arg show_occ_time)"/>
         <arg name="exploration_width" value="$(arg exploration_width)"/>
         <arg name="exploration_height" value="$(arg exploration_height)"/>
         <arg name="line_spacing" value="$(arg line_spacing)"/>

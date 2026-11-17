@@ -73,10 +73,18 @@ Notes:
 | Update | log-odds, same as depth: hits raise, rays lower | local box cleared, every point of the current scan marked occupied |
 | Memory | keeps what left the field of view (e.g. right below the vehicle) | none: only the latest scan |
 | Free space | cleared along every ray | not represented |
-| Noise / stray returns | filtered: a voxel needs ~6 consecutive hits | every return is an obstacle at once |
-| Latency for a new obstacle | ~0.6 s (6 scans at 10 Hz; 0.9 m at 1.5 m/s) | one scan (0.1 s) |
+| Noise / stray returns | filtered: a return alone counts as one hit; a voxel needs ~6 | every return is an obstacle at once |
+| Latency for a new obstacle | 1–2 scans for a surface hit by several beams (`lidar_max_hits`, see below); 6 scans (0.6 s) with `lidar_max_hits:=1` | one scan (0.1 s) |
 | Obstacle that moves away | cleared after 2 scans that see through it (0.12 s measured) | gone with the next scan |
 | Mission on seed 1 (≥ 3 runs each) | 12/12 waypoints, 0 contacts, 0 phantom voxels, all nearby pillars mapped | same |
+
+**Hits per scan.** With ray casting each voxel gets one update per scan. By
+default (`max_hits_per_update` 1, upstream) that is one hit however many
+returns landed in it, so a new obstacle needs 6 scans. With the lidar the
+launch file sets `lidar_max_hits:=6`: a voxel with k returns gets k hits (at
+most 6), as in ROG-Map. A surface a few metres away puts several returns into
+each voxel and is confirmed in one or two scans; a single stray return still
+counts once and is filtered as before.
 
 In this static forest both work equally well. Ray-casting is the default
 because it gives the map the same meaning as with the depth camera, so the
@@ -107,6 +115,23 @@ moves on. Real lidars also return nothing from black, specular or glass
 surfaces, so treating a missing return as free space would erase real
 obstacles, so grid_map does not do it. Implementation
 details and measurements: [planner/plan_env/POINTCLOUD_RAYCASTING_FIX.md](../planner/plan_env/POINTCLOUD_RAYCASTING_FIX.md).
+
+## Map Memory: Sliding Window
+
+By default grid_map stores the whole map (`map_size_x/y/z`): 50 x 50 x 5 m at
+0.1 m is 12.5 million voxels, ~250 MB per vehicle, almost all of it far from
+the vehicle, and the vehicle cannot leave that box. With `sliding_map:=true`
+(the default in `exploration_mujoco.launch`) it stores only a window of
+`sliding_size` x `sliding_size` m (20 m) around the vehicle, the full map
+height. The window follows the vehicle once it has moved 1 m; it is a ring
+buffer, so nothing is copied: voxels that leave are forgotten (unknown) and
+their memory is reused for the voxels that enter. Peak memory in the lidar
+replay below: 89 MB instead of 249 MB.
+
+The planner treats positions outside the stored map as occupied, so the
+window must cover the planning horizon (7.5 m here) with margin: 20 m gives
+at least 9 m around the vehicle. `getRegion()` (used by the exploration
+manager for mission bounds) still reports the configured map size.
 
 ## Lidar Options
 

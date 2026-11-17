@@ -29,6 +29,16 @@
   <arg name="lidar_offset" default="[0.0, 0.0, 0.0]"/>
   <!-- Map voxels below this height are not published for RViz (display only) -->
   <arg name="visualization_min_height" default="-1000.0"/>
+  <!-- A voxel hit by k rays in one update gets k hits, up to this many (1:
+       one hit per update, upstream). Lets a dense lidar confirm an obstacle
+       in one scan while a single stray return still counts once. -->
+  <arg name="max_hits_per_update" default="1"/>
+  <!-- Store only a window (sliding_size x sliding_size m) that follows the
+       vehicle instead of the whole map. Outside it nothing is known. -->
+  <arg name="sliding_map" default="false"/>
+  <arg name="sliding_size" default="20.0"/>
+  <!-- Log the map update time every 5 s -->
+  <arg name="show_occ_time" default="false"/>
 
   <arg name="point_num"/>
   <arg name="point0_x"/>
@@ -131,12 +141,17 @@
     <param name="grid_map/max_ray_length" value="4.5"/>
     <param name="grid_map/obstacle_min_height" value="$(arg obstacle_min_height)"/>
     <param name="grid_map/enable_pointcloud_raycasting" value="$(arg pointcloud_raycasting)"/>
+    <param name="grid_map/max_hits_per_update" value="$(arg max_hits_per_update)"/>
+    <param name="grid_map/sliding_map" value="$(arg sliding_map)"/>
+    <param name="grid_map/sliding_size_x" value="$(arg sliding_size)"/>
+    <param name="grid_map/sliding_size_y" value="$(arg sliding_size)"/>
+    <param name="grid_map/sliding_threshold" value="1.0"/>
     <rosparam param="grid_map/lidar_offset" subst_value="true">$(arg lidar_offset)</rosparam>
 
     <param name="grid_map/virtual_ceil_height"   value="2.9"/>
     <param name="grid_map/visualization_truncate_height"   value="1.8"/>
     <param name="grid_map/visualization_min_height"   value="$(arg visualization_min_height)"/>
-    <param name="grid_map/show_occ_time"  value="false"/>
+    <param name="grid_map/show_occ_time"  value="$(arg show_occ_time)"/>
     <param name="grid_map/pose_type"     value="1"/>  
     <param name="grid_map/frame_id"      value="world"/>
 

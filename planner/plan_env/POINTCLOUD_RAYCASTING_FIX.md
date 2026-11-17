@@ -292,6 +292,116 @@ instead; those hide problem 2 and are marked "body".
   hand; a moving obstacle in the MuJoCo world with a clearing-time check in
   `mujoco_smoke.test` would guard it.
 
+## ROG-Map-Style Map Update (2026-11)
+
+Three ideas from [ROG-Map](https://github.com/hku-mars/ROG-Map) (HKU MARS,
+GPL-3.0; also the map of SUPER), re-implemented in this EGO-Planner **v1**
+`grid_map` without copying its code, plus one bug fix. The external API the
+planner uses (`getInflateOccupancy`, `getResolution`, `getRegion`,
+`getOdomDepthTimeout`) is unchanged.
+
+### 1. Hits per scan (`grid_map/max_hits_per_update`, default 1)
+
+Each voxel gets one log-odds update per scan: a hit if at least as many rays
+ended in it as passed through it (unchanged). New: the hit is weighted by the
+number of rays that ended in the voxel, capped at `max_hits_per_update`.
+With the defaults (`p_hit` 0.65, from unknown at `p_min` 0.12 to `p_occ`
+0.80) a voxel needs 6 hits: 6 scans before, 1 scan for a surface with at
+least 6 returns per voxel now. A single stray return still counts once. The
+lidar launch uses 6; depth keeps 1.
+
+### 2. Incremental inflation
+
+`occupancy_buffer_inflate_` is now a counter per voxel: the number of
+occupied voxels within the inflation distance (> 0 means occupied for the
+planner). Every occupancy change goes through `setLogOdds()`, which adds or
+removes the voxel's contribution when it crosses `p_occ`. This replaces the
+per-update "clear the updated box and re-inflate every occupied voxel in it"
+of `clearAndInflateLocalMap()` (that function now only forgets the margin
+shell, as before). It also fixes stale inflation: a forgotten voxel used to
+leave its inflated neighbours behind. The per-scan "replace" path
+(`enable_pointcloud_raycasting` false) still writes the buffer directly.
+
+### 3. Sliding map (`grid_map/sliding_map`, `sliding_size_x/y`, `sliding_threshold`)
+
+Indices stay global (relative to `map_origin_`); the stored voxels are a
+window `[window_min_, window_min_ + map_voxel_num_)` addressed as a ring
+buffer (per-axis lookup tables, `toAddress`/`addressIfInMap`). When the
+vehicle has moved `sliding_threshold` from the window centre,
+`slideWindow()`:
+
+1. takes back the inflation of occupied voxels that leave the window,
+2. resets them to unknown (their memory is reused by the voxels that enter),
+3. recomputes the inflation counters of the entering voxels from the occupied
+   voxels already stored (`rebuildInflation`).
+
+Only x and y slide; z covers the map height. Without `sliding_map` the window
+is the whole map at the origin and the addresses are the old row-major ones.
+Positions outside the window return -1 from `getInflateOccupancy()`, which
+the planner treats as occupied; the window must cover the planning horizon.
+`WaypointGenerator::isValidWaypoint` now rejects only occupied waypoints
+(== 1), so waypoints beyond the window are kept.
+
+### 4. Fix: raw points no longer painted in ray-casting mode
+
+`cloudCallback()` ran the upstream "replace" path even with ray casting on:
+it cleared the inflated map around the vehicle and painted every return of
+the latest scan into it, until the next occupancy update (up to 50 ms later)
+recomputed the box from the log-odds map. Obstacles flickered in for one scan
+and out again until confirmed. In ray-casting mode the callback now only
+queues the points.
+
+### Not done: multi-resolution inflation
+
+ROG-Map can keep the inflated map at a coarser resolution than the occupancy
+map. With incremental counters the inflation is no longer a measurable cost
+(the update is dominated by ray traversal), and the planner queries the map
+at its resolution, so this was left out.
+
+### Measurements
+
+Replay of one recorded MuJoCo lidar mission (70 s, 32 x 1024 at 10 Hz,
+~13 500 points and ~236 000 voxel visits per scan) into a standalone
+grid_map node, same bag for every run, on an i7-12700H:
+
+| | Old | New, `max_hits` 1, fixed map | New, `max_hits` 6, sliding 20 m |
+| --- | --- | --- | --- |
+| Process CPU for the replay | 17.5 s | 13.8 s | 14.2 s |
+| Peak memory | 238 MB | 249 MB | 89 MB |
+| Map update (timer callback), P-core | 6.6 ms | 12.0 ms | 12.6 ms |
+
+The new code uses ~20% less CPU per scan, but its timer callback looks twice
+as slow. That is not new work: both do exactly the same ray traversal
+(counted), and the old code with only fix 4 applied also takes 12.0 ms and
+13.9 s. The old callback ran right after `cloudCallback()` had painted every
+return into the map, which left the caches warm for the ray loop; that paint
+cost more (about 10 ms per scan) than it saved (about 5 ms). Per scan the
+new code is ~5 ms cheaper from cloud arrival to updated map. The ray loop is
+memory bound (a sampling profile puts the time on the first load of each
+voxel's counters); packing the four per-voxel counters into one struct and
+2 MB pages for the buffers were tried and made no difference.
+
+MuJoCo smoke tests with the new defaults: lidar and depth 12/12 waypoints,
+0 contacts, 0 phantom voxels, all nearby pillars mapped (lidar); kinematic
+smoke test passes.
+
+### Tests
+
+`rostest plan_env test_grid_map.test` (`test/test_grid_map.cpp`, needs a ROS
+master; `catkin_make run_tests_plan_env` runs it):
+
+- incremental inflation equals a brute-force recount after random changes and
+  after sliding (part-overlapping and disjoint windows);
+- a dense surface is occupied after 6 scans with `max_hits` 1 and after 1
+  with 6; a single stray return is not;
+- an obstacle that moves away is cleared with its inflation;
+- ray casting does not paint raw points; the replace mode still works;
+- the sliding map maps a wall 20 m away (twice the configured map size) and
+  forgets the one left behind.
+
+Removing the entering-voxel rebuild in `slideWindow()` makes the brute-force
+test fail.
+
 ---
 
 **Author:** GitHub Copilot  

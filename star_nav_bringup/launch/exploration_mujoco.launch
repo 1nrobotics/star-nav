@@ -45,6 +45,11 @@
     <!-- Lidar only: ray-cast scans into the probabilistic map (true) or let
          each scan replace the local map (false) -->
     <arg name="lidar_raycasting" default="true"/>
+    <!-- Lidar map update: hits per scan that count (1 = upstream), and a map
+         window that follows the vehicle instead of the whole map -->
+    <arg name="lidar_max_hits" default="6"/>
+    <arg name="sliding_map" default="true"/>
+    <arg name="show_occ_time" default="false"/>
     <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
     <!-- ============================== -->
@@ -103,6 +108,9 @@
         <!-- Both MuJoCo sensors see the ground; it is in the planner's map
              (below 0.35 m including inflation) but hidden in RViz. -->
         <arg name="visualization_min_height" value="0.35"/>
+        <arg name="max_hits_per_update" value="$(eval arg('lidar_max_hits') if arg('sensor') == 'lidar' else 1)"/>
+        <arg name="sliding_map" value="$(arg sliding_map)"/>
+        <arg name="show_occ_time" value="$(arg show_occ_time)"/>
     </include>
 
     <!-- ============================== -->

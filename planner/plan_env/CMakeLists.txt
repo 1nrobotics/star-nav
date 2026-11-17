@@ -65,4 +65,9 @@ target_link_libraries(obj_generator
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(${PROJECT_NAME}_test_raycast test/test_raycast.cpp)
   target_link_libraries(${PROJECT_NAME}_test_raycast ${PROJECT_NAME})
+
+  # GridMap needs a ROS master: run with rostest.
+  find_package(rostest REQUIRED)
+  add_rostest_gtest(${PROJECT_NAME}_test_grid_map test/test_grid_map.test test/test_grid_map.cpp)
+  target_link_libraries(${PROJECT_NAME}_test_grid_map ${PROJECT_NAME})
 endif()

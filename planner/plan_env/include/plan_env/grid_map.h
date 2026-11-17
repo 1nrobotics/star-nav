@@ -1,6 +1,7 @@
 #ifndef _GRID_MAP_H
 #define _GRID_MAP_H
 
+#include <cstdint>
 #include <Eigen/Eigen>
 #include <Eigen/StdVector>
 #include <cv_bridge/cv_bridge.h>
@@ -46,9 +47,11 @@ struct matrix_hash : std::unary_function<T, size_t> {
 struct MappingParameters {
 
   /* map properties */
-  Eigen::Vector3d map_origin_, map_size_;
-  Eigen::Vector3d map_min_boundary_, map_max_boundary_;  // map range in pos
-  Eigen::Vector3i map_voxel_num_;                        // map range in index
+  Eigen::Vector3d map_origin_, map_size_;                // the whole map (getRegion)
+  Eigen::Vector3d map_min_boundary_, map_max_boundary_;  // stored range in pos (moves with a sliding map)
+  Eigen::Vector3i map_voxel_num_;                        // stored range in voxels (buffer size)
+  bool sliding_map_;            // keep a window around the vehicle instead of the whole map
+  double sliding_threshold_;    // m the vehicle moves before the window follows
   Eigen::Vector3d local_update_range_;
   double resolution_, resolution_inv_;
   double obstacles_inflation_;
@@ -75,6 +78,7 @@ struct MappingParameters {
   double min_ray_length_, max_ray_length_;  // range of doing raycasting
   double obstacle_min_height_;              // returns below are ground: free, not occupied
   bool enable_pointcloud_raycasting_;       // enable raycasting for pointcloud data (needed for exploration)
+  int max_hits_per_update_;                 // a voxel hit k times in one update gets k (at most this) hits
   Eigen::Vector3d lidar_offset_;            // point cloud sensor position in the odometry body frame
 
   /* local map update and clear */
@@ -95,7 +99,17 @@ struct MappingData {
   // main map data, occupancy of each voxel and Euclidean distance
 
   std::vector<double> occupancy_buffer_;
-  std::vector<char> occupancy_buffer_inflate_;
+  // Inflated map: per voxel, the number of occupied voxels within the
+  // inflation distance (kept up to date incrementally; > 0 means occupied).
+  std::vector<uint16_t> occupancy_buffer_inflate_;
+
+  // Stored window in map indices: [window_min_, window_min_ + map_voxel_num_).
+  // Indices are global (relative to map_origin_); the buffers are ring
+  // buffers, so the window can follow the vehicle without copying.
+  Eigen::Vector3i window_min_;
+  // Per axis: buffer offset of the i-th voxel of the window (ring position
+  // times stride), so an address is three table lookups.
+  std::vector<int> ring_x_, ring_y_, ring_z_;
 
   // camera position and pose data
 
@@ -138,7 +152,7 @@ struct MappingData {
   // computation time
 
   double fuse_time_, max_fuse_time_;
-  int update_num_;
+  int update_num_, timed_updates_;
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
@@ -158,6 +172,7 @@ public:
   inline void indexToPos(const Eigen::Vector3i& id, Eigen::Vector3d& pos);
   inline int toAddress(const Eigen::Vector3i& id);
   inline int toAddress(int& x, int& y, int& z);
+  inline int addressIfInMap(const Eigen::Vector3i& id);
   inline bool isInMap(const Eigen::Vector3d& pos);
   inline bool isInMap(const Eigen::Vector3i& idx);
 
@@ -214,6 +229,15 @@ private:
   void clearAndInflateLocalMap();
 
   inline void inflatePoint(const Eigen::Vector3i& pt, int step, vector<Eigen::Vector3i>& pts);
+  // Occupancy changes go through setLogOdds, which keeps the inflated map in step.
+  inline void setLogOdds(int adr, const Eigen::Vector3i& id, double log_odds);
+  void changeInflation(const Eigen::Vector3i& id, int delta);
+  void rebuildInflation(const Eigen::Vector3i& min_id, const Eigen::Vector3i& max_id);
+  void slideWindow(const Eigen::Vector3d& center);
+  void setWindow(const Eigen::Vector3i& window_min);
+  int inflationStep() const;
+
+  friend class GridMapTestAccess;
   int setCacheOccupancy(Eigen::Vector3d pos, int occ);
   Eigen::Vector3d closetPointInMap(const Eigen::Vector3d& pt, const Eigen::Vector3d& camera_pt);
 
@@ -248,20 +272,28 @@ private:
 /* ============================== definition of inline function
  * ============================== */
 
+// Ring-buffer address of a voxel in the stored window (isInMap(id) must hold).
+// With the window at the map origin (no sliding map) this is the plain
+// row-major address.
 inline int GridMap::toAddress(const Eigen::Vector3i& id) {
-  return id(0) * mp_.map_voxel_num_(1) * mp_.map_voxel_num_(2) + id(1) * mp_.map_voxel_num_(2) + id(2);
+  return md_.ring_x_[id(0) - md_.window_min_(0)] + md_.ring_y_[id(1) - md_.window_min_(1)] +
+         md_.ring_z_[id(2) - md_.window_min_(2)];
 }
 
-inline int GridMap::toAddress(int& x, int& y, int& z) {
-  return x * mp_.map_voxel_num_(1) * mp_.map_voxel_num_(2) + y * mp_.map_voxel_num_(2) + z;
+// toAddress(id), or -1 if id is outside the stored window.
+inline int GridMap::addressIfInMap(const Eigen::Vector3i& id) {
+  const int x = id(0) - md_.window_min_(0), y = id(1) - md_.window_min_(1), z = id(2) - md_.window_min_(2);
+  if ((unsigned)x >= (unsigned)mp_.map_voxel_num_(0) || (unsigned)y >= (unsigned)mp_.map_voxel_num_(1) ||
+      (unsigned)z >= (unsigned)mp_.map_voxel_num_(2))
+    return -1;
+  return md_.ring_x_[x] + md_.ring_y_[y] + md_.ring_z_[z];
 }
+
+inline int GridMap::toAddress(int& x, int& y, int& z) { return toAddress(Eigen::Vector3i(x, y, z)); }
 
 inline void GridMap::boundIndex(Eigen::Vector3i& id) {
-  Eigen::Vector3i id1;
-  id1(0) = max(min(id(0), mp_.map_voxel_num_(0) - 1), 0);
-  id1(1) = max(min(id(1), mp_.map_voxel_num_(1) - 1), 0);
-  id1(2) = max(min(id(2), mp_.map_voxel_num_(2) - 1), 0);
-  id = id1;
+  for (int i = 0; i < 3; ++i)
+    id(i) = max(min(id(i), md_.window_min_(i) + mp_.map_voxel_num_(i) - 1), md_.window_min_(i));
 }
 
 inline bool GridMap::isUnknown(const Eigen::Vector3i& id) {
@@ -291,7 +323,7 @@ inline bool GridMap::isKnownOccupied(const Eigen::Vector3i& id) {
   boundIndex(id1);
   int adr = toAddress(id1);
 
-  return md_.occupancy_buffer_inflate_[adr] == 1;
+  return md_.occupancy_buffer_inflate_[adr] > 0;
 }
 
 inline void GridMap::setOccupied(Eigen::Vector3d pos) {
@@ -300,8 +332,7 @@ inline void GridMap::setOccupied(Eigen::Vector3d pos) {
   Eigen::Vector3i id;
   posToIndex(pos, id);
 
-  md_.occupancy_buffer_inflate_[id(0) * mp_.map_voxel_num_(1) * mp_.map_voxel_num_(2) +
-                                id(1) * mp_.map_voxel_num_(2) + id(2)] = 1;
+  md_.occupancy_buffer_inflate_[toAddress(id)] = 1;
 }
 
 inline void GridMap::setOccupancy(Eigen::Vector3d pos, double occ) {
@@ -315,7 +346,7 @@ inline void GridMap::setOccupancy(Eigen::Vector3d pos, double occ) {
   Eigen::Vector3i id;
   posToIndex(pos, id);
 
-  md_.occupancy_buffer_[toAddress(id)] = occ;
+  setLogOdds(toAddress(id), id, occ);
 }
 
 inline int GridMap::getOccupancy(Eigen::Vector3d pos) {
@@ -338,13 +369,11 @@ inline int GridMap::getInflateOccupancy(Eigen::Vector3d pos) {
   Eigen::Vector3i id;
   posToIndex(pos, id);
 
-  return int(md_.occupancy_buffer_inflate_[toAddress(id)]);
+  return md_.occupancy_buffer_inflate_[toAddress(id)] > 0 ? 1 : 0;
 }
 
 inline int GridMap::getOccupancy(Eigen::Vector3i id) {
-  if (id(0) < 0 || id(0) >= mp_.map_voxel_num_(0) || id(1) < 0 || id(1) >= mp_.map_voxel_num_(1) ||
-      id(2) < 0 || id(2) >= mp_.map_voxel_num_(2))
-    return -1;
+  if (!isInMap(id)) return -1;
 
   // Check if unknown first (value below clamp_min)
   if (md_.occupancy_buffer_[toAddress(id)] < mp_.clamp_min_log_ - 1e-3) {
@@ -368,13 +397,8 @@ inline bool GridMap::isInMap(const Eigen::Vector3d& pos) {
 }
 
 inline bool GridMap::isInMap(const Eigen::Vector3i& idx) {
-  if (idx(0) < 0 || idx(1) < 0 || idx(2) < 0) {
-    return false;
-  }
-  if (idx(0) > mp_.map_voxel_num_(0) - 1 || idx(1) > mp_.map_voxel_num_(1) - 1 ||
-      idx(2) > mp_.map_voxel_num_(2) - 1) {
-    return false;
-  }
+  for (int i = 0; i < 3; ++i)
+    if (idx(i) < md_.window_min_(i) || idx(i) >= md_.window_min_(i) + mp_.map_voxel_num_(i)) return false;
   return true;
 }
 
@@ -416,6 +440,13 @@ inline void GridMap::inflatePoint(const Eigen::Vector3i& pt, int step, vector<Ei
 }
 
 inline double GridMap::getResolution() { return mp_.resolution_; }
+
+inline void GridMap::setLogOdds(int adr, const Eigen::Vector3i& id, double log_odds) {
+  const bool was_occupied = md_.occupancy_buffer_[adr] > mp_.min_occupancy_log_;
+  md_.occupancy_buffer_[adr] = log_odds;
+  const bool occupied = log_odds > mp_.min_occupancy_log_;
+  if (occupied != was_occupied) changeInflation(id, occupied ? 1 : -1);
+}
 
 #endif
 
