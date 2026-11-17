@@ -47,6 +47,14 @@ Open http://localhost:8080 and trigger exploration as below. In Docker, use
 `SIM=mujoco ./scripts/run_sim_exploration.sh`. See
 [mujoco_sim/README.md](mujoco_sim/README.md).
 
+The same mission on a walking robot, Pollen Robotics' Microduck biped with
+its head depth camera:
+
+```bash
+./scripts/setup_mujoco_env.sh --microduck                           # once
+roslaunch star_nav_bringup exploration_microduck.launch use_rviz:=true
+```
+
 ### Interactive simulation with RViz (Linux host)
 
 ```bash

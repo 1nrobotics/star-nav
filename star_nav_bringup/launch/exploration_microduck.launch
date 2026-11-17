@@ -1,0 +1,127 @@
+<launch>
+    <!-- ============================================ -->
+    <!-- Exploration with the Microduck in MuJoCo     -->
+    <!-- ============================================ -->
+    <!-- Same planning stack and depth camera as exploration_mujoco.launch, on
+         Pollen Robotics' 25 cm biped instead of the quadrotor. The simulator
+         walks the duck with its upstream velstand policy and steers it along
+         the planner's setpoints; the depth camera sits in its head, 0.23 m
+         above the floor. Install and download the duck once first with
+         the microduck option of scripts/setup_mujoco_env.sh.
+
+         The world and the exploration area are scaled to the duck: a 12 m
+         forest of thin pillars, a 4.5 m lawnmower pattern at its trunk
+         height, and planner speeds it can walk (about 0.1-0.25 m/s).
+
+         start_sim:=false   simulator already running (e.g. in Docker)
+         viewer:=false      no web viewer (headless runs, CI) -->
+
+    <arg name="drone_id" default="0"/>
+    <arg name="obj_num" default="10"/>
+    <arg name="use_rviz" default="false"/>
+
+    <arg name="map_size_x" default="12.0"/>
+    <arg name="map_size_y" default="12.0"/>
+    <arg name="map_size_z" default="1.0"/>
+    <arg name="odom_topic" default="visual_slam/odom"/>
+
+    <arg name="exploration_center_x" default="0.0"/>
+    <arg name="exploration_center_y" default="0.0"/>
+    <arg name="exploration_width" default="4.5"/>
+    <arg name="exploration_height" default="4.5"/>
+    <arg name="line_spacing" default="1.5"/>
+    <arg name="enable_corner_smoothing" default="false"/>
+
+    <!-- Simulator -->
+    <arg name="start_sim" default="true"/>
+    <arg name="viewer" default="true"/>
+    <arg name="viewer_port" default="8080"/>
+    <arg name="seed" default="1"/>
+    <arg name="sim_host" default="127.0.0.1"/>
+    <arg name="sim_args" default=""/>
+    <arg name="use_sim_time" default="true"/>
+    <!-- The duck is about 0.15 m long and sways while walking -->
+    <arg name="obstacles_inflation" default="0.15"/>
+    <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+    <!-- ============================== -->
+    <!-- 1. MuJoCo simulator (no ROS)   -->
+    <!-- ============================== -->
+    <arg name="viewer_flag" value="--viewer-port $(arg viewer_port)" if="$(arg viewer)"/>
+    <arg name="viewer_flag" value="--no-viewer" unless="$(arg viewer)"/>
+    <node if="$(arg start_sim)" pkg="star_nav_bringup" type="mujoco_sim.sh"
+          name="mujoco_sim" output="screen" required="true"
+          args="--robot microduck --seed $(arg seed) --map-size $(arg map_size_x) $(arg map_size_y) $(arg viewer_flag) $(arg sim_args)"/>
+
+    <!-- ============================== -->
+    <!-- 2. ROS bridge                  -->
+    <!-- ============================== -->
+    <node pkg="mujoco_bridge" type="mujoco_bridge_node" name="mujoco_bridge" output="screen" required="true">
+        <param name="state_address" value="tcp://$(arg sim_host):5555"/>
+        <param name="cmd_address" value="tcp://$(arg sim_host):5556"/>
+        <remap from="odom" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>
+        <remap from="depth" to="/drone_$(arg drone_id)_pcl_render_node/depth"/>
+        <remap from="camera_pose" to="/drone_$(arg drone_id)_pcl_render_node/camera_pose"/>
+        <remap from="global_cloud" to="/map_generator/global_cloud"/>
+        <remap from="contacts" to="/mujoco/contacts"/>
+        <remap from="pos_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
+    </node>
+
+    <!-- ============================== -->
+    <!-- Planning stack and RViz        -->
+    <!-- ============================== -->
+    <include file="$(find star_nav_bringup)/launch/planning_stack.xml">
+        <arg name="drone_id" value="$(arg drone_id)"/>
+        <arg name="obj_num" value="$(arg obj_num)"/>
+        <arg name="use_rviz" value="$(arg use_rviz)"/>
+        <arg name="map_size_x" value="$(arg map_size_x)"/>
+        <arg name="map_size_y" value="$(arg map_size_y)"/>
+        <arg name="map_size_z" value="$(arg map_size_z)"/>
+        <arg name="odom_topic" value="$(arg odom_topic)"/>
+        <arg name="exploration_center_x" value="$(arg exploration_center_x)"/>
+        <arg name="exploration_center_y" value="$(arg exploration_center_y)"/>
+        <arg name="exploration_width" value="$(arg exploration_width)"/>
+        <arg name="exploration_height" value="$(arg exploration_height)"/>
+        <arg name="line_spacing" value="$(arg line_spacing)"/>
+        <arg name="enable_corner_smoothing" value="$(arg enable_corner_smoothing)"/>
+        <arg name="cx" value="320.0"/>
+        <arg name="cy" value="240.0"/>
+        <arg name="fx" value="387.229248046875"/>
+        <arg name="fy" value="387.229248046875"/>
+        <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
+        <!-- A walking robot: slow, on the floor, waypoints at trunk height.
+             The camera sees the floor from 0.35 m ahead; it is not an
+             obstacle. -->
+        <arg name="max_vel" value="0.2"/>
+        <arg name="max_acc" value="0.3"/>
+        <arg name="planning_horizon" value="3.0"/>
+        <arg name="altitude" value="0.12"/>
+        <arg name="obstacle_min_height" value="0.05"/>
+        <arg name="waypoint_timeout" value="90.0"/>
+        <arg name="waypoint_tolerance" value="0.25"/>
+        <arg name="max_exploration_time" value="900.0"/>
+        <!-- RViz zoomed to the 4.5 m exploration area -->
+        <arg name="rviz_config" value="$(find star_nav_bringup)/config/microduck.rviz"/>
+    </include>
+
+    <!-- ============================== -->
+    <!-- RViz helpers                   -->
+    <!-- ============================== -->
+    <node pkg="odom_visualization" name="drone_$(arg drone_id)_odom_visualization" type="odom_visualization" output="screen">
+        <remap from="~odom" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>
+        <param name="color/a" value="1.0"/>
+        <param name="color/r" value="0.0"/>
+        <param name="color/g" value="0.0"/>
+        <param name="color/b" value="0.0"/>
+        <param name="covariance_scale" value="100.0"/>
+        <param name="robot_scale" value="0.3"/>
+        <param name="tf45" value="false"/>
+        <param name="drone_id" value="drone_id"/>
+    </node>
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_map"
+          args="0 0 0 0 0 0 world map"/>
+    <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_odom"
+          args="0 0 0 0 0 0 world odom"/>
+
+</launch>

@@ -44,6 +44,12 @@ class WorldConfig:
   start_clearance: float = 1.5  # keep the spawn point free
 
 
+# Forest for the Microduck: pillars 5-30 cm wide (the drawn width is scaled by
+# 0.5-1.5) and taller than its camera, at least 0.9 m apart.
+MICRODUCK_FOREST = dict(pillar_width=(0.1, 0.2), pillar_height=(0.6, 1.2),
+                        min_distance=0.9, start_clearance=0.6)
+
+
 def generate(cfg: WorldConfig) -> list[Obstacle]:
   """Returns a deterministic list of obstacles for ``cfg``."""
   rng = np.random.default_rng(cfg.seed)

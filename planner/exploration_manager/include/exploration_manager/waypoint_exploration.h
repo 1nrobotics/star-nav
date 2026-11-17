@@ -92,6 +92,7 @@ private:
   double target_yaw_;
   ros::Time waypoint_start_time_;
   double waypoint_timeout_;
+  double waypoint_tolerance_;  // a waypoint is reached within this distance (m)
 
   // Parameters
   double max_exploration_time_;

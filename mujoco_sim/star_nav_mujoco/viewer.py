@@ -18,20 +18,25 @@ from mujoco.studio import viewer_protocol
 log = logging.getLogger('star_nav_mujoco')
 
 
-class FollowQuadrotor(plugin.ViewerPlugin):
-  """Starts the browser camera orbiting around the quadrotor."""
+class FollowRobot(plugin.ViewerPlugin):
+  """Starts the browser camera orbiting around the robot."""
+
+  def __init__(self, body: str):
+    super().__init__()
+    self.body = body
 
   @messages.handler
   def on_post_model(self, event: messages.PostModelEvent) -> None:
     cam = self.viewer.camera
     cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-    cam.trackbodyid = event.model.body('quad').id
-    cam.distance = 5.0
+    cam.trackbodyid = event.model.body(self.body).id
+    cam.distance = 5.0 if self.body == 'quad' else 1.6
     cam.azimuth = -135.0
     cam.elevation = -25.0
 
 
-def launch(port: int, stack: contextlib.ExitStack) -> viewer_handle.ViewerHandle:
+def launch(port: int, stack: contextlib.ExitStack,
+           body: str = 'quad') -> viewer_handle.ViewerHandle:
   """Starts the web viewer on ``port``; it closes when ``stack`` exits.
 
   Note: Studio binds the viewer to all network interfaces.
@@ -39,6 +44,6 @@ def launch(port: int, stack: contextlib.ExitStack) -> viewer_handle.ViewerHandle
   config = viewer_protocol.ViewerConfig(
       title='Star Nav MuJoCo', gfx='web', http_port=port)
   handle = stack.enter_context(
-      launch_web.launch(config, plugins=[FollowQuadrotor()]))
+      launch_web.launch(config, plugins=[FollowRobot(body)]))
   log.info('Web viewer: http://localhost:%d', port)
   return handle

@@ -15,6 +15,7 @@ void WaypointExploration::init(ros::NodeHandle& nh) {
   nh.param("exploration/line_spacing", line_spacing_, 3.0);
   nh.param("exploration/enable_corner_smoothing", enable_corner_smoothing_, false);
   nh.param("fsm/waypoint_timeout", waypoint_timeout_, 30.0);
+  nh.param("fsm/waypoint_tolerance", waypoint_tolerance_, 0.5);
   nh.param("fsm/max_exploration_time", max_exploration_time_, 600.0);
   nh.param("fsm/replan_time", replan_time_, 0.05);
 
@@ -25,6 +26,7 @@ void WaypointExploration::init(ros::NodeHandle& nh) {
   ROS_INFO("  exploration/line_spacing: %.2f m", line_spacing_);
   ROS_INFO("  exploration/enable_corner_smoothing: %s", enable_corner_smoothing_ ? "true" : "false");
   ROS_INFO("  fsm/waypoint_timeout: %.2f s", waypoint_timeout_);
+  ROS_INFO("  fsm/waypoint_tolerance: %.2f m", waypoint_tolerance_);
   ROS_INFO("  fsm/max_exploration_time: %.2f s", max_exploration_time_);
   ROS_INFO("  fsm/replan_time: %.2f s", replan_time_);
 
@@ -185,14 +187,14 @@ void WaypointExploration::execWaypointState() {
   // Log progress towards waypoint (throttled to 5Hz for debug)
   ROS_DEBUG_THROTTLE(5.0, "[WaypointExploration] Waypoint %d progress: "
                      "Current [%.2f, %.2f, %.2f] -> Target [%.2f, %.2f, %.2f] | "
-                     "Distance: %.3f m (H:%.3f, V:%.3f) | Tolerance: 0.5 m",
+                     "Distance: %.3f m (H:%.3f, V:%.3f) | Tolerance: %.2f m",
                      current_waypoint_idx_,
                      odom_pos_(0), odom_pos_(1), odom_pos_(2),
                      target_pt_(0), target_pt_(1), target_pt_(2),
-                     dist_to_goal, horizontal_dist, fabs(dz));
+                     dist_to_goal, horizontal_dist, fabs(dz), waypoint_tolerance_);
 
   // Check if reached waypoint
-  if (dist_to_goal < 0.5) {
+  if (dist_to_goal < waypoint_tolerance_) {
     ROS_INFO("[WaypointExploration] SUCCESS: Reached waypoint %d! Final distance: %.3f m (H:%.3f, V:%.3f)",
              current_waypoint_idx_, dist_to_goal, horizontal_dist, fabs(dz));
     current_waypoint_idx_++;

@@ -9,6 +9,12 @@
 <meta property="og:description" content="Quadrotor waypoint exploration with EGO-Planner, simulation-first, with a MuJoCo 4 simulator and browser viewer.">
 <meta property="og:image" content="assets/exploration-demo.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%232563eb' stroke-width='3'%3E%3Ccircle cx='8' cy='8' r='5'/%3E%3Ccircle cx='24' cy='8' r='5'/%3E%3Ccircle cx='8' cy='24' r='5'/%3E%3Ccircle cx='24' cy='24' r='5'/%3E%3Cpath d='M11 11l10 10M21 11L11 21'/%3E%3C/g%3E%3C/svg%3E">
+<script type="importmap">
+  {"imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }}
+</script>
 <style>
   :root {
     --bg: #fbfbfa;
@@ -183,6 +189,32 @@
   }
   .copy:hover { color: var(--text); }
 
+  .live-frame {
+    position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--border); background: #dbe6f2; box-shadow: var(--shadow);
+  }
+  .live-frame canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  .live-frame canvas:active { cursor: grabbing; }
+  .live-status {
+    position: absolute; inset: 0; display: grid; place-items: center; padding: 16px;
+    color: #33414f; font-size: .95rem; text-align: center;
+  }
+  .live-status:empty { display: none; }
+  .live-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; }
+  .live-controls button {
+    font: inherit; font-size: .82rem; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+    border: 1px solid rgba(0,0,0,.15); background: rgba(255,255,255,.85); color: #1b1d1f;
+  }
+  .live-controls button[aria-pressed="false"] { opacity: .6; }
+  .live-hud {
+    position: absolute; left: 10px; bottom: 10px; font-size: .8rem; color: #1b1d1f;
+    background: rgba(255,255,255,.8); padding: 3px 8px; border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .live-hud:empty { display: none; }
+  .video-frame video.duck { aspect-ratio: 2212 / 720; }
+  .duck-labels { grid-template-columns: 1280fr 932fr; }
+
   .split { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; align-items: center; }
   .split img { width: 100%; border-radius: 12px; border: 1px solid var(--border); display: block; }
 
@@ -199,6 +231,7 @@
     .hero { padding-top: 36px; }
     .diagram { padding: 12px; }
     .video-labels { grid-template-columns: 1fr; gap: 4px; }
+    .live-frame { aspect-ratio: 4 / 3; }
     nav.links { gap: 14px; }
     nav.links a.hide-xs { display: none; }
   }
@@ -214,6 +247,7 @@
     </a>
     <nav class="links">
       <a href="#demo">Demo</a>
+      <a href="#live">Live</a>
       <a class="hide-xs" href="#architecture">Architecture</a>
       <a href="#quick-start">Quick start</a>
       <a class="hide-sm" href="https://github.com/1nrobotics/star-nav">GitHub</a>
@@ -263,6 +297,32 @@
       <div class="stat"><div class="v">0 ROS</div><div class="k">imports in the simulator</div></div>
     </div>
   </div>
+
+  <section id="live">
+    <div class="wrap">
+      <h2>Live MuJoCo in your browser</h2>
+      <p class="sub">
+        MuJoCo&nbsp;4, compiled to WebAssembly, simulates the quadrotor in this page in
+        real time: the same model, forest (seed&nbsp;1) and SE(3) flight controller as the
+        simulator, following the setpoints EGO-Planner sent during a recorded mission.
+        Drag to orbit, scroll to zoom, right-drag to pan.
+      </p>
+      <div class="live-frame" id="live-frame">
+        <div class="live-status" id="live-status">The interactive scene loads when you scroll here.</div>
+        <div class="live-controls">
+          <button type="button" id="live-play">Pause</button>
+          <button type="button" id="live-follow" aria-pressed="true">Follow drone</button>
+          <button type="button" id="live-restart">Restart</button>
+        </div>
+        <div class="live-hud" id="live-time"></div>
+      </div>
+      <p class="note" style="color: var(--muted); font-size: .9rem; margin-top: 10px;">
+        Blue: the planned path. Orange: the path flown in your browser. Physics runs at
+        500&nbsp;Hz on your CPU; the planner itself is not running here, only its output is
+        replayed, so the drone loops over the same mission.
+      </p>
+    </div>
+  </section>
 
   <section id="architecture">
     <div class="wrap">
@@ -422,6 +482,35 @@
     </div>
   </section>
 
+  <section id="microduck">
+    <div class="wrap">
+      <h2>Same stack on a walking robot</h2>
+      <p class="sub">
+        Pollen Robotics' 25&nbsp;cm <a href="https://github.com/pollen-robotics/microduck">Microduck</a>
+        biped walks the same exploration mission with the same depth camera, in its head.
+        It walks with its upstream learned policy (<code>velstand.onnx</code>) on the servo
+        model it was trained with; a tracker steers it along the planner's setpoints.
+      </p>
+      <figure class="video">
+        <div class="video-frame">
+          <video class="duck" controls muted loop playsinline preload="none" poster="assets/microduck-exploration-demo.jpg">
+            <source src="assets/microduck-exploration-demo.mp4" type="video/mp4">
+            Your browser cannot play this video. <a href="assets/microduck-exploration-demo.mp4">Download it</a>.
+          </video>
+        </div>
+        <div class="video-labels duck-labels">
+          <div><b>MuJoCo.</b> The duck walking between thin pillars; its depth camera sits in the head, 0.23&nbsp;m above the floor.</div>
+          <div><b>RViz.</b> Blue: walked path. Magenta: the planner's map; the floor it sees is free space, not an obstacle.</div>
+        </div>
+        <figcaption class="note">
+          12 waypoints over a 4.5&nbsp;&times;&nbsp;4.5&nbsp;m area, zero collisions, 4&times; speed
+          (about 6.5&nbsp;minutes real time). <code>roslaunch star_nav_bringup exploration_microduck.launch</code>;
+          the duck's model is downloaded at setup and not part of the repository.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
   <section id="quick-start">
     <div class="wrap">
       <h2>Quick start</h2>
@@ -491,7 +580,9 @@ roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true</code></pre>
         <a href="https://github.com/ZJU-FAST-Lab/ego-planner-swarm">EGO-Planner</a> and
         Fast-Planner (GPLv3), so the combined code is distributed under GPLv3, with
         per-package licenses preserved. The MuJoCo simulator and bridge are original MIT
-        code; MuJoCo itself is Apache-2.0. Details in
+        code; MuJoCo itself is Apache-2.0, and the live scene uses its WebAssembly build and
+        three.js (MIT). The optional Microduck model is downloaded at setup, not
+        redistributed (its meshes are CC&nbsp;BY-NC-SA&nbsp;4.0). Details in
         <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">docs/LICENSES.md</a>.
       </p>
     </div>
@@ -525,6 +616,35 @@ roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true</code></pre>
     });
     pre.appendChild(btn);
   });
+</script>
+<script type="module">
+  // Load the live MuJoCo scene (~11 MB of WebAssembly) only when it is near.
+  const frame = document.getElementById('live-frame');
+  const ui = {
+    status: document.getElementById('live-status'),
+    time: document.getElementById('live-time'),
+    play: document.getElementById('live-play'),
+    follow: document.getElementById('live-follow'),
+    restart: document.getElementById('live-restart'),
+  };
+  let started = false;
+  const go = () => {
+    if (started) return;
+    started = true;
+    import('./assets/mujoco/live.js')
+      .then((m) => m.start(frame, ui))
+      .catch((e) => {
+        ui.status.textContent = 'The live scene could not start in this browser (' + e.message + ').';
+        console.error(e);
+      });
+  };
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((entries, obs) => {
+      if (entries.some((e) => e.isIntersecting)) { obs.disconnect(); go(); }
+    }, { rootMargin: '300px' }).observe(frame);
+  } else {
+    go();
+  }
 </script>
 </body>
 </html>
