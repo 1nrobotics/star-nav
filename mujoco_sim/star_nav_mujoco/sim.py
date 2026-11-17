@@ -65,7 +65,7 @@ class Simulator:
     self._contact_pairs = set()
     self.reset()
 
-    # The depth camera does not see visual-only geoms (the setpoint marker).
+    # Sensors only see physical geoms, not visual markers (the setpoint).
     self._depth_option = mujoco.MjvOption()
     self._depth_option.geomgroup[scene.MARKER_GROUP] = 0
 
@@ -82,9 +82,6 @@ class Simulator:
       finally:
         quality.numslices, quality.numstacks = saved
       self._renderer.enable_depth_rendering()
-      # Sensors only see physical geoms, not visual markers (the setpoint).
-      self._depth_option = mujoco.MjvOption()
-      self._depth_option.geomgroup[scene.MARKER_GROUP] = 0
 
     self.lidar = None
     if self.cfg.lidar is not None:

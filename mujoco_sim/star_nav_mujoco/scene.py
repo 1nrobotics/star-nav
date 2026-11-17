@@ -20,9 +20,6 @@ MARKER_GROUP = 2
 RING_SEGMENTS = 24
 RING_TUBE = 0.04
 
-# Visual-only geoms (the setpoint marker): hidden from the depth camera.
-MARKER_GROUP = 2
-
 
 def _f(*v: float) -> str:
   return ' '.join(f'{x:.4g}' for x in v)
