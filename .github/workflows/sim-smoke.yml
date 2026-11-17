@@ -38,21 +38,6 @@ jobs:
       - name: Install simulator
         run: pip install "./mujoco_sim[test]"
 
-      # Optional Microduck biped: downloaded from upstream, never committed
-      # (its meshes are CC BY-NC-SA 4.0). Without it its tests are skipped.
-      - name: Cache Microduck download
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/star_nav/microduck
-          key: microduck-${{ hashFiles('mujoco_sim/star_nav_mujoco/microduck.py') }}
-
-      - name: Install Microduck
-        run: |
-          pip install "./mujoco_sim[test,microduck]"
-          pip install --no-deps --ignore-requires-python \
-            "$(python -c 'from star_nav_mujoco.microduck import BAM_REQUIREMENT; print(BAM_REQUIREMENT)')"
-          python -m star_nav_mujoco --fetch-microduck
-
       - name: Run simulator tests
         env:
           MUJOCO_GL: osmesa

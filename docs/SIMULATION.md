@@ -76,21 +76,6 @@ rostest star_nav_bringup mujoco_smoke.test          # headless test
 
 Details, options and the bridge protocol: [mujoco_sim/README.md](../mujoco_sim/README.md).
 
-### Microduck (walking robot)
-
-The same planning stack and depth camera on Pollen Robotics' 25 cm
-Microduck biped, walking with its upstream learned policy in a forest scaled
-to its size:
-
-```bash
-./scripts/setup_mujoco_env.sh --microduck           # once: deps + download
-roslaunch star_nav_bringup exploration_microduck.launch use_rviz:=true
-rostest star_nav_bringup microduck_smoke.test       # headless test
-```
-
-The duck's model is downloaded, not part of the repository (its meshes are
-CC BY-NC-SA 4.0). See [mujoco_sim/README.md](../mujoco_sim/README.md#microduck).
-
 ## Interactive Workflow: Docker (Linux host)
 
 ### 1. Build and start the development container
