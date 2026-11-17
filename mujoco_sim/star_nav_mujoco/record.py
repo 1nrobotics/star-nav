@@ -10,14 +10,14 @@ import numpy as np
 
 
 class Recorder:
-  """Renders a camera that follows the robot and pipes frames to ffmpeg.
+  """Renders a camera that follows the quadrotor and pipes frames to ffmpeg.
 
   Frames are taken at ``fps`` in simulated time, so the video plays at the
   simulated speed regardless of ``--realtime-factor``.
   """
 
   def __init__(self, model: mujoco.MjModel, path: str, width: int = 1280,
-               height: int = 720, fps: float = 30.0, body: str = 'quad'):
+               height: int = 720, fps: float = 30.0):
     ffmpeg = shutil.which('ffmpeg')
     if ffmpeg is None:
       raise RuntimeError('--record needs ffmpeg on PATH')
@@ -27,9 +27,8 @@ class Recorder:
     self._renderer = mujoco.Renderer(model, height, width)
     self._camera = mujoco.MjvCamera()
     self._camera.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-    self._camera.trackbodyid = model.body(body).id
-    # Frame the robot by its size: the 25 cm duck needs a closer camera.
-    self._camera.distance = 5.0 if body == 'quad' else 1.6
+    self._camera.trackbodyid = model.body('quad').id
+    self._camera.distance = 5.0
     self._camera.azimuth = -135.0
     self._camera.elevation = -25.0
     self._ffmpeg = subprocess.Popen(

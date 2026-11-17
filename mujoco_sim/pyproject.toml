@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "star-nav-mujoco"
 version = "0.1.0"
-description = "Standalone MuJoCo simulator (quadrotor, Microduck biped) for the Star Nav planning stack"
+description = "Standalone MuJoCo quadrotor simulator for the Star Nav planning stack"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
@@ -16,8 +16,6 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
-# Microduck biped; also needs BAM (see scripts/setup_mujoco_env.sh --microduck).
-microduck = ["onnxruntime>=1.20", "colorama"]
 
 [project.scripts]
 star-nav-mujoco = "star_nav_mujoco.__main__:main"

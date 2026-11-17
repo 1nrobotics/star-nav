@@ -40,8 +40,7 @@ against the Python one on random states (thrusts equal to 1e-14 N).
 
 ## Demo videos
 
-The videos (`exploration-demo.mp4`, `lidar-exploration-demo.mp4`,
-`microduck-exploration-demo.mp4`) are not tracked in git, to keep the
+The videos (`exploration-demo.mp4`, `lidar-exploration-demo.mp4`) are not tracked in git, to keep the
 repository small (`.gitignore`). They are attached to the `site-assets` GitHub
 release, and the Pages workflow downloads them at deploy time. To preview
 locally, download them into `assets/`; without them the page shows the poster
@@ -58,10 +57,6 @@ gh release create site-assets --prerelease --title "Project page assets" \
   --notes "Media for the project page; not a software release."   # first time only
 gh release upload site-assets site/assets/exploration-demo.mp4 --clobber
 ```
-
-The Microduck video was made the same way with
-`exploration_microduck.launch use_rviz:=true` (RViz window `"microduck.rviz`),
-played at 4x (`setpts=PTS/4`) because the duck walks a mission in ~6.5 minutes.
 
 It puts the simulator's follow camera next to the RViz window for one mission
 (seed 1, default exploration area). To regenerate it:

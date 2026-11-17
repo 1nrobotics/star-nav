@@ -6,6 +6,7 @@ import shutil
 
 os.environ.setdefault('MUJOCO_GL', 'egl')
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -170,6 +171,24 @@ def test_depth_back_projects_onto_pillar(depth_scene):
   assert math.hypot(p[0] - 3.0, p[1]) == pytest.approx(0.5, abs=0.03)
   # Optical axis is the body x axis.
   np.testing.assert_allclose(rot[:, 2], s.rot[:, 0], atol=1e-6)
+
+
+def test_depth_does_not_see_the_setpoint_marker():
+  """The marker sits on the planned path; seen in depth it is an obstacle."""
+  s = sim.Simulator(obstacles=[])
+  try:
+    s.step(int(0.5 / s.model.opt.timestep))
+    d = s.render_depth()
+    rot = _quat_to_rot(d.quat)
+    ahead = d.pos + 0.6 * rot[:, 2]  # on the optical axis, 0.6 m ahead
+    s.data.mocap_pos[s._mocap] = ahead
+    mujoco.mj_forward(s.model, s.data)
+    d = s.render_depth()
+    fx, fy, cx, cy = d.intrinsics
+    v, u = int(round(cy)), int(round(cx))
+    assert d.image_mm[v, u] == 0 or d.image_mm[v, u] > 1000
+  finally:
+    s.close()
 
 
 @pytest.mark.skipif(shutil.which('ffmpeg') is None, reason='needs ffmpeg')

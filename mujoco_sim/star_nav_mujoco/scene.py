@@ -17,8 +17,7 @@ CAM_OFFSET = 0.14  # metres ahead of the body centre
 RING_SEGMENTS = 24
 RING_TUBE = 0.04
 
-# Visual-only geoms (setpoint marker, the Microduck's visual meshes): hidden
-# from the depth camera.
+# Visual-only geoms (the setpoint marker): hidden from the depth camera.
 MARKER_GROUP = 2
 
 
@@ -83,12 +82,7 @@ def build_xml(
     params: quadrotor.Params,
     start: tuple[float, float, float],
     timestep: float = 0.002,
-    quadrotor_body: bool = True,
-    marker_radius: float = 0.06,
 ) -> str:
-  """Returns the scene; without ``quadrotor_body`` the robot is added later."""
-  robot = _quadrotor_xml(params, start) if quadrotor_body else ''
-  actuators = _actuators_xml(params) if quadrotor_body else ''
   return f'''<mujoco model="star_nav">
   <option timestep="{timestep}" integrator="implicitfast"/>
   <statistic extent="6" center="{_f(start[0], start[1], 0.5)}"/>
@@ -124,14 +118,14 @@ def build_xml(
     <geom name="ground" type="plane" size="{_f(30, 30, 0.1)}" material="ground"
           contype="1" conaffinity="2"/>
     {_obstacles_xml(obstacles)}
-    {robot}
+    {_quadrotor_xml(params, start)}
     <body name="setpoint" mocap="true" pos="{_f(*start)}">
-      <geom type="sphere" size="{marker_radius:g}" material="target" contype="0" conaffinity="0"
+      <geom type="sphere" size="0.06" material="target" contype="0" conaffinity="0"
             group="{MARKER_GROUP}"/>
     </body>
   </worldbody>
   <actuator>
-    {actuators}
+    {_actuators_xml(params)}
   </actuator>
 </mujoco>
 '''

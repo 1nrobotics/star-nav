@@ -212,18 +212,13 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   .live-hud:empty { display: none; }
-  .video-frame video.duck { aspect-ratio: 2212 / 720; }
-  .duck-labels { grid-template-columns: 1280fr 932fr; }
-
-  .split { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; align-items: center; }
-  .split img { width: 100%; border-radius: 12px; border: 1px solid var(--border); display: block; }
 
   footer { margin-top: 56px; border-top: 1px solid var(--border); padding: 24px 0 40px; color: var(--muted); font-size: .9rem; }
   footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
 
   @media (max-width: 820px) {
     .stats { grid-template-columns: repeat(2, 1fr); }
-    .grid2, .split { grid-template-columns: 1fr; }
+    .grid2 { grid-template-columns: 1fr; }
     nav.links a.hide-sm { display: none; }
   }
   @media (max-width: 520px) {
@@ -482,35 +477,6 @@
     </div>
   </section>
 
-  <section id="microduck">
-    <div class="wrap">
-      <h2>Same stack on a walking robot</h2>
-      <p class="sub">
-        Pollen Robotics' 25&nbsp;cm <a href="https://github.com/pollen-robotics/microduck">Microduck</a>
-        biped walks the same exploration mission with the same depth camera, in its head.
-        It walks with its upstream learned policy (<code>velstand.onnx</code>) on the servo
-        model it was trained with; a tracker steers it along the planner's setpoints.
-      </p>
-      <figure class="video">
-        <div class="video-frame">
-          <video class="duck" controls muted loop playsinline preload="none" poster="assets/microduck-exploration-demo.jpg">
-            <source src="assets/microduck-exploration-demo.mp4" type="video/mp4">
-            Your browser cannot play this video. <a href="assets/microduck-exploration-demo.mp4">Download it</a>.
-          </video>
-        </div>
-        <div class="video-labels duck-labels">
-          <div><b>MuJoCo.</b> The duck walking between thin pillars; its depth camera sits in the head, 0.23&nbsp;m above the floor.</div>
-          <div><b>RViz.</b> Blue: walked path. Magenta: the planner's map; the floor it sees is free space, not an obstacle.</div>
-        </div>
-        <figcaption class="note">
-          12 waypoints over a 4.5&nbsp;&times;&nbsp;4.5&nbsp;m area, zero collisions, 4&times; speed
-          (about 6.5&nbsp;minutes real time). <code>roslaunch star_nav_bringup exploration_microduck.launch</code>;
-          the duck's model is downloaded at setup and not part of the repository.
-        </figcaption>
-      </figure>
-    </div>
-  </section>
-
   <section id="quick-start">
     <div class="wrap">
       <h2>Quick start</h2>
@@ -551,27 +517,6 @@ roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true</code></pre>
     </div>
   </section>
 
-  <section id="world">
-    <div class="wrap split">
-      <div>
-        <h2>The forest</h2>
-        <p>
-          Pillars and tilted rings drawn from the same distributions as the kinematic
-          simulator's random forest, deterministic per <code>--seed</code>, with the
-          spawn point kept clear. The depth camera matches the intrinsics the planner
-          is configured with (f&nbsp;=&nbsp;387.2&nbsp;px), mounted 14&nbsp;cm ahead of the
-          body centre and looking forward.
-        </p>
-        <p>
-          Hardware integrations for specific sensors live on <code>hardware/*</code>
-          branches so that <code>main</code> stays simulation-first. See the
-          <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/HARDWARE.md">hardware guide</a>.
-        </p>
-      </div>
-      <img src="assets/mujoco-forest.jpg" alt="MuJoCo scene: a small quadrotor flying between green pillars and orange rings on a checkered floor" loading="lazy" width="1280" height="720">
-    </div>
-  </section>
-
   <section id="license">
     <div class="wrap">
       <h2>Licensing and credits</h2>
@@ -581,8 +526,7 @@ roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true</code></pre>
         Fast-Planner (GPLv3), so the combined code is distributed under GPLv3, with
         per-package licenses preserved. The MuJoCo simulator and bridge are original MIT
         code; MuJoCo itself is Apache-2.0, and the live scene uses its WebAssembly build and
-        three.js (MIT). The optional Microduck model is downloaded at setup, not
-        redistributed (its meshes are CC&nbsp;BY-NC-SA&nbsp;4.0). Details in
+        three.js (MIT). Details in
         <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">docs/LICENSES.md</a>.
       </p>
     </div>
