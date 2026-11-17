@@ -60,6 +60,10 @@ class Simulator:
     self.contact_steps = 0
     self.reset()
 
+    # The depth camera does not see visual-only geoms (the setpoint marker).
+    self._depth_option = mujoco.MjvOption()
+    self._depth_option.geomgroup[scene.MARKER_GROUP] = 0
+
     self._renderer = None
     if render_depth:
       # Primitive meshes are built when the context is created. Coarser ones
@@ -152,7 +156,8 @@ class Simulator:
     """Renders the onboard depth camera (millimetres, 0 = no return)."""
     if self._renderer is None:
       raise RuntimeError('Simulator was created with render_depth=False')
-    self._renderer.update_scene(self.data, camera=self._cam)
+    self._renderer.update_scene(self.data, camera=self._cam,
+                                scene_option=self._depth_option)
     depth = self._renderer.render()
     valid = (depth > 0) & (depth < self.cfg.depth_range)
     mm = np.where(valid, depth * 1000.0 + 0.5, 0).astype(np.uint16)

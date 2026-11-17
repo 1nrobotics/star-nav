@@ -17,6 +17,9 @@ CAM_OFFSET = 0.14  # metres ahead of the body centre
 RING_SEGMENTS = 24
 RING_TUBE = 0.04
 
+# Visual-only geoms (the setpoint marker): hidden from the depth camera.
+MARKER_GROUP = 2
+
 
 def _f(*v: float) -> str:
   return ' '.join(f'{x:.4g}' for x in v)
@@ -117,7 +120,8 @@ def build_xml(
     {_obstacles_xml(obstacles)}
     {_quadrotor_xml(params, start)}
     <body name="setpoint" mocap="true" pos="{_f(*start)}">
-      <geom type="sphere" size="0.06" material="target" contype="0" conaffinity="0"/>
+      <geom type="sphere" size="0.06" material="target" contype="0" conaffinity="0"
+            group="{MARKER_GROUP}"/>
     </body>
   </worldbody>
   <actuator>
