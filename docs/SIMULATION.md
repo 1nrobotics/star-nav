@@ -8,11 +8,13 @@ The simulation flow launches:
 
 - procedural map generation
 - the EGO planner stack
-- a simulated quadrotor with a depth camera
+- a simulated robot: a quadrotor (depth camera or lidar), or in MuJoCo the
+  Lite3 quadruped (lidar; see [Quadruped](#mujoco-simulator) below and
+  [QUADRUPED.md](QUADRUPED.md))
 - the exploration manager
 - optional RViz visualization
 
-No flight controller or sensor hardware is required.
+No flight controller, robot or sensor hardware is required.
 
 Two simulators are available behind the same ROS topics:
 

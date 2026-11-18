@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: >-
   If you use Star Nav in your research, please cite it as below, together
   with EGO-Planner, on which the planning stack is based.
-title: "Star Nav: quadrotor waypoint exploration with EGO-Planner and a MuJoCo simulator"
+title: "Star Nav: exploration for drones and legged robots with EGO-Planner and a MuJoCo simulator"
 type: software
 authors:
   - name: 1nRobotics
@@ -11,6 +11,8 @@ url: "https://1nrobotics.github.io/star-nav/"
 license: GPL-3.0-only
 keywords:
   - quadrotor
+  - quadruped
+  - legged robots
   - motion planning
   - exploration
   - ROS
