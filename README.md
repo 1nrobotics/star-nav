@@ -3,7 +3,10 @@
 Star Nav is a ROS Noetic workspace for quadrotor waypoint exploration: an
 EGO-Planner based local planner, a waypoint exploration manager, two
 simulators (a lightweight kinematic one and a MuJoCo 4 one with dynamics and
-a browser viewer), and a PX4 controller.
+a browser viewer), and a PX4 controller. The same stack also drives a walking
+robot in MuJoCo: DeepRobotics' Lite3 quadruped, through a house with a ramp
+and stairs ([status](docs/QUADRUPED.md),
+[page](https://1nrobotics.github.io/star-nav/quadruped.html)).
 
 The `main` branch is simulation-first and hardware-independent. Integration
 with specific onboard sensors lives on dedicated hardware branches (see
@@ -95,6 +98,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 
 - [Simulation Guide](docs/SIMULATION.md)
 - [Obstacle Sensors: depth camera or lidar](docs/SENSORS.md)
+- [Quadruped (Lite3): development status](docs/QUADRUPED.md)
 - [Hardware Guide](docs/HARDWARE.md)
 - [Licensing Notes](docs/LICENSES.md)
 - [Contributing](CONTRIBUTING.md)
@@ -124,6 +128,8 @@ roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true     # kinematic
 roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true  # MuJoCo simulation
 rostest star_nav_bringup sim_smoke.test                              # end-to-end test
 rostest star_nav_bringup mujoco_smoke.test                           # end-to-end test, MuJoCo
+roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true   # Lite3 quadruped (setup_mujoco_env.sh --lite3)
+rostest star_nav_bringup lite3_smoke.test                            # end-to-end test, Lite3 in the house
 ```
 
 ## Notes for Public Users
