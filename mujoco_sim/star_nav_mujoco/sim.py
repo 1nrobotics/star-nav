@@ -1,7 +1,7 @@
 """Robot simulator: MuJoCo physics, controller, depth camera and lidar.
 
-The robot is the quadrotor (default) or the Lite3 quadruped; both follow the
-planner's position setpoints and carry the same sensors.
+The robot is the quadrotor (default), the Lite3 quadruped or the T1 humanoid;
+all follow the planner's position setpoints and carry the same sensors.
 """
 
 from __future__ import annotations
@@ -21,6 +21,8 @@ from star_nav_mujoco import lite3
 from star_nav_mujoco import protocol
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
+from star_nav_mujoco import t1
+from star_nav_mujoco import textures
 from star_nav_mujoco import world
 
 log = logging.getLogger('star_nav_mujoco')
@@ -31,7 +33,10 @@ _CAM_TO_OPTICAL = np.diag([1.0, -1.0, -1.0])
 
 QUADROTOR = 'quadrotor'
 LITE3 = 'lite3'
-ROBOTS = (QUADROTOR, LITE3)
+T1 = 't1'
+ROBOTS = (QUADROTOR, LITE3, T1)
+# Walking robots and their modules (model, policy, sensor mounts).
+LEGGED = {LITE3: lite3, T1: t1}
 
 
 @dataclasses.dataclass
@@ -42,7 +47,7 @@ class SimConfig:
   start: tuple[float, float, float] = (0.0, 0.0, 1.0)
   robot: str = QUADROTOR
   house: bool = False  # the house (house.py) instead of the forest
-  timestep: float = 0.002  # the Lite3 always uses lite3.TIMESTEP
+  timestep: float = 0.002  # walking robots use their module's TIMESTEP
   depth_range: float = 10.0  # returns beyond this are reported as 0
   cmd_timeout: float = 0.5  # hold position when commands stop (s)
   lidar: lidar_lib.LidarConfig | None = None  # 360-degree lidar, off by default
@@ -66,23 +71,28 @@ class Simulator:
     self.obstacles = obstacles
     if self.cfg.robot not in ROBOTS:
       raise ValueError(f'unknown robot {self.cfg.robot!r}')
-    self.legged = self.cfg.robot == LITE3
-    extra = house.xml() if self.cfg.house else ''
+    self.legged = self.cfg.robot in LEGGED
+    self.robot = LEGGED.get(self.cfg.robot)
+    extra = ''
+    if self.cfg.house:
+      extra = house.xml(self.robot.HOUSE_WALL_HEIGHT if self.legged else house.WALL_H)
     if self.legged:
-      root = lite3.check_assets()
+      root = self.robot.check_assets()
       xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
-                            lite3.TIMESTEP, quadrotor_body=False, extra=extra)
+                            self.robot.TIMESTEP, quadrotor_body=False, extra=extra)
       spec = mujoco.MjSpec.from_string(xml)
-      lite3.attach(spec, self.cfg.start[:2], root, lidar=self.cfg.lidar is not None)
-      self.model = spec.compile()
-      body, cam = lite3.TRUNK, lite3.CAMERA
+      self.robot.attach(spec, self.cfg.start[:2], root,
+                        lidar=self.cfg.lidar is not None)
+      body, cam = self.robot.TRUNK, self.robot.CAMERA
     else:
       lidar_mount = self.cfg.lidar.mount if self.cfg.lidar else None
       xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
                             self.cfg.timestep, lidar_mount=lidar_mount,
                             extra=extra)
-      self.model = mujoco.MjModel.from_xml_string(xml)
+      spec = mujoco.MjSpec.from_string(xml)
       body, cam = 'quad', 'depth'
+    textures.apply(spec)
+    self.model = spec.compile()
     self.data = mujoco.MjData(self.model)
     self.controller = quadrotor.Controller(self.cfg.params, self.cfg.gains)
 
@@ -95,13 +105,14 @@ class Simulator:
     # stairs.
     self._walkable = {self._ground} | {
         g for g in range(m.ngeom) if m.geom(g).name.startswith(house.WALKABLE)}
+    legs = self.robot.LEG_GEOMS if self.legged else ()
     self._feet = {g for g in range(m.ngeom)  # and lower legs
-                  if m.geom(g).name.endswith(('FOOT_collision', 'SHANK_collision'))}
+                  if legs and m.geom(g).name.endswith(legs)}
     self._cam = m.camera(cam).id
     self._mocap = m.body_mocapid[m.body('setpoint').id]
     if self.legged:
-      self.walker = lite3.Walker(m, self.data, root)
-      self.tracker = lite3.Tracker()
+      self.walker = self.robot.Walker(m, self.data, root)
+      self.tracker = self.robot.Tracker()
       self._fallen = False
     self.contact_steps = 0
     self._contact_pairs = set()
@@ -131,7 +142,7 @@ class Simulator:
     if self.cfg.lidar is not None:
       lidar_cfg = self.cfg.lidar
       if self.legged:
-        lidar_cfg = dataclasses.replace(lidar_cfg, mount=lite3.LIDAR_MOUNT)
+        lidar_cfg = dataclasses.replace(lidar_cfg, mount=self.robot.LIDAR_MOUNT)
         self.cfg.lidar = lidar_cfg
       self.lidar = lidar_lib.Lidar(m, lidar_cfg, self._body)
 
@@ -141,7 +152,7 @@ class Simulator:
     mujoco.mj_resetData(self.model, self.data)
     self.contact_steps = 0
     if self.legged:
-      self.data.qpos[2] = lite3.STAND_HEIGHT
+      self.data.qpos[2] = self.robot.START_HEIGHT
       self.walker.reset()
       self._fallen = False
     else:
@@ -239,9 +250,9 @@ class Simulator:
         self.contact_steps += 1
       elif self._contact_pairs:
         self._contact_pairs = set()
-    if not self._fallen and d.qpos[2] < 0.5 * lite3.STAND_HEIGHT:
+    if not self._fallen and d.qpos[2] < 0.5 * self.robot.STAND_HEIGHT:
       self._fallen = True
-      log.warning('Lite3 fell at t=%.2f (torso at %s)', d.time,
+      log.warning('%s fell at t=%.2f (torso at %s)', self.cfg.robot, d.time,
                   np.round(d.qpos[0:3], 3))
 
   def _touching(self) -> bool:

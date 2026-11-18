@@ -9,8 +9,9 @@ The simulation flow launches:
 - procedural map generation
 - the EGO planner stack
 - a simulated robot: a quadrotor (depth camera or lidar), or in MuJoCo the
-  Lite3 quadruped (lidar; see [Quadruped](#mujoco-simulator) below and
-  [QUADRUPED.md](QUADRUPED.md))
+  Lite3 quadruped or the T1 humanoid (lidar; see the
+  [MuJoCo Simulator](#mujoco-simulator) section below,
+  [QUADRUPED.md](QUADRUPED.md) and [HUMANOID.md](HUMANOID.md))
 - the exploration manager
 - optional RViz visualization
 
@@ -102,6 +103,17 @@ rostest star_nav_bringup lite3_smoke.test                  # house, lidar
 rostest star_nav_bringup lite3_smoke.test world:=forest    # pillar forest
 ```
 Development status, measurements and limitations: [QUADRUPED.md](QUADRUPED.md).
+
+Humanoid: Booster Robotics' T1, walking with its upstream velocity policy
+(Apache-2.0, downloaded, not committed), through the same house with the
+lidar on its head:
+
+```bash
+./scripts/setup_mujoco_env.sh --t1
+roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true
+rostest star_nav_bringup t1_smoke.test                     # house, lidar
+```
+Status and limitations: [HUMANOID.md](HUMANOID.md).
 
 Details, options and the bridge protocol: [mujoco_sim/README.md](../mujoco_sim/README.md).
 

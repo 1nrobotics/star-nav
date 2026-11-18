@@ -28,9 +28,8 @@ class FollowQuadrotor(plugin.ViewerPlugin):
     cam = self.viewer.camera
     cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
     cam.trackbodyid = scene.robot_body(event.model)
-    cam.distance = 5.0
+    cam.distance, cam.elevation = scene.follow_camera(event.model)
     cam.azimuth = -135.0
-    cam.elevation = -25.0
 
 
 def launch(port: int, stack: contextlib.ExitStack) -> viewer_handle.ViewerHandle:

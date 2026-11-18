@@ -63,7 +63,7 @@ lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
 ### Planning
 
 - **Planner**: EGO-Planner, the same as for the drone, at a fixed altitude of
-  0.34 m. The parameters are in `star_nav_bringup/launch/exploration_lite3.launch`:
+  0.34 m. The parameters are in `star_nav_bringup/launch/exploration_legged.launch`:
 
   | Parameter | Value |
   |---|---|

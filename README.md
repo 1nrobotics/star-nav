@@ -2,18 +2,18 @@
 
 Star Nav is a ROS Noetic navigation stack for **drones and legged robots**:
 an EGO-Planner based local planner and a waypoint exploration manager, with
-simulators to develop and test them. One planning stack drives both robots:
+simulators to develop and test them. One planning stack drives every robot:
 
-| | Quadrotor | Quadruped (DeepRobotics Lite3) |
-| --- | --- | --- |
-| Simulation | kinematic, or MuJoCo 4 with flight dynamics | MuJoCo 4, walking with DeepRobotics' own policy |
-| World | random forest of pillars and rings | furnished house with a ramp and stairs (default), or the forest |
-| Obstacle sensor | forward depth camera or 360° lidar | lidar on its back (depth camera in the forest) |
-| Robot-specific parts | SE(3) flight controller; `px4ctrl` for PX4 | velocity tracker; terrain filter for ramps and steps |
-| Launch | `exploration_mujoco.launch` | `exploration_lite3.launch` |
-| End-to-end test | `sim_smoke.test`, `mujoco_smoke.test` (CI) | `lite3_smoke.test` (local: the robot is downloaded) |
-| Page | [project page](https://1nrobotics.github.io/star-nav/) | [quadruped page](https://1nrobotics.github.io/star-nav/quadruped.html) |
-| Hardware | `hardware/vk180` branch ([Hardware Guide](docs/HARDWARE.md)) | simulation only so far ([status](docs/QUADRUPED.md)) |
+| | Quadrotor | Quadruped (DeepRobotics Lite3) | Humanoid (Booster T1) |
+| --- | --- | --- | --- |
+| Simulation | kinematic, or MuJoCo 4 with flight dynamics | MuJoCo 4, walking with DeepRobotics' own policy | MuJoCo 4, walking with Booster Robotics' own policy |
+| World | random forest of pillars and rings | furnished house with a ramp and stairs (default), or the forest | the house (taller walls), or the forest |
+| Obstacle sensor | forward depth camera or 360° lidar | lidar on its back (depth camera in the forest) | lidar on its head |
+| Robot-specific parts | SE(3) flight controller; `px4ctrl` for PX4 | velocity tracker; terrain filter for ramps and steps | the same as the Lite3 |
+| Launch | `exploration_mujoco.launch` | `exploration_lite3.launch` | `exploration_t1.launch` |
+| End-to-end test | `sim_smoke.test`, `mujoco_smoke.test` (CI) | `lite3_smoke.test` (local: the robot is downloaded) | `t1_smoke.test` (local) |
+| Page | [project page](https://1nrobotics.github.io/star-nav/) | [quadruped page](https://1nrobotics.github.io/star-nav/quadruped.html) | [status](docs/HUMANOID.md) |
+| Hardware | `hardware/vk180` branch ([Hardware Guide](docs/HARDWARE.md)) | simulation only so far ([status](docs/QUADRUPED.md)) | simulation only |
 
 The `main` branch is simulation-first and hardware-independent. Integration
 with specific onboard sensors lives on dedicated hardware branches.
@@ -34,8 +34,8 @@ walkable) and the path walked.* Full videos and the architecture are on the
 ## Status
 
 - Simulation is the recommended entrypoint. The quadrotor missions are
-  covered by automated end-to-end tests in CI; the quadruped's by
-  `lite3_smoke.test`, run locally.
+  covered by automated end-to-end tests in CI; the walking robots' by
+  `lite3_smoke.test` and `t1_smoke.test`, run locally.
 - The repository contains mixed licensing inherited from upstream components.
   Start with [docs/LICENSES.md](docs/LICENSES.md).
 
@@ -74,6 +74,16 @@ roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true   # house, li
 
 Trigger exploration as below; `world:=forest` walks the pillar forest. See
 [docs/QUADRUPED.md](docs/QUADRUPED.md).
+
+### Humanoid (Booster T1) in MuJoCo
+
+```bash
+./scripts/setup_mujoco_env.sh --t1                                  # once: model + policy
+roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true      # house, lidar
+```
+
+The same mission and planner on a 1.2 m humanoid. See
+[docs/HUMANOID.md](docs/HUMANOID.md).
 
 ### Interactive simulation with RViz (Linux host)
 
@@ -122,6 +132,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 - [Simulation Guide](docs/SIMULATION.md)
 - [Obstacle Sensors: depth camera or lidar](docs/SENSORS.md)
 - [Quadruped (Lite3): development status](docs/QUADRUPED.md)
+- [Humanoid (T1): development status](docs/HUMANOID.md)
 - [Hardware Guide](docs/HARDWARE.md)
 - [Licensing Notes](docs/LICENSES.md)
 - [Contributing](CONTRIBUTING.md)
@@ -133,7 +144,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 ## Repository Layout
 
 - `star_nav_bringup/`: launch files, RViz config and the simulation smoke tests
-- `mujoco_sim/`: standalone MuJoCo simulator for the quadrotor and the Lite3 quadruped (Python, no ROS)
+- `mujoco_sim/`: standalone MuJoCo simulator for the quadrotor, the Lite3 quadruped and the T1 humanoid (Python, no ROS)
 - `mujoco_bridge/`: ROS bridge between `mujoco_sim` and the planning stack
 - `planner/`: EGO-Planner-based planning stack and exploration manager
 - `uav_simulator/`: simulation, mapping, and local sensing components
@@ -153,6 +164,8 @@ rostest star_nav_bringup sim_smoke.test                              # end-to-en
 rostest star_nav_bringup mujoco_smoke.test                           # end-to-end test, MuJoCo
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true   # Lite3 quadruped (setup_mujoco_env.sh --lite3)
 rostest star_nav_bringup lite3_smoke.test                            # end-to-end test, Lite3 in the house
+roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true      # T1 humanoid (setup_mujoco_env.sh --t1)
+rostest star_nav_bringup t1_smoke.test                               # end-to-end test, T1 in the house
 ```
 
 ## Notes for Public Users

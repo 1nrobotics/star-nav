@@ -42,6 +42,13 @@ Notes:
   DeepRoboticsLab's (BSD-3-Clause). They are downloaded on request
   (`--fetch-lite3`) at pinned commits and not redistributed here;
   `star_nav_mujoco/lite3.py` reimplements their policy runner's interface.
+- The T1 humanoid model (MJCF, meshes) and walking policy (`T1.pt`) are
+  Booster Robotics' booster_gym (Apache-2.0). They are downloaded on request
+  (`--fetch-t1`) at a pinned commit and not redistributed here;
+  `star_nav_mujoco/t1.py` reads the policy's weights and reimplements its
+  observation and PD control from `play_mujoco.py`.
+- The scene textures (`star_nav_mujoco/textures.py`) are generated with
+  NumPy at run time; no image files are used.
 - The MuJoCo quadrotor controller implements the published geometric
   tracking controller of Lee, Leok and McClamroch (2010); no code was copied.
 - Several imported packages inherited `TODO` license placeholders in

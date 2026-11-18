@@ -56,13 +56,13 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--robot` | quadrotor | `quadrotor` or `lite3` (quadruped, see below) |
-| `--fetch-lite3` | | Download the Lite3 model and policy, then exit |
+| `--robot` | quadrotor | `quadrotor`, `lite3` (quadruped) or `t1` (humanoid), see below |
+| `--fetch-lite3`, `--fetch-t1` | | Download the Lite3 or T1 model and policy, then exit |
 | `--world` | forest | `forest` or `house` (rooms, ramp, platform, stairs; `house.py`) |
 | `--seed` | 1 | Forest layout |
 | `--map-size X Y` | 50 50 | Forest extent (m) |
-| `--pillars`, `--rings` | 100, 50 (lite3: 0 rings) | Obstacle counts |
-| `--start X Y Z` | 0 0 1 (lite3: 0 0 0.34) | Spawn and initial hover point |
+| `--pillars`, `--rings` | 100, 50 (lite3, t1: 0 rings) | Obstacle counts |
+| `--start X Y Z` | 0 0 1 (walking robots ignore Z) | Spawn and initial hover point |
 | `--bind` | 127.0.0.1 | ZeroMQ address (`0.0.0.0` for a bridge on another host) |
 | `--sensor` | depth | `depth`, `lidar` or `both` ([docs/SENSORS.md](../docs/SENSORS.md)) |
 | `--depth-rate` | 30 | Depth camera rate (Hz) |
@@ -105,7 +105,7 @@ camera bypasses the terrain filter, so use it in the forest (flat ground).
   (setpoint velocity plus 1.5/s × position error, at most 0.8 m/s) and turns
   towards the planner's yaw; it stands on a resting setpoint.
 - Sensors: the depth camera at the front of the torso, the lidar 10 cm above
-  the torso centre (`exploration_lite3.launch`: −30° … 52°, about what a
+  the torso centre (`exploration_legged.launch`: −30° … 52°, about what a
   Mid-360 tilted forward sees ahead). Neither sees the robot's own legs
   (geom group 3).
 - Terrain: on the lidar path, `star_nav_bringup/scripts/terrain_filter.py`
@@ -125,6 +125,49 @@ camera bypasses the terrain filter, so use it in the forest (flat ground).
 The house (`--world house`, 11 x 11 m) fits the default 9 m lawnmower
 mission: a furnished room with a table to walk under, and a corridor on one
 row with a ramp up to a 0.21 m platform and three steps down.
+
+## T1 humanoid
+
+Booster Robotics' T1 (1.2 m, 12 actuated leg joints) walks with Booster
+Robotics' own velocity policy, through the same house and planner:
+
+```bash
+./scripts/setup_mujoco_env.sh --t1        # model + policy (no extra Python packages)
+roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true
+rostest star_nav_bringup t1_smoke.test                     # house, lidar
+rostest star_nav_bringup t1_smoke.test world:=forest
+```
+
+Use the lidar. The depth camera (`sensor:=depth`) bypasses the terrain
+filter, and in the 3D map EGO may plan over an obstacle lower than about 1 m
+(the house's table, a short pillar), which a walking robot cannot follow: in
+the forest the T1 then brushes a stump with a foot. A virtual ceiling just
+above the walking height would stop that.
+
+- Model and policy are downloaded at a pinned commit of
+  [booster_gym](https://github.com/BoosterRobotics/booster_gym) (Apache-2.0)
+  into `~/.cache/star_nav/t1` (`STAR_NAV_T1_DIR` to change), not committed:
+  `T1_locomotion.xml` with its meshes, and the trained actor `T1.pt`
+  (checked by SHA-256). `T1.pt` is a TorchScript MLP; `t1.py` reads its
+  weights from the archive's raw tensor files (no unpickling, no PyTorch) and
+  runs it in NumPy.
+- Walking: the policy runs at 50 Hz on gravity direction, body angular
+  velocity, the velocity command, a 1.5 Hz gait clock (stopped on a zero
+  command, so it stands), leg joint positions and velocities and its last
+  action, as upstream's `play_mujoco.py`; joint PD (hips and knees kp 200,
+  kd 5; ankles 50, 1) at every 2 ms physics step. Measured on flat ground:
+  forward 0.5 → 0.42 m/s, sideways 0.3 → 0.26 m/s, turn 0.5 → 0.51 rad/s.
+- Steering: the Lite3's `Tracker`. Sensors: the depth camera in the face
+  (1.07 m), the lidar on top of the head (1.2 m, −50° … 30°); neither sees
+  the robot (its meshes are in group 2, its collision geoms in group 3).
+- The planner walks it at 0.5 m/s, waypoints at trunk height (0.67 m), with
+  0.35 m inflation (the arms reach 0.27 m out). The terrain filter counts
+  returns up to 1.25 m above the ground, so the table it cannot walk under
+  is an obstacle.
+- What the policy can walk (measured): the 12° ramp and the 7 cm steps
+  down; climbing the 7 cm steps fails most of the time (it was trained on
+  terrain with ~2 cm steps). The mission goes up the ramp and down the steps.
+- In the house, its walls are 1.6 m high instead of 1 m.
 
 ## Model
 
@@ -149,6 +192,10 @@ row with a ramp up to a 0.21 m platform and three steps down.
   well under the 1 m flight altitude), as it would with a real sensor. RViz
   hides map voxels below 0.35 m (`visualization_min_height`) so obstacles stay
   visible.
+- Textures (`textures.py`): wooden floor, plaster walls, wood, fabric,
+  concrete, grass and bark, generated with NumPy when the model is built.
+  They are for show: sensors measure geometry, and the house floor is a
+  visual-only geom.
 - Contacts: the number of physics steps in which the quadrotor touched
   anything, published by the bridge on `/mujoco/contacts`. The simulator log
   names the geoms and the position of each new contact.
