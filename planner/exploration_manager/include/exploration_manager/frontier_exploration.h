@@ -60,6 +60,7 @@ class FrontierExploration {
                               // them from here, and the planner handles very short hops poorly)
   double back_off_;           // m to move away when only near frontiers are left
   double min_goal_interval_;  // s between goal changes (unless the goal is reached or blocked)
+  double return_step_;        // m, longest leg of the way back to the start
   double goal_keep_radius_;   // m: the goal stays while a frontier is this close
   double switch_margin_;      // m of cost a new frontier must save to replace the goal
   double turn_weight_;        // m of cost per radian of heading change
@@ -83,6 +84,8 @@ class FrontierExploration {
   ros::Time last_goal_time_;
   ros::Time start_time_;
   std::vector<Eigen::Vector2d> blocked_;
+  std::vector<Eigen::Vector2d> route_;  // waypoints back to the start
+  size_t route_idx_ = 0;
   int no_frontier_cycles_ = 0;
   int goals_sent_ = 0;
 

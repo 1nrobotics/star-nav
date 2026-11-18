@@ -45,7 +45,7 @@ class FrontierMap {
 
   // Merges a grid (-1 unknown, 0 free, 1-99 blocked, 100 occupied; row-major,
   // x fastest, origin at the corner of cell 0). Unknown cells keep what was
-  // there.
+  // there, and occupied cells stay occupied.
   void merge(const Eigen::Vector2d& origin, double resolution, int width, int height,
              const std::vector<int8_t>& data);
 
@@ -59,6 +59,11 @@ class FrontierMap {
   }
   // Path length from the robot (last update) to p; kUnreachable if none.
   double distance(const Eigen::Vector2d& p) const;
+  // Waypoints along the shortest path from the robot (last update) to the
+  // goal through traversable cells: each in line of sight of the previous
+  // one and at most max_step from it; the last is the goal's cell. Empty if
+  // the goal is unreachable.
+  std::vector<Eigen::Vector2d> path(const Eigen::Vector2d& goal, double max_step) const;
   // True if a frontier cell lies within `radius` of p (last update).
   bool nearFrontier(const Eigen::Vector2d& p, double radius) const;
   // False if the robot was neither in nor near reachable free space.
@@ -96,6 +101,7 @@ class FrontierMap {
   }
   bool inGrid(const Eigen::Vector2i& c) const;
   bool inArea(const Eigen::Vector2i& c) const;
+  bool lineOfSight(const Eigen::Vector2d& a, const Eigen::Vector2d& b) const;
   bool traversable(int adr) const {
     return cells_[adr] == FREE && !inflated_[adr];
   }

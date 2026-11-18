@@ -39,7 +39,9 @@ EGO grid_map ── grid_map/slice (2D, flight height) ──> FrontierMap ─�
 2. **Memory.** `FrontierMap` covers the area plus a margin. It keeps every
    observation, because the planner's sliding map forgets what lies outside
    its window. A later slice updates a cell, but an unknown cell in the slice
-   never erases what is already known.
+   never erases what is already known, and an occupied cell stays occupied:
+   thin obstacles (a ring's tube) drop out of the planner's map again when
+   rays pass next to them.
 3. **Reachability.** Occupied and blocked cells are inflated again by
    `frontier/inflation`, a margin on top of the planner's inflation.
    Dijkstra (8-connected, no corner cutting) then runs from the robot over
@@ -87,7 +89,10 @@ EGO grid_map ── grid_map/slice (2D, flight height) ──> FrontierMap ─�
      has not arrived yet), the FSM waits instead of finishing.
    - **Finishing.** Exploration finishes after `finish_confirm` cycles in a
      row without a reachable frontier, or at `fsm/max_exploration_time`. The
-     robot then returns to the start.
+     robot then returns to the start, not in a straight line but along the
+     shortest path through observed free space, in legs of at most
+     `return_step` that are each in line of sight. A straight flight back
+     once met a ring that the planner's map had lost.
 
 ### States
 
@@ -119,6 +124,7 @@ EGO grid_map ── grid_map/slice (2D, flight height) ──> FrontierMap ─�
 | `frontier/min_goal_distance` | 2.0 | Nearer frontiers are not flown to (m) |
 | `frontier/back_off` | 2.0 | Distance to back off from near frontiers (m) |
 | `frontier/min_goal_interval` | 2.0 | Seconds between goal changes |
+| `frontier/return_step` | 3.0 | Longest leg on the way back to the start (m) |
 | `frontier/stuck_time` | 10.0 | Seconds without progress before a goal is blocked |
 | `frontier/blocked_radius` | 1.0 | Frontiers this close to a blocked goal are skipped (m) |
 | `frontier/finish_confirm` | 8 | Cycles (0.25 s) without frontiers before finishing |

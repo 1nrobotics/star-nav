@@ -122,13 +122,43 @@ TEST(FrontierMap, ObservationsAreKeptAndUpdated) {
   FrontierMap m = makeMap();
   observe(m, [](double x, double y) { return std::abs(x) < 1 && std::abs(y) < 1 ? 100 : 0; });
   // A later slice: unknown there now (out of the sensor window) except one
-  // freed cell.
+  // cell seen free, which does not clear the obstacle.
   observe(m, [](double x, double y) { return std::hypot(x - 0.55, y - 0.55) < 0.05 ? 0 : -1; });
   const int c = (int)std::floor((0.05 - m.origin()(0)) / m.resolution());
   EXPECT_EQ(m.cell(c, c), FrontierMap::OCCUPIED);
   m.update(Eigen::Vector2d(3, 3));
   EXPECT_EQ(m.distance(Eigen::Vector2d(0, 0)), FrontierMap::kUnreachable);
   EXPECT_LT(m.distance(Eigen::Vector2d(-3, -3)), FrontierMap::kUnreachable);
+}
+
+TEST(FrontierMap, ObstaclesStayWhenLaterSeenFree) {
+  FrontierMap m = makeMap();
+  observe(m, [](double x, double y) { return std::hypot(x - 1.0, y) < 0.1 ? 100 : 0; });
+  observe(m, [](double x, double y) { return 0; });  // the thin obstacle dropped out
+  m.update(Eigen::Vector2d(0, 0));
+  EXPECT_EQ(m.distance(Eigen::Vector2d(1.0, 0.0)), FrontierMap::kUnreachable);
+}
+
+TEST(FrontierMap, PathGoesAroundObstaclesInLineOfSightLegs) {
+  FrontierMap m = makeMap();
+  // A wall from y = -3 to 3 at x = 0, robot west of it, goal east.
+  auto wall = [](double x, double y) { return std::abs(x) < 0.1 && std::abs(y) < 3.0; };
+  observe(m, [&](double x, double y) { return wall(x, y) ? 100 : inArea(x, y) ? 0 : -1; });
+  m.update(Eigen::Vector2d(-2, 0));
+  const auto route = m.path(Eigen::Vector2d(2, 0), 3.0);
+  ASSERT_FALSE(route.empty());
+  EXPECT_LT((route.back() - Eigen::Vector2d(2, 0)).norm(), 0.1);
+  Eigen::Vector2d prev(-2, 0);
+  for (const auto& w : route) {
+    EXPECT_LE((w - prev).norm(), 3.0 + 0.15);
+    // No leg crosses the wall (it would pass x = 0 at |y| < 3.3).
+    if ((prev(0) < 0) != (w(0) < 0)) {
+      const double y = prev(1) + (w(1) - prev(1)) * (0 - prev(0)) / (w(0) - prev(0));
+      EXPECT_GT(std::abs(y), 3.3);
+    }
+    prev = w;
+  }
+  EXPECT_TRUE(m.path(Eigen::Vector2d(20, 20), 3.0).empty());  // outside the map
 }
 
 TEST(FrontierMap, PlannerInflationBlocksButCanBeLeft) {

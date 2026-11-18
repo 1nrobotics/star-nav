@@ -32,6 +32,7 @@ void FrontierExploration::init(ros::NodeHandle& nh) {
   nh.param("frontier/min_goal_distance", min_goal_distance_, 2.0);
   nh.param("frontier/back_off", back_off_, 2.0);
   nh.param("frontier/min_goal_interval", min_goal_interval_, 2.0);
+  nh.param("frontier/return_step", return_step_, 3.0);
   nh.param("frontier/switch_margin", switch_margin_, 2.0);
   nh.param("frontier/turn_weight", turn_weight_, 1.0);
   nh.param("frontier/size_weight", size_weight_, 0.5);
@@ -77,6 +78,7 @@ void FrontierExploration::fsmCallback(const ros::TimerEvent& /*e*/) {
         have_goal_ = false;
         last_goal_time_ = ros::Time(0);
         blocked_.clear();
+        route_.clear();
         no_frontier_cycles_ = 0;
         goals_sent_ = 0;
         transit(EXPLORE, "triggered");
@@ -287,14 +289,36 @@ bool FrontierExploration::makingProgress(double distance) {
 
 void FrontierExploration::returnHomeState() {
   const Eigen::Vector2d robot = odom_pos_.head<2>();
-  if (!have_goal_ || (goal_ - home_).norm() > 1e-6) {
-    sendGoal(home_);
+  const double reach = std::max(goal_tolerance_, reach_radius_);
+  if (route_.empty()) {
+    // Back through observed free space in line-of-sight legs, not straight:
+    // the planner's map can lose thin obstacles (a ring's tube) that the
+    // exploration map keeps.
+    map_.update(robot);
+    route_ = map_.path(home_, return_step_);
+    if (route_.empty())
+      route_.push_back(home_);
+    route_.back() = home_;
+    route_idx_ = 0;
+    ROS_INFO("[FrontierExploration] Returning to the start through %zu waypoints", route_.size());
+    sendGoal(route_[0]);
+    return;
+  }
+  if (route_idx_ + 1 < route_.size()) {
+    const double d = (route_[route_idx_] - robot).norm();
+    if (d < reach) {
+      sendGoal(route_[++route_idx_]);
+    } else if (!makingProgress(d)) {
+      ROS_WARN("[FrontierExploration] No progress towards return waypoint %zu, skipping it",
+               route_idx_);
+      sendGoal(route_[++route_idx_]);
+    }
     return;
   }
   // reach_radius, not the waypoint tolerance: the planner stops short of
   // goals this close.
   const double d = (home_ - robot).norm();
-  if (d < std::max(goal_tolerance_, reach_radius_)) {
+  if (d < reach) {
     transit(FINISH, "back at the start");
   } else if (!makingProgress(d)) {
     ROS_WARN("[FrontierExploration] Could not return to the start (%.2f m away)", d);
@@ -309,6 +333,7 @@ void FrontierExploration::finishState() {
       (ros::Time::now() - start_time_).toSec());
   have_goal_ = false;
   triggered_ = false;
+  route_.clear();
   transit(WAIT_TRIGGER, "finished");
 }
 

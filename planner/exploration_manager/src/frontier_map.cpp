@@ -73,7 +73,11 @@ void FrontierMap::merge(const Eigen::Vector2d& origin, double resolution, int wi
       if (!toCell(origin + (Eigen::Vector2d(x, y) + Eigen::Vector2d::Constant(0.5)) * resolution,
                   c))
         continue;
-      cells_[address(c)] = v >= 100 ? OCCUPIED : v > 0 ? BLOCKED : FREE;
+      // An obstacle stays: thin ones (a ring's tube) drop out of the
+      // planner's map again when rays pass next to them.
+      int8_t& cell = cells_[address(c)];
+      if (cell != OCCUPIED)
+        cell = v >= 100 ? OCCUPIED : v > 0 ? BLOCKED : FREE;
     }
 }
 
@@ -301,6 +305,56 @@ bool FrontierMap::nearFrontier(const Eigen::Vector2d& p, double radius) const {
         return true;
     }
   return false;
+}
+
+bool FrontierMap::lineOfSight(const Eigen::Vector2d& a, const Eigen::Vector2d& b) const {
+  const int n = (int)std::ceil((b - a).norm() / (0.5 * p_.resolution));
+  for (int i = 0; i <= n; ++i) {
+    Eigen::Vector2i c;
+    if (!toCell(a + (b - a) * (n ? double(i) / n : 0.0), c) || !traversable(address(c)))
+      return false;
+  }
+  return true;
+}
+
+std::vector<Eigen::Vector2d> FrontierMap::path(const Eigen::Vector2d& goal, double max_step) const {
+  Eigen::Vector2i c;
+  if (!toCell(goal, c) || dist_[address(c)] == kUnreachable)
+    return {};
+  // Down the distance field from the goal to the start.
+  std::vector<Eigen::Vector2d> cells{cellCentre(address(c))};
+  for (;;) {
+    int next = -1;
+    double best = dist_[address(c)];
+    for (int k = 0; k < 8; ++k) {
+      const Eigen::Vector2i n(c(0) + kDx8[k], c(1) + kDy8[k]);
+      if (inGrid(n) && dist_[address(n)] < best) {
+        best = dist_[address(n)];
+        next = address(n);
+      }
+    }
+    if (next < 0)
+      break;
+    c = Eigen::Vector2i(next % size_(0), next / size_(0));
+    cells.push_back(cellCentre(next));
+  }
+  std::reverse(cells.begin(), cells.end());
+  // Keep the farthest cell in line of sight (and within max_step) each time.
+  std::vector<Eigen::Vector2d> out;
+  size_t i = 0;
+  while (i + 1 < cells.size()) {
+    size_t j = i + 1;
+    for (size_t k = cells.size() - 1; k > i + 1; --k)
+      if ((cells[k] - cells[i]).norm() <= max_step && lineOfSight(cells[i], cells[k])) {
+        j = k;
+        break;
+      }
+    out.push_back(cells[j]);
+    i = j;
+  }
+  if (out.empty())
+    out.push_back(cells.back());
+  return out;
 }
 
 double FrontierMap::coverage() const {
