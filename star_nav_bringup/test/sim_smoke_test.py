@@ -51,6 +51,10 @@ class SimSmokeTest(unittest.TestCase):
         self.settle_time = rospy.get_param("~settle_time", 5.0)
         self.mission_timeout = rospy.get_param("~mission_timeout", 180.0)
         self.contacts_topic = rospy.get_param("~contacts_topic", "")
+        # The robot must get this high at least once (e.g. onto a platform);
+        # off by default.
+        self.min_peak_height = rospy.get_param("~min_peak_height", -1e9)
+        self.peak_height = -1e9
         self.contacts = None
 
         self.accuracy = None
@@ -61,6 +65,8 @@ class SimSmokeTest(unittest.TestCase):
                 rospy.get_param("~map_topic", "/drone_0_ego_planner_node/grid_map/occupancy_inflate"),
                 self.odom_topic,
                 cloud_topic=rospy.get_param("~sensor_cloud_topic", ""),
+                # Inflated voxels lie up to ~sqrt(3) x the inflation from the
+                # surface: 0.45 m suits 0.2 m inflation.
                 phantom_tol=rospy.get_param("~phantom_tol", 0.45))
             self.max_cloud_error_ratio = rospy.get_param("~max_cloud_error_ratio", 0.001)
             self.max_phantom_ratio = rospy.get_param("~max_phantom_ratio", 0.01)
@@ -93,6 +99,7 @@ class SimSmokeTest(unittest.TestCase):
             if self.last_xy is not None:
                 self.path_length += math.hypot(p.x - self.last_xy[0], p.y - self.last_xy[1])
             self.last_xy = (p.x, p.y)
+            self.peak_height = max(self.peak_height, p.z)
 
     def contacts_cb(self, msg):
         with self.lock:
@@ -154,12 +161,14 @@ class SimSmokeTest(unittest.TestCase):
             coverage = self.coverage
             contacts = self.contacts
             path_length = self.path_length
+            peak = self.peak_height
 
         # print: the summary also goes to the rostest output.
         print("[sim_smoke] mode=%s time=%.0fs path=%.1fm waypoints=%d span=(%.2f, %.2f) "
-              "coverage=%s blocked=%d problems=%d contacts=%s"
+              "coverage=%s blocked=%d problems=%d contacts=%s peak_z=%.2f"
               % (self.mode, (rospy.Time.now() - start).to_sec(), path_length, reached, span_x,
-                 span_y, coverage, len(blocked), len(problems), contacts))
+                 span_y, coverage, len(blocked), len(problems), contacts, peak))
+        self.assertGreaterEqual(peak, self.min_peak_height, "never got high enough")
         self.assertEqual(problems, [], "exploration reported: %s" % problems)
         if self.mode == "frontier":
             self.assertIsNotNone(coverage, "no message on /exploration/coverage")

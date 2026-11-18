@@ -1,0 +1,160 @@
+# Quadruped (Lite3): Development Status
+
+Status of the walking-robot path on the `feature/quadruped` branch: what
+works, how it fits together, what was measured, and what is missing. How to
+run it: [SIMULATION.md](SIMULATION.md#mujoco-simulator) and
+[mujoco_sim/README.md](../mujoco_sim/README.md#lite3-quadruped).
+
+## Summary
+
+| Area | Status |
+|---|---|
+| Lite3 in MuJoCo, upstream walking policy | Working |
+| Planner (EGO) driving the robot | Working: the drone's stack at a fixed height |
+| Forest, lidar or depth camera | 12/12 waypoints, no contacts |
+| House: furniture, 12° ramp, 0.21 m platform, 7 cm steps | 12/12 waypoints, no contacts |
+| Terrain filter (ramps and low steps are walkable) | Working, static worlds only |
+| Localisation | Simulator ground truth |
+| Steps above 8 cm | Not supported (blind policy) |
+| Hardware | None |
+| CI | Not run (needs downloaded assets) |
+
+## Architecture
+
+```
+mission waypoints (exploration_manager)
+  -> EGO-Planner: B-spline at a fixed height (0.34 m, the torso)
+  -> traj_server: position, velocity, yaw setpoints (the same as for the drone)
+  ==== ZeroMQ bridge ==== MuJoCo
+  -> lite3.Tracker: setpoint -> body-frame (forward, sideways, turn)
+  -> walking policy (ONNX, 83 Hz): command -> 12 joint targets
+  -> PD (500 Hz): joint targets -> torques
+
+lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
+```
+
+### Control (`mujoco_sim/star_nav_mujoco/lite3.py`)
+
+- **Model and policy**: DeepRobotics' Lite3 MJCF
+  ([deep_robotics_model](https://github.com/DeepRoboticsLab/deep_robotics_model))
+  and the PPO velocity policy from
+  [Lite3_rl_deploy](https://github.com/DeepRoboticsLab/Lite3_rl_deploy), both
+  BSD-3-Clause. They are downloaded at pinned commits with a SHA-256 check
+  (`star-nav-mujoco --fetch-lite3`), not committed. We did not train anything.
+- **Policy**: 45 observations (body angular velocity, projected gravity,
+  command, joint positions and velocities, last action). The command is limited
+  to ±0.8. The policy outputs joint offsets from the standing pose. It runs
+  every 6 physics steps (2 ms each, about 83 Hz).
+- **PD**: kp 30, kd 1, ±30 N·m, every physics step. These match the upstream
+  deployment.
+- **Tracker**:
+  - velocity = setpoint velocity + 1.5 × position error, capped at 0.8 m/s,
+    rotated into the body frame;
+  - turn rate = 1.5 × yaw error, capped at 0.8 rad/s;
+  - stands still within 3 cm and 3° of a resting setpoint.
+
+  The robot walks in any direction, so it does not turn to face its path
+  before moving.
+- **Safety in the simulator**: a fall is logged when the torso drops below half
+  the standing height. Contacts with the ground count as walking, not
+  collisions; so do feet and lower legs on `walk/` geoms (ramp, platform,
+  steps).
+
+### Planning
+
+- **Planner**: EGO-Planner, the same as for the drone, at a fixed altitude of
+  0.34 m. The parameters are in `star_nav_bringup/launch/exploration_lite3.launch`:
+
+  | Parameter | Value |
+  |---|---|
+  | `max_vel` | 0.6 m/s |
+  | `max_acc` | 1.0 m/s² |
+  | Obstacle inflation | 0.3 m |
+  | Waypoint tolerance | 0.3 m |
+  | Waypoint timeout | 60 s |
+
+- **Mission**: the default 12-waypoint lawnmower from `exploration_manager`.
+- **Terrain filter** (`star_nav_bringup/scripts/terrain_filter.py`): the
+  drone's map treats everything above the floor as an obstacle, including ramps
+  and steps. The filter keeps a 2.5D grid of 0.1 m cells, each with its lowest
+  lidar return (the ground) and its highest return within 0.55 m above that.
+
+  | Cell | Result |
+  |---|---|
+  | Highest return more than 9 cm above the ground (wall, leg, box) | Obstacle |
+  | Ground 9 cm to 0.55 m above a neighbour's (box top, platform edge) | Obstacle |
+  | Ramp, step of 9 cm or less | Free |
+  | Only returns above the robot (table top) | Free |
+
+  Obstacle cells within 7 m are published as vertical columns. grid_map takes
+  them in replace mode (`enable_pointcloud_raycasting` false). The robot's
+  lidar looks −30° … 52° so that it sees the ground near the robot, roughly a
+  forward-tilted Mid-360.
+
+## Measured
+
+Flat ground, policy command → speed reached:
+
+| Command | Reached |
+|---|---|
+| forward 0.5 m/s | 0.49 m/s |
+| sideways 0.3 m/s | 0.24 m/s |
+| turn 0.5 rad/s | 0.45 rad/s |
+
+Terrain (house corridor, both directions):
+
+| Obstacle | Result |
+|---|---|
+| 12° ramp | Climbs |
+| 7 cm steps | Reliable |
+| 8 cm steps | Sometimes stalls |
+| 10 cm steps | Falls |
+
+Verification at the last commit:
+
+| Check | Result |
+|---|---|
+| `lite3_smoke.test` (house, lidar; the default) | 12/12, 0 contacts, 0 timeouts, reached the platform (peak torso z 0.54 m) |
+| `lite3_smoke.test world:=forest` | 12/12, 0 contacts, 0 timeouts, all 107 pillars mapped |
+| `lite3_smoke.test world:=forest sensor:=depth` | 12/12, 0 contacts |
+| `pytest` in `mujoco_sim/` | 30 passed; the walking tests need the assets |
+
+## Changes Outside the Robot
+
+The quadruped work also fixed two things that affect the drone:
+
+- **EGO waypoint callback** (`ego_replan_fsm.cpp`): it busy-waited for
+  `EXEC_TRAJ`. If the trajectory ended during that wait, the planner hung and
+  ignored all further waypoints. This was behind intermittent drone lidar
+  failures (2 of 4 runs). It now triggers from `WAIT_TARGET` or replans from
+  `EXEC_TRAJ` directly; 4/4 runs pass.
+- **Smoke test**: rostest has no `rosout` node, so `/rosout_agg` was empty and
+  waypoint timeouts were never counted. The test now subscribes to `/rosout`.
+
+## Limitations
+
+- **The planner does not know the gait's limits.** The filter's 9 cm threshold
+  is above what the policy climbs reliably (7 cm). A step between 8 and 9 cm
+  would be planned over and may stall the robot.
+- **Static worlds only.** Terrain cells are never cleared, so a moved object
+  stays an obstacle and a removed one never frees its cells.
+- **Fixed-height planning.** EGO is a 3D trajectory optimiser for a drone, used
+  here in one horizontal layer. It does not plan up or down terrain, and
+  heading is only what the trajectory's yaw gives.
+- **Ground-truth pose.** No odometry or SLAM is in the loop.
+- **Blind policy.** It cannot see terrain, so higher steps need a
+  terrain-aware policy.
+- **Not in CI.** The model and policy are downloaded, so CI skips the walking
+  tests and does not run `lite3_smoke.test`.
+
+## Next Steps
+
+1. **Odometry**: replace the ground-truth pose with lidar-inertial odometry
+   (e.g. FAST-LIO) on simulated IMU and lidar.
+2. **Gait limits**: tie the filter's `max_step` to the gait's measured limit.
+3. **Dynamic worlds**: clear terrain cells as rays pass through them.
+4. **Terrain-aware gait**: a policy that sees the terrain (height scan) for
+   higher steps.
+5. **CI**: an optional job that caches the downloaded assets.
+6. **Hardware**: a Lite3 hardware branch (`hardware/*`) once the above
+   are done.

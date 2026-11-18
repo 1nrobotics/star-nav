@@ -1,12 +1,24 @@
 name: sim-smoke
 
+# Runs automatically only on pull requests into main that change code, and
+# not while they are drafts (marking one ready runs it). main itself only
+# receives tested pull requests, so pushes to it do not run it again; run it
+# by hand from the Actions tab when needed.
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ['**.md', 'docs/**', 'site/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+# A new push to a pull request cancels its run still in progress.
+concurrency:
+  group: sim-smoke-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   smoke-test:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
@@ -30,6 +42,7 @@ jobs:
         run: docker compose run --rm test
 
   mujoco-unit-tests:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:
@@ -52,6 +65,7 @@ jobs:
         run: python -m pytest mujoco_sim/tests -v
 
   mujoco-smoke-test:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     strategy:
