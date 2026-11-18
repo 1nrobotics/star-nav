@@ -76,7 +76,7 @@ class FrontierExploration {
   Eigen::Vector3d odom_pos_, odom_vel_;
   Eigen::Vector2d home_;
   bool have_goal_ = false;
-  bool backing_off_ = false;  // the goal moves away from near frontiers
+  bool backing_off_ = false;  // not a frontier goal (backing off or heading past near frontiers)
   Eigen::Vector2d goal_;
   double best_distance_;
   ros::Time progress_time_;

@@ -73,7 +73,7 @@ void FrontierMap::merge(const Eigen::Vector2d& origin, double resolution, int wi
       if (!toCell(origin + (Eigen::Vector2d(x, y) + Eigen::Vector2d::Constant(0.5)) * resolution,
                   c))
         continue;
-      cells_[address(c)] = v > 50 ? OCCUPIED : FREE;
+      cells_[address(c)] = v >= 100 ? OCCUPIED : v > 0 ? BLOCKED : FREE;
     }
 }
 
@@ -87,7 +87,8 @@ void FrontierMap::inflate() {
         disk.emplace_back(dx, dy);
   for (int y = 0; y < size_(1); ++y)
     for (int x = 0; x < size_(0); ++x) {
-      if (cells_[x + y * size_(0)] != OCCUPIED)
+      const int8_t v = cells_[x + y * size_(0)];
+      if (v != OCCUPIED && v != BLOCKED)
         continue;
       for (const auto& d : disk) {
         const Eigen::Vector2i c(x + d(0), y + d(1));
@@ -180,7 +181,7 @@ void FrontierMap::findFrontiers(const std::vector<Eigen::Vector2d>& blocked,
       return false;
     for (int k = 0; k < 4; ++k) {
       const Eigen::Vector2i n(c(0) + kDx8[k], c(1) + kDy8[k]);
-      if (!inGrid(n) || cells_[address(n)] != FREE)
+      if (!inGrid(n) || cells_[address(n)] == UNKNOWN || cells_[address(n)] == OCCUPIED)
         return true;
     }
     return false;

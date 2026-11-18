@@ -196,12 +196,13 @@ bool FrontierExploration::selectGoal() {
     // a distance.
     if (have_goal_)
       return true;
-    const Eigen::Vector2d away = robot - frontiers[nearest].goal;
-    const double base = std::atan2(away(1), away(0));
+    const Eigen::Vector2d& near = frontiers[nearest].goal;
+    const double base = std::atan2(robot(1) - near(1), robot(0) - near(0));
     for (int k = 0; k < 16; ++k) {
       const double a = base + (k % 2 ? 1 : -1) * ((k + 1) / 2) * M_PI / 8;
       const Eigen::Vector2d p = robot + back_off_ * Eigen::Vector2d(std::cos(a), std::sin(a));
-      if (map_.distance(p) < 2.0 * back_off_ && !map_.nearFrontier(p, min_goal_distance_)) {
+      if (map_.distance(p) < 2.0 * back_off_ &&
+          (p - near).norm() > (robot - near).norm() + 0.5 * back_off_) {
         ROS_INFO("[FrontierExploration] Only frontiers within %.1f m left, backing off",
                  min_goal_distance_);
         sendGoal(p);
@@ -209,9 +210,32 @@ bool FrontierExploration::selectGoal() {
         return true;
       }
     }
-    ROS_WARN_THROTTLE(
-        5.0, "[FrontierExploration] Only frontiers within %.1f m left and no room to back off",
-        min_goal_distance_);
+    // No room to back off (e.g. at the start, when only a small patch is
+    // observed): fly to the farthest of them instead of waiting.
+    int farthest = -1;
+    for (size_t i = 0; i < frontiers.size(); ++i)
+      if ((frontiers[i].goal - robot).norm() > reach_radius_ &&
+          (farthest < 0 || frontiers[i].distance > frontiers[farthest].distance))
+        farthest = i;
+    if (farthest >= 0) {
+      ROS_INFO(
+          "[FrontierExploration] Only frontiers within %.1f m left and no room to back off, flying "
+          "to the farthest",
+          min_goal_distance_);
+      sendGoal(frontiers[farthest].goal);
+      return true;
+    }
+    // All of them within reach_radius (a tiny observed patch, e.g. facing an
+    // obstacle at the start): head past the nearest into unknown space,
+    // which the planner treats as free; the camera looks where it flies.
+    const Eigen::Vector2d dir = near - robot;
+    const Eigen::Vector2d past =
+        robot +
+        min_goal_distance_ * (dir.norm() > 1e-3 ? dir.normalized() : Eigen::Vector2d(1.0, 0.0));
+    ROS_INFO("[FrontierExploration] Only frontiers within %.1f m left, heading past them",
+             reach_radius_);
+    sendGoal(past);
+    backing_off_ = true;  // not a frontier goal: kept until reached or stuck
     return true;
   }
 
@@ -325,7 +349,9 @@ void FrontierExploration::publishVisualisation() {
         grid.data[x + y * map_.width()] =
             c == FrontierMap::UNKNOWN
                 ? -1
-                : c == FrontierMap::OCCUPIED ? 100 : map_.inflated(x, y) ? 50 : 0;
+                : c == FrontierMap::OCCUPIED
+                      ? 100
+                      : c == FrontierMap::BLOCKED ? 75 : map_.inflated(x, y) ? 50 : 0;
       }
     map_pub_.publish(grid);
   }

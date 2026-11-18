@@ -27,7 +27,8 @@ EGO grid_map ── grid_map/slice (2D, flight height) ──> FrontierMap ─�
 
    | Cell value | Meaning |
    | --- | --- |
-   | 100 | Any voxel in the band is occupied, or the voxel at mid-height is in the planner's inflated map |
+   | 100 | Any voxel in the band is occupied |
+   | 50 | Blocked: the voxel at mid-height is in the planner's inflated map |
    | 0 | At least half of the band's voxels are observed |
    | -1 | Otherwise unknown |
 
@@ -39,11 +40,12 @@ EGO grid_map ── grid_map/slice (2D, flight height) ──> FrontierMap ─�
    observation, because the planner's sliding map forgets what lies outside
    its window. A later slice updates a cell, but an unknown cell in the slice
    never erases what is already known.
-3. **Reachability.** Occupied cells are inflated again by
+3. **Reachability.** Occupied and blocked cells are inflated again by
    `frontier/inflation`, a margin on top of the planner's inflation.
    Dijkstra (8-connected, no corner cutting) then runs from the robot over
    observed free cells. If the robot sits inside the inflation (close to an
-   obstacle), it first searches up to `frontier/escape_radius` for free space.
+   obstacle), it first searches up to `frontier/escape_radius` for free space,
+   through blocked cells but not occupied ones.
 4. **Frontiers.** A frontier cell is a reachable free cell inside the area
    with an unknown 4-neighbour inside the area. Three things are not
    frontiers:
@@ -74,8 +76,10 @@ EGO grid_map ── grid_map/slice (2D, flight height) ──> FrontierMap ─�
 
    **Frontiers right next to the robot.** Frontiers closer than
    `min_goal_distance` are not flown to: a forward camera does not look
-   there, and the planner handles very short hops poorly. If only such frontiers are left, the robot first backs off by
-   `back_off` and then approaches them.
+   there, and the planner handles very short hops poorly. If only such
+   frontiers are left, the robot first backs off by `back_off` and then
+   approaches them. If there is no room to back off (at the start only a
+   small patch is observed), it flies to the farthest of them.
 6. **Robustness.**
    - **No progress.** A goal with no progress (0.3 m) for `stuck_time` is
      blocked, together with frontiers within `blocked_radius`.

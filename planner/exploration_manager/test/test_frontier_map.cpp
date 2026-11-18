@@ -131,6 +131,22 @@ TEST(FrontierMap, ObservationsAreKeptAndUpdated) {
   EXPECT_LT(m.distance(Eigen::Vector2d(-3, -3)), FrontierMap::kUnreachable);
 }
 
+TEST(FrontierMap, PlannerInflationBlocksButCanBeLeft) {
+  FrontierMap m = makeMap(0.0);
+  observe(m, [](double x, double y) {
+    if (std::hypot(x - 0.3, y) < 0.1)
+      return 100;  // an obstacle 0.3 m from the robot
+    if (std::hypot(x - 0.3, y) < 0.5)
+      return 50;  // the planner's inflation around it, robot inside
+    return std::hypot(x, y) < 2.0 ? 0 : -1;
+  });
+  m.update(Eigen::Vector2d(0, 0));
+  EXPECT_TRUE(m.robotInFreeSpace());
+  EXPECT_FALSE(m.frontiers().empty());
+  EXPECT_EQ(m.distance(Eigen::Vector2d(0.5, 0)), FrontierMap::kUnreachable);  // blocked
+  EXPECT_LT(m.distance(Eigen::Vector2d(-1, 0)), FrontierMap::kUnreachable);
+}
+
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

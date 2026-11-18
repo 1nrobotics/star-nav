@@ -19,7 +19,10 @@ namespace exploration_manager {
 //     cells inside the area, grouped into clusters with a goal each.
 class FrontierMap {
  public:
-  enum : int8_t { UNKNOWN = -1, FREE = 0, OCCUPIED = 1 };
+  // BLOCKED: observed, not an obstacle itself but within the planner's
+  // inflation (the slice's values 1-99). Not traversable, but a robot inside
+  // it can leave through it.
+  enum : int8_t { UNKNOWN = -1, FREE = 0, OCCUPIED = 1, BLOCKED = 2 };
 
   struct Params {
     double resolution = 0.1;
@@ -40,8 +43,9 @@ class FrontierMap {
   // The exploration area is [area_min, area_max].
   void init(const Eigen::Vector2d& area_min, const Eigen::Vector2d& area_max, const Params& params);
 
-  // Merges a grid (-1 unknown, 0 free, > 50 occupied; row-major, x fastest,
-  // origin at the corner of cell 0). Unknown cells keep what was there.
+  // Merges a grid (-1 unknown, 0 free, 1-99 blocked, 100 occupied; row-major,
+  // x fastest, origin at the corner of cell 0). Unknown cells keep what was
+  // there.
   void merge(const Eigen::Vector2d& origin, double resolution, int width, int height,
              const std::vector<int8_t>& data);
 
