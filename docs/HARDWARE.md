@@ -10,6 +10,10 @@ on dedicated branches that track `main`:
 Hardware branches depend on proprietary vendor SDKs that are not part of the
 open-source release.
 
+The Lite3 quadruped is simulation-only so far: there is no hardware branch
+for it yet ([QUADRUPED.md](QUADRUPED.md) lists what a real robot still needs,
+such as odometry in place of the simulator's ground truth).
+
 ## Hardware-independent parts on `main`
 
 - `px4ctrl`: PX4 attitude/thrust controller over MAVROS. It consumes
