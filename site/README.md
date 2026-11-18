@@ -1,5 +1,12 @@
 # Project page
 
+Two static pages with no build step, linked from each other's header:
+
+| Page | What |
+| --- | --- |
+| `index.html` | The quadrotor: exploration, simulators, live MuJoCo scene |
+| `quadruped.html` | The Lite3 quadruped on the same stack (self-contained, no external scripts) |
+
 `index.html` is a static page with no build step. The only external scripts
 are those of the live MuJoCo scene (below), loaded from jsDelivr when a visitor
 scrolls to it. `.github/workflows/pages.yml` publishes this folder to GitHub Pages
@@ -40,7 +47,8 @@ against the Python one on random states (thrusts equal to 1e-14 N).
 
 ## Demo videos
 
-The videos (`exploration-demo.mp4`, `lidar-exploration-demo.mp4`) are not tracked in git, to keep the
+The videos (`exploration-demo.mp4`, `lidar-exploration-demo.mp4`, and on the
+quadruped page `lite3-house.mp4`, `lite3-forest-lidar.mp4`) are not tracked in git, to keep the
 repository small (`.gitignore`). They are attached to the `site-assets` GitHub
 release, and the Pages workflow downloads them at deploy time. To preview
 locally, download them into `assets/`; without them the page shows the poster
@@ -58,7 +66,11 @@ gh release create site-assets --prerelease --title "Project page assets" \
 gh release upload site-assets site/assets/exploration-demo.mp4 site/assets/lidar-exploration-demo.mp4 --clobber
 ```
 
-It puts the simulator's follow camera next to the RViz window for one mission
+The quadruped videos are the simulator's follow camera alone (`--record` in
+`sim_args` of `exploration_lite3.launch`), sped up 4× with ffmpeg
+(`-vf setpts=PTS/4`); their posters are `assets/lite3-*.jpg`.
+
+The quadrotor video puts the simulator's follow camera next to the RViz window for one mission
 (seed 1, default exploration area). To regenerate it:
 
 1. Record the simulator and the RViz window during one mission:

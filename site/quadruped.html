@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Star Nav Quadruped</title>
+<meta name="description" content="DeepRobotics Lite3 quadruped on the Star Nav stack: EGO-Planner, a learned walking policy and a terrain filter, in a MuJoCo house with a ramp and stairs.">
+<meta property="og:title" content="Star Nav Quadruped">
+<meta property="og:description" content="The Star Nav planning stack on a walking robot: Lite3 in MuJoCo, with a ramp, stairs and furniture.">
+<meta property="og:image" content="assets/lite3-house.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%232f7d4f' stroke-width='3' stroke-linecap='round'%3E%3Crect x='5' y='9' width='22' height='8' rx='3'/%3E%3Cpath d='M9 17l-2 9M13 17l1 9M19 17l-1 9M23 17l2 9'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --surface: #ffffff;
+    --surface-2: #f3f4f2;
+    --text: #1b1d1f;
+    --muted: #5d636b;
+    --border: #e1e3e0;
+    --accent: #2f7d4f;
+    --accent-soft: #e5f2ea;
+    --sim: #2f7d4f;
+    --sim-soft: #e5f2ea;
+    --ros: #b45309;
+    --ros-soft: #fbefe1;
+    --plan: #6d28d9;
+    --plan-soft: #efe8fb;
+    --link: #2563eb;
+    --code-bg: #f1f2f0;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121416;
+      --surface: #1a1d20;
+      --surface-2: #202427;
+      --text: #e7e9eb;
+      --muted: #9aa1a9;
+      --border: #2d3236;
+      --accent: #6cc28f;
+      --accent-soft: #1b2e23;
+      --sim: #6cc28f;
+      --sim-soft: #1b2e23;
+      --ros: #f0a65a;
+      --ros-soft: #33261a;
+      --plan: #b89bf5;
+      --plan-soft: #2a2140;
+      --link: #7aa7ff;
+      --code-bg: #0e1012;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121416;
+    --surface: #1a1d20;
+    --surface-2: #202427;
+    --text: #e7e9eb;
+    --muted: #9aa1a9;
+    --border: #2d3236;
+    --accent: #6cc28f;
+    --accent-soft: #1b2e23;
+    --sim: #6cc28f;
+    --sim-soft: #1b2e23;
+    --ros: #f0a65a;
+    --ros-soft: #33261a;
+    --plan: #b89bf5;
+    --plan-soft: #2a2140;
+    --link: #7aa7ff;
+    --code-bg: #0e1012;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+  code { font-size: .9em; background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  header.top { border-bottom: 1px solid var(--border); background: var(--surface); }
+  header.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
+  .brand { white-space: nowrap; display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--text); }
+  .brand:hover { text-decoration: none; }
+  .brand svg { width: 22px; height: 22px; }
+  .brand .sub { font-weight: 500; color: var(--muted); }
+  nav.links { display: flex; gap: 20px; font-size: .95rem; white-space: nowrap; }
+  nav.links a { color: var(--muted); }
+  nav.links a:hover { color: var(--text); text-decoration: none; }
+  nav.links a.other { color: var(--link); }
+
+  .hero { padding-top: 56px; padding-bottom: 28px; }
+  .hero h1 { font-size: clamp(1.9rem, 4.5vw, 2.8rem); line-height: 1.15; margin: 0 0 14px; letter-spacing: -.02em; max-width: 22ch; }
+  .hero p.lead { font-size: 1.12rem; color: var(--muted); max-width: 64ch; margin: 0 0 24px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 16px; border-radius: 8px; font-weight: 550; font-size: .95rem;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  }
+  .btn:hover { text-decoration: none; border-color: var(--muted); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  :root[data-theme="dark"] .btn.primary { color: #0b1a12; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0b1a12; } }
+
+  .videos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  figure.video { margin: 0; }
+  .video-frame { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: #000; box-shadow: var(--shadow); }
+  .video-frame video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
+  figcaption { margin-top: 10px; font-size: .9rem; color: var(--muted); }
+  figcaption b { color: var(--text); font-weight: 600; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 36px 0 8px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat .v { font-size: 1.45rem; font-weight: 650; letter-spacing: -.01em; }
+  .stat .k { font-size: .85rem; color: var(--muted); }
+
+  section { padding: 44px 0 8px; }
+  section h2 { font-size: 1.55rem; margin: 0 0 8px; letter-spacing: -.01em; }
+  section > .wrap > p.sub { color: var(--muted); margin: 0 0 24px; max-width: 70ch; }
+  h3 { font-size: 1.08rem; margin: 0 0 8px; }
+
+  .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); overflow-x: auto; }
+  .diagram svg { display: block; width: 100%; min-width: 760px; height: auto; }
+  .diagram svg text { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; fill: var(--text); }
+  .diagram .t-muted { fill: var(--muted); }
+  .diagram .box-sim { fill: var(--sim-soft); stroke: var(--sim); }
+  .diagram .box-ros { fill: var(--ros-soft); stroke: var(--ros); }
+  .diagram .box-plan { fill: var(--plan-soft); stroke: var(--plan); }
+  .diagram .box-inner { fill: var(--surface); stroke: var(--border); }
+  .diagram .head-sim { fill: var(--sim); }
+  .diagram .head-ros { fill: var(--ros); }
+  .diagram .head-plan { fill: var(--plan); }
+  .diagram .flow { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+  .diagram .arrow { fill: var(--muted); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 12px; font-size: .88rem; color: var(--muted); }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .legend .l-sim::before { background: var(--sim); }
+  .legend .l-ros::before { background: var(--ros); }
+  .legend .l-plan::before { background: var(--plan); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
+  .card ol, .card ul { margin: 0; padding-left: 1.2em; }
+  .card li { margin: 6px 0; }
+  .card .tag { display: inline-block; font-size: .75rem; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; padding: 2px 8px; border-radius: 999px; margin-bottom: 10px; }
+  .tag.ctl { background: var(--sim-soft); color: var(--sim); }
+  .tag.plan { background: var(--plan-soft); color: var(--plan); }
+  .tag.lim { background: var(--ros-soft); color: var(--ros); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; font-size: .95rem; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--surface-2); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { color: var(--muted); white-space: nowrap; }
+  .table-scroll { overflow-x: auto; border-radius: 12px; }
+  .ok { color: var(--sim); font-weight: 600; }
+  .warn { color: var(--ros); font-weight: 600; }
+
+  .steps { display: grid; gap: 16px; }
+  .step h3 { display: flex; align-items: baseline; gap: 10px; }
+  .step h3 .n { font-size: .8rem; color: var(--muted); font-weight: 600; }
+  pre { position: relative; margin: 8px 0 0; padding: 14px 16px; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; font-size: .88rem; line-height: 1.55; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  pre .c { color: var(--muted); }
+  .copy { position: absolute; top: 8px; right: 8px; font: inherit; font-size: .75rem; padding: 3px 9px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
+  .copy:hover { color: var(--text); }
+
+  footer { margin-top: 56px; border-top: 1px solid var(--border); padding: 24px 0 40px; color: var(--muted); font-size: .9rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+
+  @media (max-width: 820px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .grid2, .videos { grid-template-columns: 1fr; }
+    nav.links a.hide-sm { display: none; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 0 16px; }
+    .hero { padding-top: 36px; }
+    .diagram { padding: 12px; }
+    nav.links { gap: 14px; }
+    nav.links a.hide-xs, .brand .sub { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><rect x="5" y="9" width="22" height="8" rx="3"/><path d="M9 17l-2 9M13 17l1 9M19 17l-1 9M23 17l2 9"/></g></svg>
+      Star Nav <span class="sub">Quadruped</span>
+    </a>
+    <nav class="links">
+      <a class="hide-xs" href="#demo">Demo</a>
+      <a class="hide-xs" href="#how">How it works</a>
+      <a class="hide-xs" href="#terrain">Terrain</a>
+      <a href="#quick-start">Quick start</a>
+      <a class="other" href="index.html">Drone →</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>The same navigation stack, on legs</h1>
+    <p class="lead">
+      DeepRobotics' Lite3 quadruped explores a MuJoCo house and forest with the
+      planner the Star Nav drone uses. EGO-Planner plans at body height; a tracker
+      turns its setpoints into velocity commands for Lite3's own learned walking
+      policy; a terrain filter lets the planner take ramps and low steps instead of
+      treating them as walls.
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="#quick-start">Run it</a>
+      <a class="btn" href="https://github.com/1nrobotics/star-nav/blob/main/docs/QUADRUPED.md">Development status</a>
+      <a class="btn" href="index.html">Drone page</a>
+    </div>
+  </div>
+
+  <div class="wrap" id="demo">
+    <div class="videos">
+      <figure class="video">
+        <div class="video-frame">
+          <video controls muted loop playsinline preload="metadata" poster="assets/lite3-house.jpg">
+            <source src="assets/lite3-house.mp4" type="video/mp4">
+            Your browser cannot play this video. <a href="assets/lite3-house.mp4">Download it</a>.
+          </video>
+        </div>
+        <figcaption>
+          <b>House, 4&times; speed.</b> Under the dining table, around the furniture,
+          up a 12° ramp to a 0.21&nbsp;m platform and down three 7&nbsp;cm steps.
+          Dots: lidar returns.
+        </figcaption>
+      </figure>
+      <figure class="video">
+        <div class="video-frame">
+          <video controls muted loop playsinline preload="metadata" poster="assets/lite3-forest-lidar.jpg">
+            <source src="assets/lite3-forest-lidar.mp4" type="video/mp4">
+            Your browser cannot play this video. <a href="assets/lite3-forest-lidar.mp4">Download it</a>.
+          </video>
+        </div>
+        <figcaption>
+          <b>Forest, 4&times; speed.</b> The drone's 12-waypoint mission through the
+          pillar forest, with the lidar on the robot's back.
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="v">12 / 12</div><div class="k">waypoints, 0 contacts (house and forest)</div></div>
+      <div class="stat"><div class="v">0.49 m/s</div><div class="k">forward speed at a 0.5 m/s command</div></div>
+      <div class="stat"><div class="v">83 Hz</div><div class="k">walking policy (PD at 500 Hz)</div></div>
+      <div class="stat"><div class="v">12° · 7 cm</div><div class="k">ramp and steps it climbs</div></div>
+    </div>
+  </div>
+
+  <section id="how">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="sub">
+        The planning stack is the drone's, unchanged except for its parameters. Two
+        pieces are new: a terrain filter between the lidar and the planner's map, and
+        a tracker between the planner's setpoints and the walking policy.
+      </p>
+
+      <div class="diagram" role="img" aria-label="Data flow: the exploration manager sends waypoints to EGO-Planner, which plans at body height using a map built from the terrain-filtered lidar. traj_server samples setpoints, which the bridge forwards to the simulator. There the tracker turns them into a body-frame velocity command, the walking policy into joint targets, and a PD loop into joint torques.">
+        <svg viewBox="0 0 1000 400" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0 0L10 5L0 10z"/></marker>
+          </defs>
+
+          <!-- Planning stack -->
+          <rect class="box-plan" x="10" y="20" width="300" height="360" rx="12" stroke-width="1.5"/>
+          <text x="28" y="50" font-size="17" font-weight="650" class="head-plan">Planning stack</text>
+          <text x="28" y="70" font-size="12.5" class="t-muted">the drone's, at body height 0.34 m</text>
+          <rect class="box-inner" x="28" y="86" width="264" height="54" rx="8"/>
+          <text x="42" y="108" font-size="14" font-weight="600">Exploration manager</text>
+          <text x="42" y="127" font-size="12.5" class="t-muted">12 waypoints</text>
+          <rect class="box-inner" x="28" y="152" width="264" height="54" rx="8"/>
+          <text x="42" y="174" font-size="14" font-weight="600">EGO-Planner</text>
+          <text x="42" y="193" font-size="12.5" class="t-muted">B-spline, max 0.6 m/s, 0.3 m inflation</text>
+          <rect class="box-inner" x="28" y="218" width="264" height="54" rx="8"/>
+          <text x="42" y="240" font-size="14" font-weight="600">Terrain filter</text>
+          <text x="42" y="259" font-size="12.5" class="t-muted">lidar → walkable / obstacle cells</text>
+          <rect class="box-inner" x="28" y="284" width="264" height="54" rx="8"/>
+          <text x="42" y="306" font-size="14" font-weight="600">traj_server</text>
+          <text x="42" y="325" font-size="12.5" class="t-muted">position, velocity, yaw setpoints</text>
+
+          <!-- Bridge -->
+          <rect class="box-ros" x="380" y="20" width="200" height="360" rx="12" stroke-width="1.5"/>
+          <text x="398" y="50" font-size="17" font-weight="650" class="head-ros">mujoco_bridge</text>
+          <text x="398" y="70" font-size="12.5" class="t-muted">ROS ↔ ZeroMQ</text>
+          <text x="398" y="250" font-size="12.5" class="t-muted">lidar cloud, odometry</text>
+          <text x="398" y="316" font-size="12.5" class="t-muted">setpoints</text>
+
+          <!-- Simulator -->
+          <rect class="box-sim" x="650" y="20" width="340" height="360" rx="12" stroke-width="1.5"/>
+          <text x="668" y="50" font-size="17" font-weight="650" class="head-sim">mujoco_sim · Lite3</text>
+          <text x="668" y="70" font-size="12.5" class="t-muted">2 ms physics step</text>
+          <rect class="box-inner" x="668" y="86" width="304" height="54" rx="8"/>
+          <text x="682" y="108" font-size="14" font-weight="600">Tracker</text>
+          <text x="682" y="127" font-size="12.5" class="t-muted">setpoint → forward, sideways, turn</text>
+          <rect class="box-inner" x="668" y="152" width="304" height="54" rx="8"/>
+          <text x="682" y="174" font-size="14" font-weight="600">Walking policy (ONNX)</text>
+          <text x="682" y="193" font-size="12.5" class="t-muted">45 observations → 12 joint targets, 83 Hz</text>
+          <rect class="box-inner" x="668" y="218" width="304" height="54" rx="8"/>
+          <text x="682" y="240" font-size="14" font-weight="600">PD joint control</text>
+          <text x="682" y="259" font-size="12.5" class="t-muted">kp 30, kd 1, ±30 N·m, 500 Hz</text>
+          <rect class="box-inner" x="668" y="284" width="304" height="54" rx="8"/>
+          <text x="682" y="306" font-size="14" font-weight="600">Lidar</text>
+          <text x="682" y="325" font-size="12.5" class="t-muted">32 beams, −30° … 52°, on the back</text>
+
+          <!-- flows -->
+          <path class="flow" d="M160 140 V152" marker-end="url(#ah)"/>
+          <path class="flow" d="M292 179 h14 v132 h-14" marker-end="url(#ah)"/>
+          <path class="flow" d="M160 218 V206" marker-end="url(#ah)"/>
+          <path class="flow" d="M292 311 H380" marker-end="url(#ah)"/>
+          <path class="flow" d="M580 311 H620 V113 H668" marker-end="url(#ah)"/>
+          <path class="flow" d="M820 140 V152" marker-end="url(#ah)"/>
+          <path class="flow" d="M820 206 V218" marker-end="url(#ah)"/>
+          <path class="flow" d="M668 311 H640 V258 H580" marker-end="url(#ah)"/>
+          <path class="flow" d="M380 258 H340 V245 H292" marker-end="url(#ah)"/>
+        </svg>
+      </div>
+      <div class="legend">
+        <span class="l-plan">ROS planning stack</span>
+        <span class="l-ros">ROS bridge</span>
+        <span class="l-sim">Simulator process</span>
+      </div>
+
+      <div class="grid2" style="margin-top:20px">
+        <div class="card">
+          <span class="tag ctl">Control</span>
+          <h3>Setpoint → joint torques</h3>
+          <ol>
+            <li><b>Tracker.</b> Velocity = setpoint velocity + 1.5 × position error, at most 0.8&nbsp;m/s, rotated into the body frame. The robot walks in any direction, so it does not turn to face its path first. Turn rate = 1.5 × yaw error. It stands still within 3&nbsp;cm and 3°.</li>
+            <li><b>Walking policy.</b> DeepRobotics' PPO policy from <a href="https://github.com/DeepRoboticsLab/Lite3_rl_deploy">Lite3_rl_deploy</a>, run unchanged. Its 45 inputs are body rates, gravity direction, the command, joint angles and velocities, and the last action. Its outputs are joint offsets from the standing pose.</li>
+            <li><b>PD.</b> The same gains as the upstream deployment, every physics step.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <span class="tag plan">Planning</span>
+          <h3>Lidar → walkable map</h3>
+          <ol>
+            <li>The drone's map treats everything above the floor as an obstacle, ramps and steps included.</li>
+            <li>The terrain filter keeps a 0.1&nbsp;m grid of the lidar returns. Each cell records its lowest return, taken as the ground, and its highest return up to 0.55&nbsp;m above that.</li>
+            <li><b>Obstacle:</b> more than 9&nbsp;cm of height within the cell (walls, legs, boxes), or a ground 9&nbsp;cm to 0.55&nbsp;m above a neighbour's (box tops, platform edges).</li>
+            <li><b>Free:</b> ramps, low steps, and anything above the robot, so it walks under the table.</li>
+            <li>Obstacle cells reach the planner as vertical columns, so it avoids them at any height.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="terrain">
+    <div class="wrap">
+      <h2>What it can walk on</h2>
+      <p class="sub">
+        The policy is blind: it feels the ground through its legs but cannot see it.
+        Measured in the house corridor, in both directions:
+      </p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Terrain</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>12° ramp</td><td class="ok">Climbs</td></tr>
+            <tr><td>7&nbsp;cm steps</td><td class="ok">Reliable, up and down</td></tr>
+            <tr><td>8&nbsp;cm steps</td><td class="warn">Sometimes stalls</td></tr>
+            <tr><td>10&nbsp;cm steps</td><td class="warn">Falls</td></tr>
+            <tr><td>Table top at 0.75&nbsp;m</td><td class="ok">Walks under it</td></tr>
+            <tr><td>15&nbsp;cm box</td><td class="ok">Treated as an obstacle and walked around</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-scroll" style="margin-top:20px">
+        <table>
+          <thead><tr><th>Command</th><th>Speed reached (flat ground)</th></tr></thead>
+          <tbody>
+            <tr><td>Forward 0.5&nbsp;m/s</td><td>0.49&nbsp;m/s</td></tr>
+            <tr><td>Sideways 0.3&nbsp;m/s</td><td>0.24&nbsp;m/s</td></tr>
+            <tr><td>Turn 0.5&nbsp;rad/s</td><td>0.45&nbsp;rad/s</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="results">
+    <div class="wrap">
+      <h2>Tested every run</h2>
+      <p class="sub">
+        <code>lite3_smoke.test</code> walks the full mission headless and fails on any
+        contact, fall or waypoint timeout.
+      </p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Run</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>Forest, lidar</td><td>12/12 waypoints, 0 contacts, all 107 nearby pillars in the map</td></tr>
+            <tr><td>House (<code>world:=house</code>)</td><td>12/12 waypoints, 0 contacts, reached the platform (torso peak 0.54&nbsp;m)</td></tr>
+            <tr><td>Forest, depth camera</td><td>12/12 waypoints, 0 contacts</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <span class="tag lim">Not yet</span>
+        <ul>
+          <li>The pose is the simulator's ground truth; there is no odometry or SLAM in the loop yet.</li>
+          <li>The planner does not know the gait's limits: its 9&nbsp;cm step threshold is above the 7&nbsp;cm the policy climbs reliably.</li>
+          <li>The terrain filter is for static worlds: cells are never cleared.</li>
+          <li>EGO-Planner is a drone planner used here in one horizontal layer.</li>
+          <li>No hardware branch yet; CI does not run these tests because the model is downloaded.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="quick-start">
+    <div class="wrap">
+      <h2>Quick start</h2>
+      <p class="sub">
+        Ubuntu 20.04 with ROS Noetic and the workspace built as for the drone (see the
+        <a href="index.html#quick-start">drone page</a>). The Lite3 model and policy
+        are downloaded at pinned commits with a checksum, not committed.
+      </p>
+      <div class="steps">
+        <div class="card step">
+          <h3><span class="n">01</span>Install the walking robot</h3>
+<pre><code>./src/scripts/setup_mujoco_env.sh --lite3   <span class="c"># onnxruntime + model + policy</span></code></pre>
+        </div>
+        <div class="card step">
+          <h3><span class="n">02</span>Watch it walk</h3>
+<pre><code>roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true world:=house
+rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"</code></pre>
+        </div>
+        <div class="card step">
+          <h3><span class="n">03</span>Headless tests</h3>
+<pre><code>rostest star_nav_bringup lite3_smoke.test                 <span class="c"># forest, lidar</span>
+rostest star_nav_bringup lite3_smoke.test world:=house    <span class="c"># ramp, stairs, furniture</span>
+rostest star_nav_bringup lite3_smoke.test sensor:=depth</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="license">
+    <div class="wrap">
+      <h2>Licensing and credits</h2>
+      <p class="sub">
+        The Lite3 model (<a href="https://github.com/DeepRoboticsLab/deep_robotics_model">deep_robotics_model</a>)
+        and walking policy (<a href="https://github.com/DeepRoboticsLab/Lite3_rl_deploy">Lite3_rl_deploy</a>)
+        are DeepRobotics' work under BSD-3-Clause. They are downloaded at setup, not
+        redistributed here. The planning stack is GPLv3 (EGO-Planner); the simulator,
+        tracker and terrain filter are original MIT code. Details in
+        <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">docs/LICENSES.md</a>.
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Star Nav · Lite3 quadruped · ROS Noetic · MuJoCo 4</span>
+    <span>
+      <a href="index.html">Drone</a> ·
+      <a href="https://github.com/1nrobotics/star-nav">GitHub</a> ·
+      <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/QUADRUPED.md">Status</a> ·
+      <a href="https://github.com/1nrobotics/star-nav/issues">Issues</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+  // Copy buttons on code blocks.
+  document.querySelectorAll('pre').forEach(function (pre) {
+    var btn = document.createElement('button');
+    btn.className = 'copy';
+    btn.type = 'button';
+    btn.textContent = 'Copy';
+    btn.addEventListener('click', function () {
+      var text = pre.querySelector('code').innerText.replace(/\s+#.*$/gm, '');
+      navigator.clipboard.writeText(text).then(function () {
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+      });
+    });
+    pre.appendChild(btn);
+  });
+</script>
+</body>
+</html>
