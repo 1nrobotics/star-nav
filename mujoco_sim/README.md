@@ -81,9 +81,13 @@ DeepRobotics' Lite3 walks with DeepRobotics' own velocity policy:
 ```bash
 ./scripts/setup_mujoco_env.sh --lite3     # onnxruntime + model + policy
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true
-rostest star_nav_bringup lite3_smoke.test  # sensor:=depth for the camera
-rostest star_nav_bringup lite3_smoke.test world:=house
+rostest star_nav_bringup lite3_smoke.test                  # house, lidar
+rostest star_nav_bringup lite3_smoke.test world:=forest
+rostest star_nav_bringup lite3_smoke.test world:=forest sensor:=depth
 ```
+
+The default is the house (ramp, stairs, furniture) with the lidar. The depth
+camera bypasses the terrain filter, so use it in the forest (flat ground).
 
 - Model and policy are downloaded at pinned commits into
   `~/.cache/star_nav/lite3` (`STAR_NAV_LITE3_DIR` to change), not committed:

@@ -114,9 +114,9 @@ Verification at the last commit:
 
 | Check | Result |
 |---|---|
-| `lite3_smoke.test` (forest, lidar) | 12/12, 0 contacts, 0 timeouts, all 107 pillars mapped |
-| `lite3_smoke.test world:=house` | 12/12, 0 contacts, 0 timeouts, reached the platform (peak torso z 0.54 m) |
-| `lite3_smoke.test sensor:=depth` | 12/12, 0 contacts |
+| `lite3_smoke.test` (house, lidar; the default) | 12/12, 0 contacts, 0 timeouts, reached the platform (peak torso z 0.54 m) |
+| `lite3_smoke.test world:=forest` | 12/12, 0 contacts, 0 timeouts, all 107 pillars mapped |
+| `lite3_smoke.test world:=forest sensor:=depth` | 12/12, 0 contacts |
 | `pytest` in `mujoco_sim/` | 30 passed; the walking tests need the assets |
 
 ## Changes Outside the Robot

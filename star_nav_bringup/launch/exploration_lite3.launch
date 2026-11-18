@@ -16,8 +16,9 @@
          returns (a table top) are not obstacles. The depth camera looks
          forward from the front of the torso.
 
-         world:=house       rooms with furniture, a ramp, a platform and
-                            stairs (mujoco_sim/star_nav_mujoco/house.py)
+         world:=forest      the quadrotor's pillar forest instead of the
+                            default house (rooms with furniture, a ramp, a
+                            platform and stairs; mujoco_sim/star_nav_mujoco/house.py)
          terrain:=false     lidar straight into the planner's 3D map (flat
                             ground only: ramps and steps become obstacles)
 
@@ -54,7 +55,7 @@
     <!-- Obstacle sensor for the planner: lidar (on the back) or depth -->
     <arg name="sensor" default="lidar"/>
     <arg name="lidar_vfov" default="-30 52"/>
-    <arg name="world" default="forest"/>
+    <arg name="world" default="house"/>
     <arg name="terrain" default="true"/>
     <arg name="use_terrain" value="$(eval arg('terrain') and arg('sensor') == 'lidar')"/>
     <!-- Lidar only: ray-cast scans into the probabilistic map (true) or let

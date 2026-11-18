@@ -405,8 +405,8 @@
         <table>
           <thead><tr><th>Run</th><th>Result</th></tr></thead>
           <tbody>
-            <tr><td>Forest, lidar</td><td>12/12 waypoints, 0 contacts, all 107 nearby pillars in the map</td></tr>
-            <tr><td>House (<code>world:=house</code>)</td><td>12/12 waypoints, 0 contacts, reached the platform (torso peak 0.54&nbsp;m)</td></tr>
+            <tr><td>House, lidar (default)</td><td>12/12 waypoints, 0 contacts, reached the platform (torso peak 0.54&nbsp;m)</td></tr>
+            <tr><td>Forest, lidar (<code>world:=forest</code>)</td><td>12/12 waypoints, 0 contacts, all 107 nearby pillars in the map</td></tr>
             <tr><td>Forest, depth camera</td><td>12/12 waypoints, 0 contacts</td></tr>
           </tbody>
         </table>
@@ -439,14 +439,14 @@
         </div>
         <div class="card step">
           <h3><span class="n">02</span>Watch it walk</h3>
-<pre><code>roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true world:=house
+<pre><code>roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true   <span class="c"># house, lidar</span>
 rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"</code></pre>
         </div>
         <div class="card step">
           <h3><span class="n">03</span>Headless tests</h3>
-<pre><code>rostest star_nav_bringup lite3_smoke.test                 <span class="c"># forest, lidar</span>
-rostest star_nav_bringup lite3_smoke.test world:=house    <span class="c"># ramp, stairs, furniture</span>
-rostest star_nav_bringup lite3_smoke.test sensor:=depth</code></pre>
+<pre><code>rostest star_nav_bringup lite3_smoke.test                  <span class="c"># house, lidar</span>
+rostest star_nav_bringup lite3_smoke.test world:=forest    <span class="c"># pillar forest</span>
+rostest star_nav_bringup lite3_smoke.test world:=forest sensor:=depth</code></pre>
         </div>
       </div>
     </div>

@@ -26,10 +26,11 @@ def _select_gl() -> None:
   os.environ['MUJOCO_GL'] = 'egl' if ok else 'osmesa'
 
 
-# Per-robot defaults: the quadruped walks, so no rings and it starts standing.
+# Per-robot defaults: the quadruped walks, so no rings, it starts standing,
+# and it shows off in the house (ramp, stairs).
 _DEFAULTS = {
-    'quadrotor': dict(rings=50, start=(0.0, 0.0, 1.0)),
-    'lite3': dict(rings=0, start=(0.0, 0.0, 0.34)),
+    'quadrotor': dict(rings=50, start=(0.0, 0.0, 1.0), world='forest'),
+    'lite3': dict(rings=0, start=(0.0, 0.0, 0.34), world='house'),
 }
 
 
@@ -44,9 +45,10 @@ def main(argv: list[str] | None = None) -> int:
   ap.add_argument('--fetch-lite3', action='store_true',
                   help='download the Lite3 model and walking policy, then '
                   'exit')
-  ap.add_argument('--world', choices=('forest', 'house'), default='forest',
+  ap.add_argument('--world', choices=('forest', 'house'), default=None,
                   help='forest (random pillars and rings) or house (rooms, a '
-                  'ramp and stairs; house.py)')
+                  'ramp and stairs; house.py). Default: forest (quadrotor), '
+                  'house (lite3)')
   ap.add_argument('--seed', type=int, default=1, help='forest seed')
   ap.add_argument('--map-size', type=float, nargs=2, default=(50.0, 50.0),
                   metavar=('X', 'Y'))

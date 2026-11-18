@@ -1,10 +1,11 @@
 <launch>
     <!-- Headless end-to-end check with the Lite3 quadruped in MuJoCo:
          rostest star_nav_bringup lite3_smoke.test
-         Needs the robot: the lite3 option of scripts/setup_mujoco_env.sh. sensor:=depth
-         walks the same mission with the depth camera; world:=house walks it
-         through rooms and over a ramp, a platform and stairs (it must get
-         onto the platform). -->
+         Needs the robot: the lite3 option of scripts/setup_mujoco_env.sh. By
+         default it walks the mission through the house, over a ramp, a
+         platform and stairs (it must get onto the platform), with the lidar.
+         world:=forest walks it through the pillar forest (and checks the map
+         against the world); sensor:=depth uses the depth camera. -->
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
@@ -13,7 +14,7 @@
     <arg name="sim_host" default="127.0.0.1"/>
     <arg name="sim_args" default=""/>
     <arg name="sensor" default="lidar"/>
-    <arg name="world" default="forest"/>
+    <arg name="world" default="house"/>
     <arg name="terrain" default="true"/>
     <arg name="lidar_raycasting" default="true"/>
     <arg name="lidar_max_hits" default="6"/>
