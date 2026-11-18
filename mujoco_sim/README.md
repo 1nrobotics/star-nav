@@ -90,17 +90,18 @@ that cannot be changed yet); do not expose the port on untrusted networks.
   in the sensor frame with the sensor pose. Sensors ignore visual-only
   markers (geom group 2), such as the setpoint sphere.
 - Unlike the kinematic simulator, both sensors also see the ground, so the
-  planner's occupancy map contains the floor (below 0.35 m with inflation,
+  planner's occupancy map contains the floor (below 0.45 m with inflation,
   well under the 1 m flight altitude), as it would with a real sensor. RViz
-  hides map voxels below 0.35 m (`visualization_min_height`) so obstacles stay
+  hides map voxels below 0.45 m (`visualization_min_height`) so obstacles stay
   visible.
 - Contacts: the number of physics steps in which the quadrotor touched
   anything, published by the bridge on `/mujoco/contacts`. The simulator log
   names the geoms and the position of each new contact.
 - The quadrotor is 0.19 m from centre to prop tip, so
-  `exploration_mujoco.launch` sets the planner's obstacle inflation to 0.2 m
+  `exploration_mujoco.launch` sets the planner's obstacle inflation to 0.3 m
   (`obstacles_inflation`) instead of the 0.1 m point-mass default used with the
-  kinematic simulator, which has no collisions.
+  kinematic simulator, which has no collisions. With 0.2 m (1 cm to spare) a
+  propeller grazed a pillar during frontier exploration.
 
 ## Protocol
 

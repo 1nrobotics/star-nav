@@ -60,7 +60,8 @@ class SimSmokeTest(unittest.TestCase):
                 obstacles_topic,
                 rospy.get_param("~map_topic", "/drone_0_ego_planner_node/grid_map/occupancy_inflate"),
                 self.odom_topic,
-                cloud_topic=rospy.get_param("~sensor_cloud_topic", ""))
+                cloud_topic=rospy.get_param("~sensor_cloud_topic", ""),
+                phantom_tol=rospy.get_param("~phantom_tol", 0.45))
             self.max_cloud_error_ratio = rospy.get_param("~max_cloud_error_ratio", 0.001)
             self.max_phantom_ratio = rospy.get_param("~max_phantom_ratio", 0.01)
             self.min_map_recall = rospy.get_param("~min_map_recall", -1.0)

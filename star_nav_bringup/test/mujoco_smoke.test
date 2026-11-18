@@ -13,7 +13,7 @@
     <arg name="mode" default="waypoint"/>
     <arg name="mission_timeout" default="180.0"/>
     <!-- Planner obstacle inflation (m) -->
-    <arg name="obstacles_inflation" default="0.2"/>
+    <arg name="obstacles_inflation" default="0.3"/>
     <!-- Forest layout -->
     <arg name="seed" default="1"/>
     <arg name="start_sim" default="true"/>
@@ -52,6 +52,8 @@
         <param name="contacts_topic" value="/mujoco/contacts"/>
         <!-- Check the sensor data and the planner's map against the world -->
         <param name="obstacles_topic" value="/mujoco/obstacles"/>
+        <!-- Map voxels within inflation + 0.25 m of a surface are not phantoms -->
+        <param name="phantom_tol" value="$(eval obstacles_inflation + 0.25)"/>
         <param name="sensor_cloud_topic" value="/drone_0_pcl_render_node/cloud" if="$(eval sensor == 'lidar')"/>
         <param name="min_map_recall" value="0.95" if="$(eval sensor == 'lidar')"/>
         <param name="mission_timeout" value="$(arg mission_timeout)"/>
