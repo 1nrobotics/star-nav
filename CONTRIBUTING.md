@@ -45,10 +45,16 @@ roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
 - Run lightweight checks that match your change:
   - `bash -n` for shell scripts
   - `./scripts/run_smoke_test.sh` (or `rostest star_nav_bringup sim_smoke.test`)
-    when planner, launch or Docker behavior changes; CI runs it on every PR
+    when planner, launch or Docker behavior changes
   - `pytest` in `mujoco_sim/` and `./scripts/run_mujoco_smoke_test.sh` when
     the MuJoCo simulator, the bridge or its protocol changes
   - targeted catkin build if you touched package build files
+
+CI (`.github/workflows/sim-smoke.yml`) runs all of these on pull requests
+into `main` once they are ready for review, unless they only change
+documentation or `site/`. It does not run on drafts, on pull requests into
+other branches or on pushes to `main`; start it by hand from the Actions tab
+when needed. The project page is deployed when `site/` changes on `main`.
 
 ## Style
 
