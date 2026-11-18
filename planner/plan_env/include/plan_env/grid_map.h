@@ -8,6 +8,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <iostream>
 #include <random>
+#include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/Odometry.h>
 #include <queue>
 #include <ros/ros.h>
@@ -87,6 +88,9 @@ struct MappingParameters {
   /* visualization and computation time display */
   double visualization_truncate_height_, virtual_ceil_height_, ground_height_, virtual_ceil_yp_, virtual_ceil_yn_;
   double visualization_min_height_;  // map voxels below are not published (display only)
+  // Horizontal slice published as a 2D grid (e.g. for exploration): the
+  // voxels between these heights; off unless slice_max_z_ > slice_min_z_.
+  double slice_min_z_, slice_max_z_;
   bool show_occ_time_;
 
   /* active mapping */
@@ -194,6 +198,7 @@ public:
   void publishMapInflate(bool all_info = false);
 
   void publishDepth();
+  void publishSlice();
 
   bool hasDepthObservation();
   bool odomValid();
@@ -222,6 +227,7 @@ private:
   // update occupancy by raycasting
   void updateOccupancyCallback(const ros::TimerEvent& /*event*/);
   void visCallback(const ros::TimerEvent& /*event*/);
+  void sliceCallback(const ros::TimerEvent& /*event*/) { publishSlice(); }
 
   // main update process
   void projectDepthImage();
@@ -260,8 +266,8 @@ private:
   SynchronizerImageOdom sync_image_odom_;
 
   ros::Subscriber indep_cloud_sub_, indep_odom_sub_, extrinsic_sub_;
-  ros::Publisher map_pub_, map_inf_pub_, depth_cloud_pub_;
-  ros::Timer occ_timer_, vis_timer_;
+  ros::Publisher map_pub_, map_inf_pub_, depth_cloud_pub_, slice_pub_;
+  ros::Timer occ_timer_, vis_timer_, slice_timer_;
 
   //
   uniform_real_distribution<double> rand_noise_;

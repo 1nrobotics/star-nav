@@ -53,6 +53,8 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/obstacle_min_height", mp_.obstacle_min_height_, -1.0e9);
   node_.param("grid_map/visualization_truncate_height", mp_.visualization_truncate_height_, -0.1);
   node_.param("grid_map/visualization_min_height", mp_.visualization_min_height_, -1.0e9);
+  node_.param("grid_map/slice_min_z", mp_.slice_min_z_, 0.0);
+  node_.param("grid_map/slice_max_z", mp_.slice_max_z_, 0.0);
   node_.param("grid_map/virtual_ceil_yp", mp_.virtual_ceil_yp_, -0.1);
   node_.param("grid_map/virtual_ceil_yn", mp_.virtual_ceil_yn_, -0.1);
 
@@ -168,6 +170,11 @@ void GridMap::initMap(ros::NodeHandle &nh)
   map_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy", 10, true);
   map_inf_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/occupancy_inflate", 10, true);
   depth_cloud_pub_ = node_.advertise<sensor_msgs::PointCloud2>("grid_map/depth_cloud", 10, true);
+  if (mp_.slice_max_z_ > mp_.slice_min_z_)
+  {
+    slice_pub_ = node_.advertise<nav_msgs::OccupancyGrid>("grid_map/slice", 2);
+    slice_timer_ = node_.createTimer(ros::Duration(0.2), &GridMap::sliceCallback, this);
+  }
 
   md_.occ_need_update_ = false;
   md_.local_updated_ = false;
@@ -1039,6 +1046,65 @@ void GridMap::publishMap()
 
   pcl::toROSMsg(cloud, cloud_msg);
   map_pub_.publish(cloud_msg);
+}
+
+// The voxels between slice_min_z and slice_max_z around the sensor (the local
+// update range), flattened: occupied (100) if any of them is or if the voxel
+// at mid-height is in the inflated map (where the planner cannot fly, also
+// near obstacles just above or below the band), free (0) if at least half of
+// them are observed, otherwise unknown (-1).
+void GridMap::publishSlice()
+{
+  if (slice_pub_.getNumSubscribers() <= 0 || !md_.has_odom_)
+    return;
+
+  Eigen::Vector3i lo, hi;
+  posToIndex(Eigen::Vector3d(md_.camera_pos_(0) - mp_.local_update_range_(0),
+                             md_.camera_pos_(1) - mp_.local_update_range_(1), mp_.slice_min_z_), lo);
+  posToIndex(Eigen::Vector3d(md_.camera_pos_(0) + mp_.local_update_range_(0),
+                             md_.camera_pos_(1) + mp_.local_update_range_(1), mp_.slice_max_z_), hi);
+  const Eigen::Vector3i window_max = md_.window_min_ + mp_.map_voxel_num_ - Eigen::Vector3i::Ones();
+  lo = lo.cwiseMax(md_.window_min_);
+  hi = hi.cwiseMin(window_max);
+  if ((hi.array() < lo.array()).any())
+    return;
+
+  nav_msgs::OccupancyGrid msg;
+  msg.header.frame_id = mp_.frame_id_;
+  msg.header.stamp = ros::Time::now();
+  msg.info.resolution = mp_.resolution_;
+  msg.info.width = hi(0) - lo(0) + 1;
+  msg.info.height = hi(1) - lo(1) + 1;
+  msg.info.origin.position.x = mp_.map_origin_(0) + lo(0) * mp_.resolution_;
+  msg.info.origin.position.y = mp_.map_origin_(1) + lo(1) * mp_.resolution_;
+  msg.info.origin.position.z = mp_.slice_min_z_;
+  msg.info.origin.orientation.w = 1.0;
+  msg.data.assign(msg.info.width * msg.info.height, -1);
+
+  const int layers = hi(2) - lo(2) + 1;
+  Eigen::Vector3i mid;
+  posToIndex(Eigen::Vector3d(0.0, 0.0, 0.5 * (mp_.slice_min_z_ + mp_.slice_max_z_)), mid);
+  const bool check_inflation = mid(2) >= lo(2) && mid(2) <= hi(2);
+  for (int y = lo(1); y <= hi(1); ++y)
+    for (int x = lo(0); x <= hi(0); ++x)
+    {
+      int known = 0;
+      bool occupied = check_inflation && md_.occupancy_buffer_inflate_[toAddress(x, y, mid(2))] > 0;
+      for (int z = lo(2); z <= hi(2) && !occupied; ++z)
+      {
+        const double log_odds = md_.occupancy_buffer_[toAddress(x, y, z)];
+        if (log_odds < mp_.clamp_min_log_ - 1e-3)
+          continue;
+        ++known;
+        occupied = log_odds > mp_.min_occupancy_log_;
+      }
+      int8_t &cell = msg.data[(y - lo(1)) * msg.info.width + (x - lo(0))];
+      if (occupied)
+        cell = 100;
+      else if (2 * known >= layers)
+        cell = 0;
+    }
+  slice_pub_.publish(msg);
 }
 
 void GridMap::publishMapInflate(bool all_info)
