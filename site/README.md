@@ -48,7 +48,7 @@ against the Python one on random states (thrusts equal to 1e-14 N).
 ## Demo videos
 
 The videos (`exploration-demo.mp4`, `lidar-exploration-demo.mp4`, and on the
-quadruped page `lite3-house.mp4`, `lite3-forest-lidar.mp4`) are not tracked in git, to keep the
+quadruped page `lite3-house-rviz.mp4`, `lite3-house.mp4`, `lite3-forest-lidar.mp4`) are not tracked in git, to keep the
 repository small (`.gitignore`). They are attached to the `site-assets` GitHub
 release, and the Pages workflow downloads them at deploy time. To preview
 locally, download them into `assets/`; without them the page shows the poster
@@ -66,9 +66,12 @@ gh release create site-assets --prerelease --title "Project page assets" \
 gh release upload site-assets site/assets/exploration-demo.mp4 site/assets/lidar-exploration-demo.mp4 --clobber
 ```
 
-The quadruped videos are the simulator's follow camera alone (`--record` in
-`sim_args` of `exploration_lite3.launch`), sped up 4× with ffmpeg
-(`-vf setpts=PTS/4`); their posters are `assets/lite3-*.jpg`.
+`lite3-house-rviz.mp4` is made like the quadrotor video below, with
+`exploration_lite3.launch use_rviz:=true` (its RViz window is 1600 × 900; the
+3D view is crop 1000:810:585:60) and sped up 4× (`setpts=PTS/4` in the
+filter). The other two quadruped videos are the simulator's follow camera
+alone (`--record` in `sim_args`), sped up 4×. Posters: `assets/lite3-*.jpg`.
+Pass `-draw_mouse 0` to ffmpeg's x11grab to keep the pointer out.
 
 The quadrotor video puts the simulator's follow camera next to the RViz window for one mission
 (seed 1, default exploration area). To regenerate it:

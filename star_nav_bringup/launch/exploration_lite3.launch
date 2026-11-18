@@ -115,6 +115,12 @@
         <arg name="drone_id" value="$(arg drone_id)"/>
         <arg name="obj_num" value="$(arg obj_num)"/>
         <arg name="use_rviz" value="$(arg use_rviz)"/>
+        <!-- Raw lidar returns (not the terrain filter's columns, which the
+             planner's map shows) and an angled view of the house -->
+        <arg name="rviz_config" value="$(find star_nav_bringup)/config/star_nav_lite3.rviz"/>
+        <!-- The terrain filter's obstacle columns reach 1.9 m; show the map
+             up to about the robot's height so the robot stays visible -->
+        <arg name="visualization_max_height" value="0.6"/>
         <arg name="map_size_x" value="$(arg map_size_x)"/>
         <arg name="map_size_y" value="$(arg map_size_y)"/>
         <arg name="map_size_z" value="$(arg map_size_z)"/>
