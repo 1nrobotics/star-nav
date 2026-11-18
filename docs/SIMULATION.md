@@ -100,6 +100,7 @@ rostest star_nav_bringup lite3_smoke.test world:=house   # ramp, stairs, furnitu
 `world:=house` is a furnished house with a ramp, a platform and stairs on the
 mission route; a terrain filter lets the planner walk over ramps and low
 steps instead of treating them as obstacles.
+Development status, measurements and limitations: [QUADRUPED.md](QUADRUPED.md).
 
 Details, options and the bridge protocol: [mujoco_sim/README.md](../mujoco_sim/README.md).
 
