@@ -15,6 +15,9 @@
     <arg name="exploration_height"/>
     <arg name="line_spacing"/>
     <arg name="enable_corner_smoothing"/>
+    <!-- waypoint: fly a lawnmower over the area; frontier: explore its
+         unknown space (see planner/exploration_manager/README.md) -->
+    <arg name="exploration_mode" default="waypoint"/>
     <!-- Depth camera intrinsics -->
     <arg name="cx"/>
     <arg name="cy"/>
@@ -76,6 +79,9 @@
         <arg name="sliding_map" value="$(arg sliding_map)"/>
         <arg name="sliding_size" value="$(arg sliding_size)"/>
         <arg name="show_occ_time" value="$(arg show_occ_time)"/>
+        <!-- Map slice at flight height for frontier exploration -->
+        <arg name="slice_min_z" value="$(eval arg('altitude') - 0.25)"/>
+        <arg name="slice_max_z" value="$(eval arg('altitude') + 0.25)"/>
 
         <!-- Planning parameters -->
         <arg name="max_vel" value="$(arg max_vel)" />
@@ -141,6 +147,12 @@
         <param name="exploration/altitude" value="$(arg altitude)" type="double"/>
         <param name="exploration/line_spacing" value="$(arg line_spacing)" type="double"/>
         <param name="exploration/enable_corner_smoothing" value="$(arg enable_corner_smoothing)" type="bool"/>
+
+        <!-- Frontier mode: the planner's map at flight height (already
+             inflated by the planner); goals keep a margin beyond that -->
+        <param name="exploration/mode" value="$(arg exploration_mode)"/>
+        <remap from="~slice" to="/drone_$(arg drone_id)_ego_planner_node/grid_map/slice"/>
+        <param name="frontier/inflation" value="0.15" type="double"/>
     </node>
 
     <!-- ============================== -->

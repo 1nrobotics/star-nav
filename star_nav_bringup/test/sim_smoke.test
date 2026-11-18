@@ -5,6 +5,7 @@
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
     <arg name="expected_waypoints" default="12"/>
+    <arg name="mission_timeout" default="180.0"/>
     <arg name="map_seed" default="0"/>
 
     <include file="$(find star_nav_bringup)/launch/exploration_sim.launch">
@@ -15,10 +16,10 @@
         <arg name="map_seed" value="$(arg map_seed)"/>
     </include>
 
-    <test test-name="sim_smoke" pkg="star_nav_bringup" type="sim_smoke_test.py" time-limit="300.0">
+    <test test-name="sim_smoke" pkg="star_nav_bringup" type="sim_smoke_test.py" time-limit="$(eval arg('mission_timeout') + 120)">
         <param name="expected_waypoints" value="$(arg expected_waypoints)"/>
         <param name="exploration_width" value="$(arg exploration_width)"/>
         <param name="exploration_height" value="$(arg exploration_height)"/>
-        <param name="mission_timeout" value="180.0"/>
+        <param name="mission_timeout" value="$(arg mission_timeout)"/>
     </test>
 </launch>

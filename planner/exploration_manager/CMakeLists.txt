@@ -49,9 +49,11 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/../path_searching/include
 )
 
-## Waypoint Exploration Library
+## Exploration Library: waypoint (lawnmower) and frontier exploration
 add_library(exploration_manager
   src/waypoint_exploration.cpp
+  src/frontier_map.cpp
+  src/frontier_exploration.cpp
 )
 
 target_link_libraries(exploration_manager
@@ -68,6 +70,13 @@ target_link_libraries(exploration_node
   exploration_manager
   ${catkin_LIBRARIES}
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_frontier_map test/test_frontier_map.cpp)
+  if(TARGET test_frontier_map)
+    target_link_libraries(test_frontier_map exploration_manager ${catkin_LIBRARIES})
+  endif()
+endif()
 
 install(TARGETS exploration_node exploration_manager
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

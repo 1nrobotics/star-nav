@@ -1,5 +1,7 @@
 #include <ros/ros.h>
 #include <memory>
+#include <string>
+#include "exploration_manager/frontier_exploration.h"
 #include "exploration_manager/waypoint_exploration.h"
 
 using namespace exploration_manager;
@@ -7,17 +9,25 @@ using namespace exploration_manager;
 int main(int argc, char** argv) {
   ros::init(argc, argv, "exploration_node");
   ros::NodeHandle nh("~");
-  ros::NodeHandle nh_global;
 
-  ROS_INFO("========================================");
-  ROS_INFO("       Waypoint Exploration Node        ");
-  ROS_INFO("========================================");
+  // frontier: explore the area's unknown space; waypoint: fly a lawnmower.
+  std::string mode;
+  nh.param("exploration/mode", mode, std::string("waypoint"));
+  ROS_INFO("Exploration node, mode: %s", mode.c_str());
 
-  // Create waypoint exploration
+  if (mode == "frontier") {
+    FrontierExploration exploration;
+    exploration.init(nh);
+    ros::spin();  // one thread: the map and the FSM share data
+    return 0;
+  }
+  if (mode != "waypoint") {
+    ROS_ERROR("Unknown exploration/mode '%s' (frontier or waypoint)", mode.c_str());
+    return 1;
+  }
+
   auto waypoint_exploration = std::make_shared<WaypointExploration>();
   waypoint_exploration->init(nh);
-
-  ROS_INFO("Waypoint exploration initialized");
 
   ros::AsyncSpinner spinner(4);
   spinner.start();

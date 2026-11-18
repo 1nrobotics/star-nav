@@ -30,6 +30,8 @@
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
     <arg name="enable_corner_smoothing" default="false"/>
+    <!-- waypoint (lawnmower) or frontier (explore the unknown space) -->
+    <arg name="exploration_mode" default="waypoint"/>
 
     <!-- Simulator -->
     <arg name="start_sim" default="true"/>
@@ -95,6 +97,7 @@
         <arg name="exploration_height" value="$(arg exploration_height)"/>
         <arg name="line_spacing" value="$(arg line_spacing)"/>
         <arg name="enable_corner_smoothing" value="$(arg enable_corner_smoothing)"/>
+        <arg name="exploration_mode" value="$(arg exploration_mode)"/>
         <arg name="cx" value="320.0"/>
         <arg name="cy" value="240.0"/>
         <arg name="fx" value="387.229248046875"/>

@@ -2,7 +2,7 @@
 <package format="2">
   <name>exploration_manager</name>
   <version>1.0.0</version>
-  <description>Frontier-based exploration manager for EGO planner</description>
+  <description>Area exploration for the EGO planner: frontier exploration or a lawnmower of waypoints</description>
 
   <maintainer email="dev@1nrobotics.com">1nRobotics</maintainer>
   <license>MIT</license>
@@ -22,6 +22,7 @@
   <depend>traj_utils</depend>
   <depend>bspline_opt</depend>
   <depend>quadrotor_msgs</depend>
+  <test_depend>rosunit</test_depend>
 
   <export>
   </export>

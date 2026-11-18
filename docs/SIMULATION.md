@@ -86,6 +86,19 @@ rostest star_nav_bringup mujoco_smoke.test sensor:=lidar
 SENSOR=lidar ./scripts/run_mujoco_smoke_test.sh
 ```
 
+Exploration mode: by default the vehicle flies a fixed lawnmower over the
+area. With `exploration_mode:=frontier` it explores the area's unknown space
+instead, then returns to the start. RViz shows the frontiers and the
+explored map (`/exploration/map`).
+[exploration_manager/README.md](../planner/exploration_manager/README.md)
+explains how it works. Frontier mode needs MuJoCo, because the kinematic
+simulator gives the map no free space.
+
+```bash
+roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true exploration_mode:=frontier
+rostest star_nav_bringup mujoco_smoke.test mode:=frontier
+```
+
 Details, options and the bridge protocol: [mujoco_sim/README.md](../mujoco_sim/README.md).
 
 ## Interactive Workflow: Docker (Linux host)

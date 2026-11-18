@@ -9,6 +9,13 @@
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
     <arg name="expected_waypoints" default="12"/>
+    <!-- waypoint or frontier (exploration_manager) -->
+    <arg name="mode" default="waypoint"/>
+    <arg name="mission_timeout" default="180.0"/>
+    <!-- Planner obstacle inflation (m) -->
+    <arg name="obstacles_inflation" default="0.2"/>
+    <!-- Forest layout -->
+    <arg name="seed" default="1"/>
     <arg name="start_sim" default="true"/>
     <arg name="sim_host" default="127.0.0.1"/>
     <arg name="sim_args" default=""/>
@@ -24,6 +31,8 @@
         <arg name="start_sim" value="$(arg start_sim)"/>
         <arg name="sim_host" value="$(arg sim_host)"/>
         <arg name="sim_args" value="$(arg sim_args)"/>
+        <arg name="seed" value="$(arg seed)"/>
+        <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
         <arg name="sensor" value="$(arg sensor)"/>
         <arg name="lidar_raycasting" value="$(arg lidar_raycasting)"/>
         <arg name="lidar_max_hits" value="$(arg lidar_max_hits)"/>
@@ -32,10 +41,12 @@
         <arg name="exploration_width" value="$(arg exploration_width)"/>
         <arg name="exploration_height" value="$(arg exploration_height)"/>
         <arg name="line_spacing" value="$(arg line_spacing)"/>
+        <arg name="exploration_mode" value="$(arg mode)"/>
     </include>
 
-    <test test-name="mujoco_smoke" pkg="star_nav_bringup" type="sim_smoke_test.py" time-limit="300.0">
+    <test test-name="mujoco_smoke" pkg="star_nav_bringup" type="sim_smoke_test.py" time-limit="$(eval arg('mission_timeout') + 120)">
         <param name="expected_waypoints" value="$(arg expected_waypoints)"/>
+        <param name="mode" value="$(arg mode)"/>
         <param name="exploration_width" value="$(arg exploration_width)"/>
         <param name="exploration_height" value="$(arg exploration_height)"/>
         <param name="contacts_topic" value="/mujoco/contacts"/>
@@ -43,6 +54,6 @@
         <param name="obstacles_topic" value="/mujoco/obstacles"/>
         <param name="sensor_cloud_topic" value="/drone_0_pcl_render_node/cloud" if="$(eval sensor == 'lidar')"/>
         <param name="min_map_recall" value="0.95" if="$(eval sensor == 'lidar')"/>
-        <param name="mission_timeout" value="180.0"/>
+        <param name="mission_timeout" value="$(arg mission_timeout)"/>
     </test>
 </launch>

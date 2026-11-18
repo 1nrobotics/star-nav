@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""End-to-end smoke test for the waypoint exploration simulation.
+"""End-to-end smoke test for the exploration simulation.
 
-Triggers exploration and checks that the mission reaches FINISH, visits the
-expected number of waypoints without timeouts, and that the flown path covers
-the exploration area. With ~contacts_topic set (MuJoCo simulator), it also
+Triggers exploration and checks that the mission reaches FINISH. Waypoint mode
+(~mode): it visits the expected number of waypoints without timeouts and the
+flown path covers the exploration area. Frontier mode: it observes at least
+~min_coverage of the area, returns to the start and blocks at most
+~max_blocked goals. With ~contacts_topic set (MuJoCo simulator), it also
 checks that the quadrotor never touched an obstacle. With ~obstacles_topic set,
 it also checks the sensor cloud and the planner's map against the true world
 (map_accuracy.py).
 """
 
+import math
 import threading
 import unittest
 
@@ -17,7 +20,7 @@ import rostest
 from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Odometry
 from rosgraph_msgs.msg import Log
-from std_msgs.msg import String, UInt32
+from std_msgs.msg import Float32, String, UInt32
 
 from map_accuracy import MapAccuracyMonitor
 
@@ -31,8 +34,15 @@ class SimSmokeTest(unittest.TestCase):
         self.problems = []
         self.min_xy = [float("inf"), float("inf")]
         self.max_xy = [float("-inf"), float("-inf")]
+        self.last_xy = None
+        self.path_length = 0.0
 
         self.odom_topic = rospy.get_param("~odom_topic", "/drone_0_visual_slam/odom")
+        self.mode = rospy.get_param("~mode", "waypoint")
+        self.min_coverage = rospy.get_param("~min_coverage", 0.9)
+        self.max_blocked = rospy.get_param("~max_blocked", 2)
+        self.coverage = None
+        self.blocked = []
         self.expected_waypoints = rospy.get_param("~expected_waypoints", 12)
         self.width = rospy.get_param("~exploration_width", 9.0)
         self.height = rospy.get_param("~exploration_height", 9.0)
@@ -56,6 +66,7 @@ class SimSmokeTest(unittest.TestCase):
             self.min_map_recall = rospy.get_param("~min_map_recall", -1.0)
 
         rospy.Subscriber("/exploration/state", String, self.state_cb, queue_size=100)
+        rospy.Subscriber("/exploration/coverage", Float32, self.coverage_cb, queue_size=10)
         rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb, queue_size=10)
         # /rosout, not /rosout_agg: rostest runs no rosout node to aggregate.
         rospy.Subscriber("/rosout", Log, self.log_cb, queue_size=100)
@@ -69,11 +80,18 @@ class SimSmokeTest(unittest.TestCase):
             if not self.states or self.states[-1] != msg.data:
                 self.states.append(msg.data)
 
+    def coverage_cb(self, msg):
+        with self.lock:
+            self.coverage = msg.data
+
     def odom_cb(self, msg):
         p = msg.pose.pose.position
         with self.lock:
             self.min_xy = [min(self.min_xy[0], p.x), min(self.min_xy[1], p.y)]
             self.max_xy = [max(self.max_xy[0], p.x), max(self.max_xy[1], p.y)]
+            if self.last_xy is not None:
+                self.path_length += math.hypot(p.x - self.last_xy[0], p.y - self.last_xy[1])
+            self.last_xy = (p.x, p.y)
 
     def contacts_cb(self, msg):
         with self.lock:
@@ -82,9 +100,12 @@ class SimSmokeTest(unittest.TestCase):
     def log_cb(self, msg):
         if msg.name != "/exploration_node":
             return
-        if "TIMEOUT" in msg.msg or "Max exploration time" in msg.msg:
-            with self.lock:
+        with self.lock:
+            if ("TIMEOUT" in msg.msg or "Max exploration time" in msg.msg
+                    or "Could not return" in msg.msg):
                 self.problems.append(msg.msg)
+            elif "blocking it" in msg.msg:
+                self.blocked.append(msg.msg)
 
     def wait_for(self, predicate, timeout, what):
         deadline = rospy.Time.now() + rospy.Duration(timeout)
@@ -104,17 +125,20 @@ class SimSmokeTest(unittest.TestCase):
         rospy.sleep(self.settle_time)
 
         # Re-publish until the FSM leaves WAIT_TRIGGER; the trigger is not latched.
+        started = "EXPLORE" if self.mode == "frontier" else "GENERATE_WAYPOINTS"
         deadline = rospy.Time.now() + rospy.Duration(self.startup_timeout)
         while not rospy.is_shutdown() and rospy.Time.now() < deadline:
             with self.lock:
-                if "GENERATE_WAYPOINTS" in self.states:
+                if started in self.states:
                     break
             self.trigger_pub.publish(PoseStamped())
             rospy.sleep(1.0)
         with self.lock:
-            self.assertIn("GENERATE_WAYPOINTS", self.states, "exploration was never triggered")
+            self.assertIn(started, self.states, "exploration was never triggered")
             self.min_xy = [float("inf"), float("inf")]
             self.max_xy = [float("-inf"), float("-inf")]
+            self.path_length = 0.0
+            start = rospy.Time.now()
         if self.accuracy:
             self.accuracy.start()
 
@@ -125,14 +149,25 @@ class SimSmokeTest(unittest.TestCase):
             span_x = self.max_xy[0] - self.min_xy[0]
             span_y = self.max_xy[1] - self.min_xy[1]
             problems = list(self.problems)
+            blocked = list(self.blocked)
+            coverage = self.coverage
             contacts = self.contacts
+            path_length = self.path_length
 
-        rospy.loginfo("[sim_smoke] waypoints=%d span=(%.2f, %.2f) problems=%d contacts=%s",
-                      reached, span_x, span_y, len(problems), contacts)
+        # print: the summary also goes to the rostest output.
+        print("[sim_smoke] mode=%s time=%.0fs path=%.1fm waypoints=%d span=(%.2f, %.2f) "
+              "coverage=%s blocked=%d problems=%d contacts=%s"
+              % (self.mode, (rospy.Time.now() - start).to_sec(), path_length, reached, span_x,
+                 span_y, coverage, len(blocked), len(problems), contacts))
         self.assertEqual(problems, [], "exploration reported: %s" % problems)
-        self.assertEqual(reached, self.expected_waypoints, "unexpected number of waypoints")
-        self.assertGreaterEqual(span_x, self.coverage_ratio * self.width, "x coverage too small")
-        self.assertGreaterEqual(span_y, self.coverage_ratio * self.height, "y coverage too small")
+        if self.mode == "frontier":
+            self.assertIsNotNone(coverage, "no message on /exploration/coverage")
+            self.assertGreaterEqual(coverage, self.min_coverage, "too little of the area observed")
+            self.assertLessEqual(len(blocked), self.max_blocked, "goals blocked: %s" % blocked)
+        else:
+            self.assertEqual(reached, self.expected_waypoints, "unexpected number of waypoints")
+            self.assertGreaterEqual(span_x, self.coverage_ratio * self.width, "x coverage too small")
+            self.assertGreaterEqual(span_y, self.coverage_ratio * self.height, "y coverage too small")
         if self.contacts_topic:
             self.assertIsNotNone(contacts, "no message on %s" % self.contacts_topic)
             self.assertEqual(contacts, 0, "the quadrotor collided with an obstacle")
