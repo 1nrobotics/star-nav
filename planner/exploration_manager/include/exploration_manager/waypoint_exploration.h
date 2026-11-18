@@ -93,6 +93,9 @@ private:
   ros::Time waypoint_start_time_;
   double waypoint_timeout_;
   double waypoint_tolerance_;  // a waypoint is reached within this distance (m)
+  double stall_radius_;        // ... or within this one once the vehicle has stopped (m)
+  double stall_time_;          // stopped for this long (s)
+  ros::Time stopped_since_;    // zero while moving
 
   // Parameters
   double max_exploration_time_;

@@ -434,7 +434,10 @@ int main(int argc, char** argv) {
 
   ros::Duration(0.5).sleep();
 
-  unsigned int seed = seed_param > 0 ? static_cast<unsigned int>(seed_param) : rd();
+  // A drawn seed fits an int, so the logged "seed=N" can be passed back as
+  // map_seed:=N. Negative seeds are taken as their unsigned value, which
+  // replays seeds logged before (above 2^31).
+  unsigned int seed = seed_param != 0 ? static_cast<unsigned int>(seed_param) : (rd() & 0x7fffffffu);
   cout << "seed=" << seed << endl;
   eng.seed(seed);
 
