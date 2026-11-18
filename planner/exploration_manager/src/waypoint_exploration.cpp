@@ -16,6 +16,8 @@ void WaypointExploration::init(ros::NodeHandle& nh) {
   nh.param("exploration/enable_corner_smoothing", enable_corner_smoothing_, false);
   nh.param("fsm/waypoint_timeout", waypoint_timeout_, 30.0);
   nh.param("fsm/waypoint_tolerance", waypoint_tolerance_, 0.5);
+  nh.param("fsm/stall_radius", stall_radius_, 1.5);
+  nh.param("fsm/stall_time", stall_time_, 3.0);
   nh.param("fsm/max_exploration_time", max_exploration_time_, 600.0);
   nh.param("fsm/replan_time", replan_time_, 0.05);
 
@@ -167,6 +169,7 @@ void WaypointExploration::planToWaypointState() {
 
   goal_pub_.publish(goal);
   waypoint_start_time_ = ros::Time::now();
+  stopped_since_ = ros::Time(0);
 
   ROS_INFO("[WaypointExploration] Planning to waypoint %d: [%.2f, %.2f, %.2f] yaw=%.1f deg",
            current_waypoint_idx_, target_pt_(0), target_pt_(1), target_pt_(2), 
@@ -202,8 +205,27 @@ void WaypointExploration::execWaypointState() {
     return;
   }
 
+  // A waypoint next to an obstacle lies in the planner's inflated map, so
+  // the planner ends its trajectory short of it, up to about the inflation
+  // away. Stopped close to it counts as reached instead of waiting for the
+  // timeout.
+  const ros::Time now = ros::Time::now();
+  if (dist_to_goal < stall_radius_ && odom_vel_.norm() < 0.1) {
+    if (stopped_since_.isZero()) {
+      stopped_since_ = now;
+    } else if ((now - stopped_since_).toSec() > stall_time_) {
+      ROS_INFO("[WaypointExploration] SUCCESS: Reached waypoint %d, stopped %.3f m short (next to an obstacle?)",
+               current_waypoint_idx_, dist_to_goal);
+      current_waypoint_idx_++;
+      transitState(PLAN_TO_WAYPOINT, "execWaypointState");
+      return;
+    }
+  } else {
+    stopped_since_ = ros::Time(0);
+  }
+
   // Check timeout
-  double elapsed = (ros::Time::now() - waypoint_start_time_).toSec();
+  double elapsed = (now - waypoint_start_time_).toSec();
   if (elapsed > waypoint_timeout_) {
     ROS_WARN("[WaypointExploration] TIMEOUT: Waypoint %d timeout (%.1fs)! Distance: %.3f m (H:%.3f, V:%.3f). Moving to next waypoint.",
              current_waypoint_idx_, elapsed, dist_to_goal, horizontal_dist, fabs(dz));
