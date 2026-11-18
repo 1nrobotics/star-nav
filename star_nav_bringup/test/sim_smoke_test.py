@@ -57,7 +57,8 @@ class SimSmokeTest(unittest.TestCase):
 
         rospy.Subscriber("/exploration/state", String, self.state_cb, queue_size=100)
         rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb, queue_size=10)
-        rospy.Subscriber("/rosout_agg", Log, self.log_cb, queue_size=100)
+        # /rosout, not /rosout_agg: rostest runs no rosout node to aggregate.
+        rospy.Subscriber("/rosout", Log, self.log_cb, queue_size=100)
         self.trigger_pub = rospy.Publisher("/exploration/trigger", PoseStamped, queue_size=1)
         if self.contacts_topic:
             rospy.Subscriber(self.contacts_topic, UInt32, self.contacts_cb, queue_size=10)
