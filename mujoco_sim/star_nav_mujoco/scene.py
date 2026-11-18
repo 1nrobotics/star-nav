@@ -14,11 +14,11 @@ CAM_FOCAL = 387.229248046875
 CAM_FOVY = math.degrees(2.0 * math.atan(CAM_HEIGHT / 2.0 / CAM_FOCAL))
 CAM_OFFSET = 0.14  # metres ahead of the body centre
 
+# Geom group of visual-only markers; sensors ignore it.
+MARKER_GROUP = 2
+
 RING_SEGMENTS = 24
 RING_TUBE = 0.04
-
-# Visual-only geoms (the setpoint marker): hidden from the depth camera.
-MARKER_GROUP = 2
 
 
 def _f(*v: float) -> str:
@@ -43,7 +43,8 @@ def _obstacles_xml(obstacles: list[world.Obstacle]) -> str:
   return '\n    '.join(out)
 
 
-def _quadrotor_xml(p: quadrotor.Params, start: tuple[float, float, float]) -> str:
+def _quadrotor_xml(p: quadrotor.Params, start: tuple[float, float, float],
+                   lidar_mount: tuple[float, float, float] | None) -> str:
   rotors = []
   for i, (x, y, _) in enumerate(p.rotor_layout()):
     rotors.append(
@@ -53,12 +54,17 @@ def _quadrotor_xml(p: quadrotor.Params, start: tuple[float, float, float]) -> st
         f'      <geom class="drone" type="capsule" material="frame" '
         f'fromto="0 0 0 {_f(x, y, 0)}" size="0.008"/>'
     )
+  lidar = ''
+  if lidar_mount is not None:
+    lidar = (f'<geom class="drone" type="cylinder" material="lidar" '
+             f'pos="{_f(*lidar_mount)}" size="0.035 0.02"/>')
   return f'''
     <body name="quad" pos="{_f(*start)}">
       <freejoint name="quad"/>
       <inertial pos="0 0 0" mass="{p.mass}" diaginertia="{_f(*p.inertia)}"/>
       <geom class="drone" type="box" material="frame" size="0.06 0.045 0.02"/>
       {chr(10).join('      ' + r for r in rotors).strip()}
+      {lidar}
       <camera name="depth" pos="{CAM_OFFSET} 0 0" xyaxes="0 -1 0 0 0 1"
               fovy="{CAM_FOVY:.4f}" resolution="{CAM_WIDTH} {CAM_HEIGHT}"/>
       <camera name="chase" mode="trackcom" pos="-3 -1.5 1.4" xyaxes="0.45 -0.89 0 0.3 0.15 0.94"/>
@@ -82,6 +88,7 @@ def build_xml(
     params: quadrotor.Params,
     start: tuple[float, float, float],
     timestep: float = 0.002,
+    lidar_mount: tuple[float, float, float] | None = None,
 ) -> str:
   return f'''<mujoco model="star_nav">
   <option timestep="{timestep}" integrator="implicitfast"/>
@@ -104,6 +111,7 @@ def build_xml(
     <material name="frame" rgba="0.15 0.15 0.18 1"/>
     <material name="prop" rgba="0.9 0.4 0.1 0.8"/>
     <material name="target" rgba="0.1 0.6 1 0.6"/>
+    <material name="lidar" rgba="0.2 0.25 0.3 1"/>
   </asset>
   <default>
     <default class="obstacle">
@@ -118,7 +126,7 @@ def build_xml(
     <geom name="ground" type="plane" size="{_f(30, 30, 0.1)}" material="ground"
           contype="1" conaffinity="2"/>
     {_obstacles_xml(obstacles)}
-    {_quadrotor_xml(params, start)}
+    {_quadrotor_xml(params, start, lidar_mount)}
     <body name="setpoint" mocap="true" pos="{_f(*start)}">
       <geom type="sphere" size="0.06" material="target" contype="0" conaffinity="0"
             group="{MARKER_GROUP}"/>

@@ -1,15 +1,18 @@
 <launch>
-    <!-- Headless end-to-end check: rostest star_nav_bringup sim_smoke.test -->
+    <!-- Headless end-to-end check: rostest star_nav_bringup sim_smoke.test
+         The forest is new on every run; map_seed:=N repeats the logged "seed=N". -->
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
     <arg name="expected_waypoints" default="12"/>
+    <arg name="map_seed" default="0"/>
 
     <include file="$(find star_nav_bringup)/launch/exploration_sim.launch">
         <arg name="use_rviz" value="false"/>
         <arg name="exploration_width" value="$(arg exploration_width)"/>
         <arg name="exploration_height" value="$(arg exploration_height)"/>
         <arg name="line_spacing" value="$(arg line_spacing)"/>
+        <arg name="map_seed" value="$(arg map_seed)"/>
     </include>
 
     <test test-name="sim_smoke" pkg="star_nav_bringup" type="sim_smoke_test.py" time-limit="300.0">

@@ -39,9 +39,20 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/min_ray_length", mp_.min_ray_length_, -0.1);
   node_.param("grid_map/max_ray_length", mp_.max_ray_length_, -0.1);
   node_.param("grid_map/enable_pointcloud_raycasting", mp_.enable_pointcloud_raycasting_, false);
+  node_.param("grid_map/max_hits_per_update", mp_.max_hits_per_update_, 1);
+  mp_.max_hits_per_update_ = max(1, mp_.max_hits_per_update_);
+  std::vector<double> lidar_offset;
+  node_.param("grid_map/lidar_offset", lidar_offset, std::vector<double>(3, 0.0));
+  if (lidar_offset.size() != 3)
+  {
+    ROS_ERROR("grid_map/lidar_offset needs 3 values, ignoring it");
+    lidar_offset.assign(3, 0.0);
+  }
+  mp_.lidar_offset_ = Eigen::Vector3d(lidar_offset[0], lidar_offset[1], lidar_offset[2]);
 
   node_.param("grid_map/obstacle_min_height", mp_.obstacle_min_height_, -1.0e9);
   node_.param("grid_map/visualization_truncate_height", mp_.visualization_truncate_height_, -0.1);
+  node_.param("grid_map/visualization_min_height", mp_.visualization_min_height_, -1.0e9);
   node_.param("grid_map/virtual_ceil_yp", mp_.virtual_ceil_yp_, -0.1);
   node_.param("grid_map/virtual_ceil_yn", mp_.virtual_ceil_yn_, -0.1);
 
@@ -53,6 +64,12 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/ground_height", mp_.ground_height_, 1.0);
 
   node_.param("grid_map/odom_depth_timeout", mp_.odom_depth_timeout_, 1.0);
+
+  double sliding_x, sliding_y;
+  node_.param("grid_map/sliding_map", mp_.sliding_map_, false);
+  node_.param("grid_map/sliding_size_x", sliding_x, x_size);
+  node_.param("grid_map/sliding_size_y", sliding_y, y_size);
+  node_.param("grid_map/sliding_threshold", mp_.sliding_threshold_, 1.0);
 
   mp_.resolution_inv_ = 1 / mp_.resolution_;
   mp_.map_origin_ = Eigen::Vector3d(-x_size / 2.0, -y_size / 2.0, mp_.ground_height_);
@@ -71,18 +88,20 @@ void GridMap::initMap(ros::NodeHandle &nh)
   cout << "max: " << mp_.clamp_max_log_ << endl;
   cout << "thresh log: " << mp_.min_occupancy_log_ << endl;
 
+  // Stored voxels: the whole map, or with sliding_map a window (x, y) that
+  // follows the vehicle; z always covers the map height.
+  Eigen::Vector3d stored_size = mp_.map_size_;
+  if (mp_.sliding_map_)
+    stored_size.head<2>() << sliding_x, sliding_y;
   for (int i = 0; i < 3; ++i)
-    mp_.map_voxel_num_(i) = ceil(mp_.map_size_(i) / mp_.resolution_);
-
-  mp_.map_min_boundary_ = mp_.map_origin_;
-  mp_.map_max_boundary_ = mp_.map_origin_ + mp_.map_size_;
+    mp_.map_voxel_num_(i) = ceil(stored_size(i) / mp_.resolution_);
 
   // initialize data buffers
 
   int buffer_size = mp_.map_voxel_num_(0) * mp_.map_voxel_num_(1) * mp_.map_voxel_num_(2);
 
   md_.occupancy_buffer_ = vector<double>(buffer_size, mp_.clamp_min_log_ - mp_.unknown_flag_);
-  md_.occupancy_buffer_inflate_ = vector<char>(buffer_size, 0);
+  md_.occupancy_buffer_inflate_ = vector<uint16_t>(buffer_size, 0);
 
   md_.count_hit_and_miss_ = vector<short>(buffer_size, 0);
   md_.count_hit_ = vector<short>(buffer_size, 0);
@@ -90,6 +109,18 @@ void GridMap::initMap(ros::NodeHandle &nh)
   md_.flag_traverse_ = vector<char>(buffer_size, -1);
 
   md_.raycast_num_ = 0;
+
+  // The window starts at the map origin, or centred on (0, 0) when sliding.
+  Eigen::Vector3i window_min = Eigen::Vector3i::Zero();
+  if (mp_.sliding_map_)
+  {
+    posToIndex(Eigen::Vector3d(0.0, 0.0, mp_.map_origin_(2)), window_min);
+    window_min.head<2>() -= mp_.map_voxel_num_.head<2>() / 2;
+    window_min(2) = 0;
+    ROS_INFO("grid_map: sliding map %.1f x %.1f m, follows the vehicle every %.1f m", sliding_x, sliding_y,
+             mp_.sliding_threshold_);
+  }
+  setWindow(window_min);
 
   md_.proj_points_.resize(640 * 480 / mp_.skip_pixel_ / mp_.skip_pixel_);
   md_.proj_points_cnt = 0;
@@ -149,6 +180,7 @@ void GridMap::initMap(ros::NodeHandle &nh)
   md_.fuse_time_ = 0.0;
   md_.update_num_ = 0;
   md_.max_fuse_time_ = 0.0;
+  md_.timed_updates_ = 0;
 
   md_.flag_depth_odom_timeout_ = false;
   md_.flag_use_depth_fusion = false;
@@ -166,8 +198,8 @@ void GridMap::resetBuffer()
 
   resetBuffer(min_pos, max_pos);
 
-  md_.local_bound_min_ = Eigen::Vector3i::Zero();
-  md_.local_bound_max_ = mp_.map_voxel_num_ - Eigen::Vector3i::Ones();
+  md_.local_bound_min_ = md_.window_min_;
+  md_.local_bound_max_ = md_.window_min_ + mp_.map_voxel_num_ - Eigen::Vector3i::Ones();
 }
 
 void GridMap::resetBuffer(Eigen::Vector3d min_pos, Eigen::Vector3d max_pos)
@@ -196,7 +228,9 @@ int GridMap::setCacheOccupancy(Eigen::Vector3d pos, int occ)
 
   Eigen::Vector3i id;
   posToIndex(pos, id);
-  int idx_ctns = toAddress(id);
+  const int idx_ctns = addressIfInMap(id);
+  if (idx_ctns < 0)
+    return INVALID_IDX;
 
   md_.count_hit_and_miss_[idx_ctns] += 1;
 
@@ -359,6 +393,14 @@ void GridMap::raycastProcess()
 
   RayCaster raycaster;
   Eigen::Vector3d half = Eigen::Vector3d(0.5, 0.5, 0.5);
+
+  // A ray normally stops at the first voxel another ray has already cleared in
+  // this update. Rays only share that voxel, not the rest of the path, so the
+  // voxels behind it are skipped. Depth pixels are dense enough to cover them,
+  // but lidar beams are ~1.5 deg apart (a voxel at 4 m): with a steady vehicle
+  // the same voxels are skipped every scan and an obstacle that moved away is
+  // never cleared. Point clouds therefore trace every ray to the vehicle.
+  const bool full_rays = !md_.flag_use_depth_fusion;
   Eigen::Vector3d ray_pt, pt_w;
 
   for (int i = 0; i < md_.proj_points_cnt; ++i)
@@ -417,11 +459,15 @@ void GridMap::raycastProcess()
       }
     }
 
-    raycaster.setInput(pt_w / mp_.resolution_, md_.camera_pos_ / mp_.resolution_);
+    // Trace in map grid coordinates: the map origin (ground_height in z) is
+    // not a multiple of the resolution, and world-aligned cells would put the
+    // ray in a neighbouring voxel near cell boundaries.
+    raycaster.setInput((pt_w - mp_.map_origin_) / mp_.resolution_,
+                       (md_.camera_pos_ - mp_.map_origin_) / mp_.resolution_);
 
     while (raycaster.step(ray_pt))
     {
-      Eigen::Vector3d tmp = (ray_pt + half) * mp_.resolution_;
+      Eigen::Vector3d tmp = (ray_pt + half) * mp_.resolution_ + mp_.map_origin_;
       length = (tmp - md_.camera_pos_).norm();
 
       // if (length < mp_.min_ray_length_) break;
@@ -432,7 +478,8 @@ void GridMap::raycastProcess()
       {
         if (md_.flag_traverse_[vox_idx] == md_.raycast_num_)
         {
-          break;
+          if (!full_rays)
+            break;
         }
         else
         {
@@ -477,31 +524,35 @@ void GridMap::raycastProcess()
     int idx_ctns = toAddress(idx);
     md_.cache_voxel_.pop();
 
+    // One update per voxel and scan: a hit if at least as many rays ended in
+    // it as passed through it. A surface hit by k rays of the same scan gets
+    // k hits (at most max_hits_per_update), as in ROG-Map, so a dense lidar
+    // confirms an obstacle in one or two scans while a single stray return
+    // still counts once.
+    const int hits = md_.count_hit_[idx_ctns];
+    const int misses = md_.count_hit_and_miss_[idx_ctns] - hits;
     double log_odds_update =
-        md_.count_hit_[idx_ctns] >= md_.count_hit_and_miss_[idx_ctns] - md_.count_hit_[idx_ctns] ? mp_.prob_hit_log_ : mp_.prob_miss_log_;
+        hits >= misses ? mp_.prob_hit_log_ * min(hits, mp_.max_hits_per_update_) : mp_.prob_miss_log_;
 
     md_.count_hit_[idx_ctns] = md_.count_hit_and_miss_[idx_ctns] = 0;
 
-    if (log_odds_update >= 0 && md_.occupancy_buffer_[idx_ctns] >= mp_.clamp_max_log_)
+    const double current = md_.occupancy_buffer_[idx_ctns];
+    if (log_odds_update >= 0 && current >= mp_.clamp_max_log_)
     {
       continue;
     }
-    else if (log_odds_update <= 0 && md_.occupancy_buffer_[idx_ctns] <= mp_.clamp_min_log_)
+    else if (log_odds_update <= 0 && current <= mp_.clamp_min_log_)
     {
-      md_.occupancy_buffer_[idx_ctns] = mp_.clamp_min_log_;
+      setLogOdds(idx_ctns, idx, mp_.clamp_min_log_);
       continue;
     }
 
     bool in_local = idx(0) >= min_id(0) && idx(0) <= max_id(0) && idx(1) >= min_id(1) &&
                     idx(1) <= max_id(1) && idx(2) >= min_id(2) && idx(2) <= max_id(2);
-    if (!in_local)
-    {
-      md_.occupancy_buffer_[idx_ctns] = mp_.clamp_min_log_;
-    }
+    const double base = in_local ? current : mp_.clamp_min_log_;
 
-    md_.occupancy_buffer_[idx_ctns] =
-        std::min(std::max(md_.occupancy_buffer_[idx_ctns] + log_odds_update, mp_.clamp_min_log_),
-                 mp_.clamp_max_log_);
+    setLogOdds(idx_ctns, idx,
+               std::min(std::max(base + log_odds_update, mp_.clamp_min_log_), mp_.clamp_max_log_));
   }
 }
 
@@ -533,11 +584,10 @@ Eigen::Vector3d GridMap::closetPointInMap(const Eigen::Vector3d &pt, const Eigen
 
 void GridMap::clearAndInflateLocalMap()
 {
-  /*clear outside local*/
+  // Forget a shell of voxels just outside the updated region (upstream
+  // behaviour). The inflated map no longer needs rebuilding here: setLogOdds
+  // keeps it in step with every occupancy change.
   const int vec_margin = 5;
-  // Eigen::Vector3i min_vec_margin = min_vec - Eigen::Vector3i(vec_margin,
-  // vec_margin, vec_margin); Eigen::Vector3i max_vec_margin = max_vec +
-  // Eigen::Vector3i(vec_margin, vec_margin, vec_margin);
 
   Eigen::Vector3i min_cut = md_.local_bound_min_ -
                             Eigen::Vector3i(mp_.local_map_margin_, mp_.local_map_margin_, mp_.local_map_margin_);
@@ -551,99 +601,165 @@ void GridMap::clearAndInflateLocalMap()
   boundIndex(min_cut_m);
   boundIndex(max_cut_m);
 
-  // clear data outside the local range
-
+  const double unknown = mp_.clamp_min_log_ - mp_.unknown_flag_;
   for (int x = min_cut_m(0); x <= max_cut_m(0); ++x)
     for (int y = min_cut_m(1); y <= max_cut_m(1); ++y)
-    {
-
-      for (int z = min_cut_m(2); z < min_cut(2); ++z)
+      for (int z = min_cut_m(2); z <= max_cut_m(2); ++z)
       {
-        int idx = toAddress(x, y, z);
-        md_.occupancy_buffer_[idx] = mp_.clamp_min_log_ - mp_.unknown_flag_;
-      }
-
-      for (int z = max_cut(2) + 1; z <= max_cut_m(2); ++z)
-      {
-        int idx = toAddress(x, y, z);
-        md_.occupancy_buffer_[idx] = mp_.clamp_min_log_ - mp_.unknown_flag_;
-      }
-    }
-
-  for (int z = min_cut_m(2); z <= max_cut_m(2); ++z)
-    for (int x = min_cut_m(0); x <= max_cut_m(0); ++x)
-    {
-
-      for (int y = min_cut_m(1); y < min_cut(1); ++y)
-      {
-        int idx = toAddress(x, y, z);
-        md_.occupancy_buffer_[idx] = mp_.clamp_min_log_ - mp_.unknown_flag_;
-      }
-
-      for (int y = max_cut(1) + 1; y <= max_cut_m(1); ++y)
-      {
-        int idx = toAddress(x, y, z);
-        md_.occupancy_buffer_[idx] = mp_.clamp_min_log_ - mp_.unknown_flag_;
-      }
-    }
-
-  for (int y = min_cut_m(1); y <= max_cut_m(1); ++y)
-    for (int z = min_cut_m(2); z <= max_cut_m(2); ++z)
-    {
-
-      for (int x = min_cut_m(0); x < min_cut(0); ++x)
-      {
-        int idx = toAddress(x, y, z);
-        md_.occupancy_buffer_[idx] = mp_.clamp_min_log_ - mp_.unknown_flag_;
-      }
-
-      for (int x = max_cut(0) + 1; x <= max_cut_m(0); ++x)
-      {
-        int idx = toAddress(x, y, z);
-        md_.occupancy_buffer_[idx] = mp_.clamp_min_log_ - mp_.unknown_flag_;
-      }
-    }
-
-  // inflate occupied voxels to compensate robot size
-
-  int inf_step = ceil(mp_.obstacles_inflation_ / mp_.resolution_);
-  // int inf_step_z = 1;
-  vector<Eigen::Vector3i> inf_pts(pow(2 * inf_step + 1, 3));
-  // inf_pts.resize(4 * inf_step + 3);
-  Eigen::Vector3i inf_pt;
-
-  // clear outdated data
-  for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
-    for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y)
-      for (int z = md_.local_bound_min_(2); z <= md_.local_bound_max_(2); ++z)
-      {
-        md_.occupancy_buffer_inflate_[toAddress(x, y, z)] = 0;
-      }
-
-  // inflate obstacles
-  for (int x = md_.local_bound_min_(0); x <= md_.local_bound_max_(0); ++x)
-    for (int y = md_.local_bound_min_(1); y <= md_.local_bound_max_(1); ++y)
-      for (int z = md_.local_bound_min_(2); z <= md_.local_bound_max_(2); ++z)
-      {
-
-        if (md_.occupancy_buffer_[toAddress(x, y, z)] > mp_.min_occupancy_log_)
+        if (x >= min_cut(0) && x <= max_cut(0) && y >= min_cut(1) && y <= max_cut(1) && z >= min_cut(2) &&
+            z <= max_cut(2))
         {
-          inflatePoint(Eigen::Vector3i(x, y, z), inf_step, inf_pts);
-
-          for (int k = 0; k < (int)inf_pts.size(); ++k)
-          {
-            inf_pt = inf_pts[k];
-            int idx_inf = toAddress(inf_pt);
-            if (idx_inf < 0 ||
-                idx_inf >= mp_.map_voxel_num_(0) * mp_.map_voxel_num_(1) * mp_.map_voxel_num_(2))
-            {
-              continue;
-            }
-            md_.occupancy_buffer_inflate_[idx_inf] = 1;
-          }
+          z = max_cut(2);  // skip the inside of the box
+          continue;
         }
+        Eigen::Vector3i id(x, y, z);
+        setLogOdds(toAddress(id), id, unknown);
       }
+}
 
+int GridMap::inflationStep() const { return ceil(mp_.obstacles_inflation_ / mp_.resolution_); }
+
+void GridMap::changeInflation(const Eigen::Vector3i &id, int delta)
+{
+  const int step = inflationStep();
+  Eigen::Vector3i nb;
+  for (int x = -step; x <= step; ++x)
+    for (int y = -step; y <= step; ++y)
+      for (int z = -step; z <= step; ++z)
+      {
+        nb = id + Eigen::Vector3i(x, y, z);
+        if (!isInMap(nb))
+          continue;
+        uint16_t &count = md_.occupancy_buffer_inflate_[toAddress(nb)];
+        if (delta > 0)
+          ++count;
+        else if (count > 0)
+          --count;
+      }
+}
+
+void GridMap::rebuildInflation(const Eigen::Vector3i &min_id, const Eigen::Vector3i &max_id)
+{
+  // Recomputes the counters inside [min_id, max_id] from the occupied voxels
+  // around it.
+  Eigen::Vector3i lo = min_id, hi = max_id;
+  boundIndex(lo);
+  boundIndex(hi);
+  for (int x = lo(0); x <= hi(0); ++x)
+    for (int y = lo(1); y <= hi(1); ++y)
+      for (int z = lo(2); z <= hi(2); ++z)
+        md_.occupancy_buffer_inflate_[toAddress(Eigen::Vector3i(x, y, z))] = 0;
+
+  const int step = inflationStep();
+  Eigen::Vector3i src_lo = lo - Eigen::Vector3i::Constant(step), src_hi = hi + Eigen::Vector3i::Constant(step);
+  boundIndex(src_lo);
+  boundIndex(src_hi);
+  for (int x = src_lo(0); x <= src_hi(0); ++x)
+    for (int y = src_lo(1); y <= src_hi(1); ++y)
+      for (int z = src_lo(2); z <= src_hi(2); ++z)
+      {
+        const Eigen::Vector3i src(x, y, z);
+        if (md_.occupancy_buffer_[toAddress(src)] <= mp_.min_occupancy_log_)
+          continue;
+        for (int i = max(lo(0), x - step); i <= min(hi(0), x + step); ++i)
+          for (int j = max(lo(1), y - step); j <= min(hi(1), y + step); ++j)
+            for (int k = max(lo(2), z - step); k <= min(hi(2), z + step); ++k)
+              ++md_.occupancy_buffer_inflate_[toAddress(Eigen::Vector3i(i, j, k))];
+      }
+}
+
+void GridMap::setWindow(const Eigen::Vector3i &window_min)
+{
+  md_.window_min_ = window_min;
+  const Eigen::Vector3i &n = mp_.map_voxel_num_;
+  const int stride[3] = {n(1) * n(2), n(2), 1};
+  std::vector<int> *ring[3] = {&md_.ring_x_, &md_.ring_y_, &md_.ring_z_};
+  for (int i = 0; i < 3; ++i)
+  {
+    ring[i]->resize(n(i));
+    for (int k = 0; k < n(i); ++k)
+    {
+      int r = (window_min(i) + k) % n(i);
+      if (r < 0)
+        r += n(i);
+      (*ring[i])[k] = r * stride[i];
+    }
+  }
+  mp_.map_min_boundary_ = mp_.map_origin_ + window_min.cast<double>() * mp_.resolution_;
+  mp_.map_max_boundary_ = mp_.map_min_boundary_ + mp_.map_voxel_num_.cast<double>() * mp_.resolution_;
+}
+
+namespace
+{
+// The parts of box a = [a_min, a_max] outside box b, as up to three boxes.
+std::vector<std::pair<Eigen::Vector3i, Eigen::Vector3i>> boxDifference(Eigen::Vector3i a_min, Eigen::Vector3i a_max,
+                                                                       const Eigen::Vector3i &b_min,
+                                                                       const Eigen::Vector3i &b_max)
+{
+  std::vector<std::pair<Eigen::Vector3i, Eigen::Vector3i>> boxes;
+  for (int i = 0; i < 3; ++i)
+  {
+    if (a_min(i) < b_min(i))
+    {
+      Eigen::Vector3i hi = a_max;
+      hi(i) = min(a_max(i), b_min(i) - 1);
+      boxes.emplace_back(a_min, hi);
+      a_min(i) = hi(i) + 1;
+    }
+    if (a_max(i) > b_max(i))
+    {
+      Eigen::Vector3i lo = a_min;
+      lo(i) = max(a_min(i), b_max(i) + 1);
+      boxes.emplace_back(lo, a_max);
+      a_max(i) = lo(i) - 1;
+    }
+    if (a_min(i) > a_max(i))
+      break;  // nothing of a left inside b
+  }
+  return boxes;
+}
+}  // namespace
+
+void GridMap::slideWindow(const Eigen::Vector3d &center)
+{
+  if (!mp_.sliding_map_)
+    return;
+
+  Eigen::Vector3i center_id;
+  posToIndex(center, center_id);
+  Eigen::Vector3i target = md_.window_min_;
+  target.head<2>() = center_id.head<2>() - mp_.map_voxel_num_.head<2>() / 2;
+  const Eigen::Vector3i shift = target - md_.window_min_;
+  if (abs(shift(0)) * mp_.resolution_ < mp_.sliding_threshold_ &&
+      abs(shift(1)) * mp_.resolution_ < mp_.sliding_threshold_)
+    return;
+
+  const Eigen::Vector3i one = Eigen::Vector3i::Ones();
+  const Eigen::Vector3i old_min = md_.window_min_, old_max = old_min + mp_.map_voxel_num_ - one;
+  const Eigen::Vector3i new_min = target, new_max = target + mp_.map_voxel_num_ - one;
+  const double unknown = mp_.clamp_min_log_ - mp_.unknown_flag_;
+
+  // Voxels that leave: take back their inflation, then forget them. Their
+  // memory is reused by the voxels that enter.
+  for (const auto &box : boxDifference(old_min, old_max, new_min, new_max))
+    for (int x = box.first(0); x <= box.second(0); ++x)
+      for (int y = box.first(1); y <= box.second(1); ++y)
+        for (int z = box.first(2); z <= box.second(2); ++z)
+        {
+          const Eigen::Vector3i id(x, y, z);
+          const int adr = toAddress(id);
+          if (md_.occupancy_buffer_[adr] > mp_.min_occupancy_log_)
+            changeInflation(id, -1);
+          md_.occupancy_buffer_[adr] = unknown;
+          md_.count_hit_[adr] = md_.count_hit_and_miss_[adr] = 0;
+        }
+
+  setWindow(target);
+
+  // Voxels that enter are unknown; their inflation comes only from occupied
+  // voxels that were already stored.
+  for (const auto &box : boxDifference(new_min, new_max, old_min, old_max))
+    rebuildInflation(box.first, box.second);
 }
 
 void GridMap::visCallback(const ros::TimerEvent & /*event*/)
@@ -670,9 +786,8 @@ void GridMap::updateOccupancyCallback(const ros::TimerEvent & /*event*/)
   }
   md_.last_occ_update_time_ = ros::Time::now();
 
-  /* update occupancy */
-  // ros::Time t1, t2, t3, t4;
-  // t1 = ros::Time::now();
+  const ros::WallTime t0 = ros::WallTime::now();
+  slideWindow(md_.camera_pos_);
 
   // Depth-fusion path: project depth image into point set for raycasting.
   // Pointcloud-only path: cloudCallback already populates md_.proj_points_ and md_.proj_points_cnt.
@@ -680,24 +795,20 @@ void GridMap::updateOccupancyCallback(const ros::TimerEvent & /*event*/)
   {
     projectDepthImage();
   }
-  // t2 = ros::Time::now();
   raycastProcess();
-  // t3 = ros::Time::now();
 
   if (md_.local_updated_)
     clearAndInflateLocalMap();
 
-  // t4 = ros::Time::now();
-
-  // cout << setprecision(7);
-  // cout << "t2=" << (t2-t1).toSec() << " t3=" << (t3-t2).toSec() << " t4=" << (t4-t3).toSec() << endl;;
-
-  // md_.fuse_time_ += (t2 - t1).toSec();
-  // md_.max_fuse_time_ = max(md_.max_fuse_time_, (t2 - t1).toSec());
-
-  // if (mp_.show_occ_time_)
-  //   ROS_WARN("Fusion: cur t = %lf, avg t = %lf, max t = %lf", (t2 - t1).toSec(),
-  //            md_.fuse_time_ / md_.update_num_, md_.max_fuse_time_);
+  if (mp_.show_occ_time_)
+  {
+    const double t = (ros::WallTime::now() - t0).toSec();
+    md_.fuse_time_ += t;
+    md_.max_fuse_time_ = max(md_.max_fuse_time_, t);
+    md_.timed_updates_ += 1;
+    ROS_INFO_THROTTLE(5.0, "grid_map update: %.2f ms (mean %.2f, max %.2f over %d updates)", 1e3 * t,
+                      1e3 * md_.fuse_time_ / md_.timed_updates_, 1e3 * md_.max_fuse_time_, md_.timed_updates_);
+  }
 
   md_.occ_need_update_ = false;
   md_.local_updated_ = false;
@@ -725,6 +836,7 @@ void GridMap::depthPoseCallback(const sensor_msgs::ImageConstPtr &img,
   md_.camera_r_m_ = Eigen::Quaterniond(pose->pose.orientation.w, pose->pose.orientation.x,
                                        pose->pose.orientation.y, pose->pose.orientation.z)
                         .toRotationMatrix();
+  slideWindow(md_.camera_pos_);
   if (isInMap(md_.camera_pos_))
   {
     md_.has_odom_ = true;
@@ -747,6 +859,11 @@ void GridMap::odomCallback(const nav_msgs::OdometryConstPtr &odom)
   md_.camera_pos_(0) = odom->pose.pose.position.x;
   md_.camera_pos_(1) = odom->pose.pose.position.y;
   md_.camera_pos_(2) = odom->pose.pose.position.z;
+
+  // Cast rays from the sensor, not the body centre: a few centimetres move
+  // the rays to neighbouring voxels, which then never get cleared.
+  const geometry_msgs::Quaternion &q = odom->pose.pose.orientation;
+  md_.camera_pos_ += Eigen::Quaterniond(q.w, q.x, q.y, q.z) * mp_.lidar_offset_;
 
   md_.has_odom_ = true;
 }
@@ -771,14 +888,32 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
   if (isnan(md_.camera_pos_(0)) || isnan(md_.camera_pos_(1)) || isnan(md_.camera_pos_(2)))
     return;
 
-  this->resetBuffer(md_.camera_pos_ - mp_.local_update_range_,
-                    md_.camera_pos_ + mp_.local_update_range_);
-
-  // Populate projection points for raycasting (only if enabled - needed for exploration)
+  // Ray casting: the points go to the probabilistic map, which
+  // updateOccupancyCallback() updates and inflates. Returns beyond
+  // max_ray_length are kept too: raycastProcess() shortens them to a
+  // free-only ray, so the space in front of a distant return is cleared, the
+  // same way a far depth pixel clears it.
   if (mp_.enable_pointcloud_raycasting_)
   {
     md_.proj_points_cnt = 0;
+    for (const auto &pt : latest_cloud.points)
+    {
+      const Eigen::Vector3d p3d(pt.x, pt.y, pt.z);
+      if ((p3d - md_.camera_pos_).norm() <= mp_.min_ray_length_)
+        continue;
+      // The buffer is sized for a depth image; a lidar scan can be larger.
+      if (md_.proj_points_cnt >= (int)md_.proj_points_.size())
+        md_.proj_points_.resize(2 * md_.proj_points_.size());
+      md_.proj_points_[md_.proj_points_cnt++] = p3d;
+    }
+    md_.occ_need_update_ = true;
+    return;
   }
+
+  // Otherwise (upstream): the latest cloud replaces the local map.
+  slideWindow(md_.camera_pos_);
+  this->resetBuffer(md_.camera_pos_ - mp_.local_update_range_,
+                    md_.camera_pos_ + mp_.local_update_range_);
   
   pcl::PointXYZ pt;
   Eigen::Vector3d p3d, p3d_inf;
@@ -801,23 +936,13 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
     pt = latest_cloud.points[i];
     p3d(0) = pt.x, p3d(1) = pt.y, p3d(2) = pt.z;
 
-    /* point inside update range */
     Eigen::Vector3d devi = p3d - md_.camera_pos_;
     Eigen::Vector3i inf_pt;
 
+    /* point inside update range */
     if (fabs(devi(0)) < mp_.local_update_range_(0) && fabs(devi(1)) < mp_.local_update_range_(1) &&
         fabs(devi(2)) < mp_.local_update_range_(2))
     {
-      // Add point to projection buffer for raycasting (only if enabled)
-      if (mp_.enable_pointcloud_raycasting_)
-      {
-        double dist = devi.norm();
-        if (dist > mp_.min_ray_length_ && dist < mp_.max_ray_length_)
-        {
-          md_.proj_points_[md_.proj_points_cnt++] = p3d;
-        }
-      }
-
       /* inflate the point */
       for (int x = -inf_step; x <= inf_step; ++x)
         for (int y = -inf_step; y <= inf_step; ++y)
@@ -863,13 +988,6 @@ void GridMap::cloudCallback(const sensor_msgs::PointCloud2ConstPtr &img)
 
   boundIndex(md_.local_bound_min_);
   boundIndex(md_.local_bound_max_);
-
-  // Only trigger raycasting if enabled (exploration needs this, EGO planner doesn't)
-  if (mp_.enable_pointcloud_raycasting_)
-  {
-    md_.occ_need_update_ = true;
-  }
-
 }
 
 void GridMap::publishMap()
@@ -900,7 +1018,7 @@ void GridMap::publishMap()
 
         Eigen::Vector3d pos;
         indexToPos(Eigen::Vector3i(x, y, z), pos);
-        if (pos(2) > mp_.visualization_truncate_height_)
+        if (pos(2) > mp_.visualization_truncate_height_ || pos(2) < mp_.visualization_min_height_)
           continue;
 
         pt.x = pos(0);
@@ -954,7 +1072,7 @@ void GridMap::publishMapInflate(bool all_info)
 
         Eigen::Vector3d pos;
         indexToPos(Eigen::Vector3i(x, y, z), pos);
-        if (pos(2) > mp_.visualization_truncate_height_)
+        if (pos(2) > mp_.visualization_truncate_height_ || pos(2) < mp_.visualization_min_height_)
           continue;
 
         pt.x = pos(0);

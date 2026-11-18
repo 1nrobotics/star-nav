@@ -4,14 +4,17 @@ import math
 import os
 import shutil
 
+import mujoco
+
 os.environ.setdefault('MUJOCO_GL', 'egl')
 
-import mujoco
 import numpy as np
 import pytest
 
+from star_nav_mujoco import lidar
 from star_nav_mujoco import protocol
 from star_nav_mujoco import quadrotor
+from star_nav_mujoco import scene
 from star_nav_mujoco import sim
 from star_nav_mujoco import world
 
@@ -42,6 +45,7 @@ def test_protocol_sizes_match_cpp_bridge():
   assert protocol.WORLD.size == 8
   assert protocol.OBSTACLE.size == 28
   assert protocol.CMD.size == 104
+  assert protocol.LIDAR.size == 72
 
 
 def test_protocol_round_trip():
@@ -173,24 +177,6 @@ def test_depth_back_projects_onto_pillar(depth_scene):
   np.testing.assert_allclose(rot[:, 2], s.rot[:, 0], atol=1e-6)
 
 
-def test_depth_does_not_see_the_setpoint_marker():
-  """The marker sits on the planned path; seen in depth it is an obstacle."""
-  s = sim.Simulator(obstacles=[])
-  try:
-    s.step(int(0.5 / s.model.opt.timestep))
-    d = s.render_depth()
-    rot = _quat_to_rot(d.quat)
-    ahead = d.pos + 0.6 * rot[:, 2]  # on the optical axis, 0.6 m ahead
-    s.data.mocap_pos[s._mocap] = ahead
-    mujoco.mj_forward(s.model, s.data)
-    d = s.render_depth()
-    fx, fy, cx, cy = d.intrinsics
-    v, u = int(round(cy)), int(round(cx))
-    assert d.image_mm[v, u] == 0 or d.image_mm[v, u] > 1000
-  finally:
-    s.close()
-
-
 @pytest.mark.skipif(shutil.which('ffmpeg') is None, reason='needs ffmpeg')
 def test_recorder_writes_video(tmp_path):
   from star_nav_mujoco import record  # pylint: disable=g-import-not-at-top
@@ -204,3 +190,133 @@ def test_recorder_writes_video(tmp_path):
   s.close()
   assert rec.frames == 10
   assert path.stat().st_size > 1000
+
+
+def test_depth_ignores_setpoint_marker():
+  # The setpoint sphere is a visual marker; it must not appear as an obstacle.
+  s = sim.Simulator(obstacles=[])
+  s.set_command(quadrotor.Command.hover((0.6, 0.0, 1.0)))
+  mujoco.mj_forward(s.model, s.data)
+  centre = s.render_depth().image_mm[200:280, 280:360].astype(int)
+  assert not ((centre > 0) & (centre < 2000)).any()  # nothing within 2 m
+
+
+# -- lidar ----------------------------------------------------------------------
+
+
+def _surface_distance(points, obstacles):
+  """Distance from world points to the nearest ground, pillar or ring surface."""
+  best = np.abs(points[:, 2])  # ground plane
+  for ob in obstacles:
+    if ob.kind == world.PILLAR:
+      dr = np.hypot(points[:, 0] - ob.x, points[:, 1] - ob.y) - ob.a
+      dz = points[:, 2] - ob.b
+      inside = (dr <= 0) & (dz <= 0)
+      d = np.where(inside, np.minimum(-dr, -dz),
+                   np.hypot(np.maximum(dr, 0), np.maximum(dz, 0)))
+    else:
+      # Rings are built from capsules between consecutive ring points.
+      pts = np.array(world.ring_points(ob, scene.RING_SEGMENTS))
+      a, b = pts[:-1], pts[1:]
+      ab = b - a
+      t = np.einsum('nkj,kj->nk', points[:, None] - a[None], ab) / (ab * ab).sum(1)
+      t = np.clip(t, 0.0, 1.0)
+      closest = a[None] + t[..., None] * ab[None]
+      d = np.linalg.norm(points[:, None] - closest, axis=2).min(1) - scene.RING_TUBE
+    best = np.minimum(best, np.abs(d))
+  return best
+
+
+@pytest.fixture(scope='module')
+def lidar_scene():
+  obstacles = [
+      world.Obstacle(world.PILLAR, 3.0, 0.0, 0.0, 0.5, 2.5, 0.0),
+      world.Obstacle(world.PILLAR, -2.0, 2.5, 0.0, 0.3, 0.8, 0.0),
+      world.Obstacle(world.RING, 0.5, -2.5, 1.0, 0.6, 0.9, 0.4),
+  ]
+  cfg = sim.SimConfig(lidar=lidar.LidarConfig(range_max=8.0))
+  s = sim.Simulator(cfg, render_depth=False, obstacles=obstacles)
+  # Tilt and turn the body so the scan exercises the full sensor rotation.
+  q = np.empty(4)
+  mujoco.mju_euler2Quat(q, np.array([0.15, -0.1, 0.7]), 'xyz')
+  s.data.qpos[3:7] = q
+  mujoco.mj_forward(s.model, s.data)
+  yield s, s.scan_lidar(), obstacles
+  s.close()
+
+
+def test_lidar_points_lie_on_surfaces(lidar_scene):
+  s, scan, obstacles = lidar_scene
+  rot = _quat_to_rot(scan.quat)
+  world_pts = scan.pos + scan.points.astype(float) @ rot.T
+  d = _surface_distance(world_pts, obstacles)
+  assert len(world_pts) > 5000
+  assert d.max() < 2e-3  # float32 points, exact ray casting
+
+
+def test_lidar_pose_is_body_mount(lidar_scene):
+  s, scan, _ = lidar_scene
+  np.testing.assert_allclose(scan.pos, s.pos + s.rot @ np.array(s.cfg.lidar.mount))
+  np.testing.assert_allclose(_quat_to_rot(scan.quat), s.rot, atol=1e-9)
+
+
+def test_lidar_sees_all_obstacles_and_respects_range(lidar_scene):
+  s, scan, obstacles = lidar_scene
+  cfg = s.cfg.lidar
+  r = np.linalg.norm(scan.points, axis=1)
+  assert r.min() >= cfg.range_min and r.max() <= cfg.range_max
+  rot = _quat_to_rot(scan.quat)
+  world_pts = scan.pos + scan.points.astype(float) @ rot.T
+  for ob in obstacles:
+    near = np.hypot(world_pts[:, 0] - ob.x, world_pts[:, 1] - ob.y) < 1.3
+    assert (near & (world_pts[:, 2] > 0.05)).sum() > 20, ob
+  # Elevations stay within the vertical field of view (sensor frame).
+  el = np.degrees(np.arcsin(scan.points[:, 2] / r))
+  assert el.min() >= cfg.vfov[0] - 1e-3 and el.max() <= cfg.vfov[1] + 1e-3
+
+
+def test_lidar_ignores_own_body_and_markers():
+  cfg = sim.SimConfig(lidar=lidar.LidarConfig())
+  s = sim.Simulator(cfg, render_depth=False, obstacles=[])
+  scan = s.scan_lidar()  # setpoint marker sits on the quadrotor at start
+  r = np.linalg.norm(scan.points, axis=1)
+  assert r.min() > 1.0  # nothing near the sensor; only ground returns
+  world_z = scan.pos[2] + scan.points[:, 2]
+  np.testing.assert_allclose(world_z, 0.0, atol=2e-3)
+  s.close()
+
+
+def test_lidar_noise():
+  cfg = sim.SimConfig(lidar=lidar.LidarConfig(noise=0.03))
+  s = sim.Simulator(cfg, render_depth=False, obstacles=[])
+  scan = s.scan_lidar()
+  world_z = scan.pos[2] + scan.points[:, 2]
+  # Range noise along downward rays shows up as height error on the ground.
+  r = np.linalg.norm(scan.points, axis=1)
+  err = world_z / (-scan.points[:, 2] / r)
+  assert 0.02 < err.std() < 0.04
+  s.close()
+
+
+def test_lidar_protocol_round_trip(lidar_scene):
+  _, scan, _ = lidar_scene
+  t, pos, quat, beams, pts = protocol.unpack_lidar(protocol.pack_lidar(scan, 32))
+  assert t == scan.t and beams == 32
+  np.testing.assert_array_equal(pts, scan.points)
+  np.testing.assert_array_equal(quat, scan.quat)
+  assert protocol.LIDAR.size == 72
+
+
+def test_non_finite_command_fields_are_ignored():
+  # A NaN yaw rate once reached the motors and the quadrotor fell.
+  s = sim.Simulator(render_depth=False, obstacles=[])
+  bad = quadrotor.Command(np.array([0.0, 0.0, 1.0]), np.array([np.nan, 0.0, 0.0]),
+                          np.zeros(3), float('nan'), float('nan'))
+  assert not s.set_command(bad)
+  s.step(1000)  # 2 s
+  assert np.all(np.isfinite(s.data.ctrl))
+  assert s.pos[2] == pytest.approx(1.0, abs=0.05)
+  # A non-finite position is rejected; the previous target stays.
+  assert not s.set_command(quadrotor.Command.hover((np.inf, 0.0, 1.0)))
+  s.step(500)
+  np.testing.assert_allclose(s.pos, [0.0, 0.0, 1.0], atol=0.05)

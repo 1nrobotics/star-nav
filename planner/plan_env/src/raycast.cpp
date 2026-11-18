@@ -1,6 +1,7 @@
 #include <Eigen/Eigen>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <plan_env/raycast.h>
 
 int signum(int x) {
@@ -253,15 +254,18 @@ bool RayCaster::setInput(const Eigen::Vector3d& start,
   stepZ_ = (int)signum((int)dz_);
 
   // See description above. The initial values depend on the fractional
-  // part of the origin.
-  tMaxX_ = intbound(start_.x(), dx_);
-  tMaxY_ = intbound(start_.y(), dy_);
-  tMaxZ_ = intbound(start_.z(), dz_);
+  // part of the origin. Boundary crossings follow the real direction, not
+  // the difference of the cell indices, so the traversed cells are the ones
+  // the segment actually passes through.
+  const double inf = std::numeric_limits<double>::infinity();
+  tMaxX_ = stepX_ ? intbound(start_.x(), direction_.x()) : inf;
+  tMaxY_ = stepY_ ? intbound(start_.y(), direction_.y()) : inf;
+  tMaxZ_ = stepZ_ ? intbound(start_.z(), direction_.z()) : inf;
 
   // The change in t when taking a step (always positive).
-  tDeltaX_ = ((double)stepX_) / dx_;
-  tDeltaY_ = ((double)stepY_) / dy_;
-  tDeltaZ_ = ((double)stepZ_) / dz_;
+  tDeltaX_ = stepX_ ? stepX_ / direction_.x() : inf;
+  tDeltaY_ = stepY_ ? stepY_ / direction_.y() : inf;
+  tDeltaZ_ = stepZ_ ? stepZ_ / direction_.z() : inf;
 
   dist_ = 0;
 
@@ -292,6 +296,12 @@ bool RayCaster::step(Eigen::Vector3d& ray_pt) {
   // {
   //   return false;
   // }
+
+  // An axis that has reached the end cell does not step again, even if
+  // rounding says otherwise, so the walk always ends at the end cell.
+  if (x_ == endX_) tMaxX_ = std::numeric_limits<double>::infinity();
+  if (y_ == endY_) tMaxY_ = std::numeric_limits<double>::infinity();
+  if (z_ == endZ_) tMaxZ_ = std::numeric_limits<double>::infinity();
 
   // tMaxX stores the t-value at which we cross a cube boundary along the
   // X axis, and similarly for Y and Z. Therefore, choosing the least tMax

@@ -34,6 +34,17 @@
     <arg name="waypoint_tolerance" default="0.5"/>
     <arg name="max_exploration_time" default="300.0"/>
     <arg name="rviz_config" default="$(find star_nav_bringup)/config/star_nav.rviz"/>
+    <!-- Ray-cast point cloud input into the probabilistic map -->
+    <arg name="pointcloud_raycasting" default="false"/>
+    <!-- Point cloud sensor position in the body frame (ray origin) -->
+    <arg name="lidar_offset" default="[0.0, 0.0, 0.0]"/>
+    <!-- Hide map voxels below this height in RViz (e.g. the ground) -->
+    <arg name="visualization_min_height" default="-1000.0"/>
+    <!-- Map update (see plan_manage/launch/advanced_param.xml) -->
+    <arg name="max_hits_per_update" default="1"/>
+    <arg name="sliding_map" default="false"/>
+    <arg name="sliding_size" default="20.0"/>
+    <arg name="show_occ_time" default="false"/>
 
     <!-- ============================== -->
     <!-- 2. EGO Planner                 -->
@@ -58,6 +69,13 @@
         <arg name="fy" value="$(arg fy)"/>
         <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
         <arg name="obstacle_min_height" value="$(arg obstacle_min_height)"/>
+        <arg name="pointcloud_raycasting" value="$(arg pointcloud_raycasting)"/>
+        <arg name="lidar_offset" value="$(arg lidar_offset)"/>
+        <arg name="visualization_min_height" value="$(arg visualization_min_height)"/>
+        <arg name="max_hits_per_update" value="$(arg max_hits_per_update)"/>
+        <arg name="sliding_map" value="$(arg sliding_map)"/>
+        <arg name="sliding_size" value="$(arg sliding_size)"/>
+        <arg name="show_occ_time" value="$(arg show_occ_time)"/>
 
         <!-- Planning parameters -->
         <arg name="max_vel" value="$(arg max_vel)" />

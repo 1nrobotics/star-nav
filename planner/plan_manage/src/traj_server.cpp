@@ -77,6 +77,12 @@ std::pair<double, double> calculate_yaw(double t_cur, Eigen::Vector3d &pos, ros:
   double yaw = 0;
   double yawdot = 0;
 
+  // With a simulated clock two timer callbacks can see the same time; dividing
+  // by a zero interval gave NaN, which the low-pass filter below then kept
+  // forever. Hold the last command until time moves on.
+  if ((time_now - time_last).toSec() <= 0.0)
+    return std::make_pair(last_yaw_, last_yaw_dot_);
+
   Eigen::Vector3d dir = t_cur + time_forward_ <= traj_duration_ ? traj_[0].evaluateDeBoorT(t_cur + time_forward_) - pos : traj_[0].evaluateDeBoorT(traj_duration_) - pos;
   double yaw_temp = dir.norm() > 0.1 ? atan2(dir(1), dir(0)) : last_yaw_;
   double max_yaw_change = YAW_DOT_MAX_PER_SEC * (time_now - time_last).toSec();
