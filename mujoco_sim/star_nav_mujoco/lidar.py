@@ -38,7 +38,7 @@ class Lidar:
   """Casts one full revolution instantly (no motion distortion).
 
   The sensor frame is aligned with the body frame (x forward, y left, z up),
-  offset by ``mount``. Rays ignore the quadrotor's own geoms.
+  offset by ``mount``. Rays ignore the robot's own geoms.
   """
 
   def __init__(self, model: mujoco.MjModel, cfg: LidarConfig, body: int,
@@ -53,9 +53,11 @@ class Lidar:
         [np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)],
         axis=-1).reshape(-1, 3)
     self._mount = np.asarray(cfg.mount, dtype=float)
-    # Only physical geoms reflect: skip visual markers (e.g. the setpoint).
+    # Only physical geoms reflect: skip visual markers (e.g. the setpoint)
+    # and the robot's own legs.
     self._groups = np.ones(6, np.uint8)
     self._groups[scene.MARKER_GROUP] = 0
+    self._groups[scene.ROBOT_GROUP] = 0
     self._rng = np.random.default_rng(seed)
 
     n = len(self.directions)

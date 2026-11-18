@@ -6,11 +6,22 @@
 #
 #   ./scripts/setup_mujoco_env.sh                 # pick a Python >= 3.11
 #   PYTHON=/path/to/python3.12 ./scripts/setup_mujoco_env.sh
+#   ./scripts/setup_mujoco_env.sh --lite3         # also the Lite3 quadruped:
+#                                                 # onnxruntime, and its model
+#                                                 # and policy (downloaded, BSD-3)
 
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 venv="${repo}/mujoco_sim/.venv"
+extras="test"
+lite3=false
+for a in "$@"; do
+  case "${a}" in
+    --lite3) lite3=true; extras="test,lite3" ;;
+    *) echo "unknown option: ${a}" >&2; exit 2 ;;
+  esac
+done
 
 find_python() {
   local c
@@ -34,6 +45,9 @@ fi
 echo "Using ${python} ($("${python}" --version))"
 "${python}" -m venv "${venv}"
 "${venv}/bin/pip" install --quiet --upgrade pip
-"${venv}/bin/pip" install --quiet -e "${repo}/mujoco_sim[test]"
+"${venv}/bin/pip" install --quiet -e "${repo}/mujoco_sim[${extras}]"
 "${venv}/bin/python" -c 'import mujoco, zmq; print("mujoco", mujoco.__version__, "pyzmq", zmq.__version__)'
+if [[ "${lite3}" == true ]]; then
+  "${venv}/bin/python" -m star_nav_mujoco --fetch-lite3
+fi
 echo "Ready: ${venv}"

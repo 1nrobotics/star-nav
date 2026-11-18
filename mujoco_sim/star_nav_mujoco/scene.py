@@ -1,4 +1,7 @@
-"""Builds the MuJoCo scene (MJCF) for the forest world and the quadrotor."""
+"""Builds the MuJoCo scene (MJCF) for the forest world and the quadrotor.
+
+Other robots (the Lite3 quadruped) are attached to it with MjSpec.
+"""
 
 from __future__ import annotations
 
@@ -16,6 +19,20 @@ CAM_OFFSET = 0.14  # metres ahead of the body centre
 
 # Geom group of visual-only markers; sensors ignore it.
 MARKER_GROUP = 2
+# Geom group of an attached robot's own geoms (its legs); sensors ignore it.
+ROBOT_GROUP = 3
+# The robot's root body, by robot.
+ROBOT_BODIES = ('quad', 'lite3/TORSO')
+
+
+def robot_body(model) -> int:
+  """Returns the id of the robot's root body."""
+  for name in ROBOT_BODIES:
+    try:
+      return model.body(name).id
+    except KeyError:
+      continue
+  raise KeyError(f'no robot body ({", ".join(ROBOT_BODIES)}) in the model')
 
 RING_SEGMENTS = 24
 RING_TUBE = 0.04
@@ -89,7 +106,15 @@ def build_xml(
     start: tuple[float, float, float],
     timestep: float = 0.002,
     lidar_mount: tuple[float, float, float] | None = None,
+    quadrotor_body: bool = True,
+    extra: str = '',
 ) -> str:
+  """Returns the scene; without ``quadrotor_body`` the robot is added later.
+
+  ``extra`` is more worldbody XML (e.g. ``house.xml()``).
+  """
+  robot = _quadrotor_xml(params, start, lidar_mount) if quadrotor_body else ''
+  actuators = _actuators_xml(params) if quadrotor_body else ''
   return f'''<mujoco model="star_nav">
   <option timestep="{timestep}" integrator="implicitfast"/>
   <statistic extent="6" center="{_f(start[0], start[1], 0.5)}"/>
@@ -126,14 +151,15 @@ def build_xml(
     <geom name="ground" type="plane" size="{_f(30, 30, 0.1)}" material="ground"
           contype="1" conaffinity="2"/>
     {_obstacles_xml(obstacles)}
-    {_quadrotor_xml(params, start, lidar_mount)}
+    {extra}
+    {robot}
     <body name="setpoint" mocap="true" pos="{_f(*start)}">
       <geom type="sphere" size="0.06" material="target" contype="0" conaffinity="0"
             group="{MARKER_GROUP}"/>
     </body>
   </worldbody>
   <actuator>
-    {_actuators_xml(params)}
+    {actuators}
   </actuator>
 </mujoco>
 '''

@@ -38,6 +38,10 @@ Notes:
 - `mujoco_sim` and `mujoco_bridge` use these third-party libraries, installed
   as dependencies and not vendored: MuJoCo (Apache-2.0), NumPy
   (BSD-3-Clause), pyzmq (BSD-3-Clause) and libzmq (MPL-2.0).
+- The Lite3 quadruped model (MJCF, meshes) and walking policy are
+  DeepRoboticsLab's (BSD-3-Clause). They are downloaded on request
+  (`--fetch-lite3`) at pinned commits and not redistributed here;
+  `star_nav_mujoco/lite3.py` reimplements their policy runner's interface.
 - The MuJoCo quadrotor controller implements the published geometric
   tracking controller of Lee, Leok and McClamroch (2010); no code was copied.
 - Several imported packages inherited `TODO` license placeholders in

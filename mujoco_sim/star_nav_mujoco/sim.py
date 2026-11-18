@@ -1,4 +1,8 @@
-"""Quadrotor simulator: MuJoCo physics, flight controller and depth camera."""
+"""Robot simulator: MuJoCo physics, controller, depth camera and lidar.
+
+The robot is the quadrotor (default) or the Lite3 quadruped; both follow the
+planner's position setpoints and carry the same sensors.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +15,9 @@ import time
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import house
 from star_nav_mujoco import lidar as lidar_lib
+from star_nav_mujoco import lite3
 from star_nav_mujoco import protocol
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
@@ -23,6 +29,10 @@ log = logging.getLogger('star_nav_mujoco')
 # looks along +z with +y down.
 _CAM_TO_OPTICAL = np.diag([1.0, -1.0, -1.0])
 
+QUADROTOR = 'quadrotor'
+LITE3 = 'lite3'
+ROBOTS = (QUADROTOR, LITE3)
+
 
 @dataclasses.dataclass
 class SimConfig:
@@ -30,7 +40,9 @@ class SimConfig:
   params: quadrotor.Params = dataclasses.field(default_factory=quadrotor.Params)
   gains: quadrotor.Gains = dataclasses.field(default_factory=quadrotor.Gains)
   start: tuple[float, float, float] = (0.0, 0.0, 1.0)
-  timestep: float = 0.002
+  robot: str = QUADROTOR
+  house: bool = False  # the house (house.py) instead of the forest
+  timestep: float = 0.002  # the Lite3 always uses lite3.TIMESTEP
   depth_range: float = 10.0  # returns beyond this are reported as 0
   cmd_timeout: float = 0.5  # hold position when commands stop (s)
   lidar: lidar_lib.LidarConfig | None = None  # 360-degree lidar, off by default
@@ -46,28 +58,60 @@ class Simulator:
       obstacles: list[world.Obstacle] | None = None,
   ):
     self.cfg = cfg or SimConfig()
+    if obstacles is None and self.cfg.house:
+      obstacles = []
     if obstacles is None:
       obstacles = world.generate(
           dataclasses.replace(self.cfg.world, start=self.cfg.start[:2]))
     self.obstacles = obstacles
-    lidar_mount = self.cfg.lidar.mount if self.cfg.lidar else None
-    xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
-                          self.cfg.timestep, lidar_mount=lidar_mount)
-    self.model = mujoco.MjModel.from_xml_string(xml)
+    if self.cfg.robot not in ROBOTS:
+      raise ValueError(f'unknown robot {self.cfg.robot!r}')
+    self.legged = self.cfg.robot == LITE3
+    extra = house.xml() if self.cfg.house else ''
+    if self.legged:
+      root = lite3.check_assets()
+      xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
+                            lite3.TIMESTEP, quadrotor_body=False, extra=extra)
+      spec = mujoco.MjSpec.from_string(xml)
+      lite3.attach(spec, self.cfg.start[:2], root, lidar=self.cfg.lidar is not None)
+      self.model = spec.compile()
+      body, cam = lite3.TRUNK, lite3.CAMERA
+    else:
+      lidar_mount = self.cfg.lidar.mount if self.cfg.lidar else None
+      xml = scene.build_xml(self.obstacles, self.cfg.params, self.cfg.start,
+                            self.cfg.timestep, lidar_mount=lidar_mount,
+                            extra=extra)
+      self.model = mujoco.MjModel.from_xml_string(xml)
+      body, cam = 'quad', 'depth'
     self.data = mujoco.MjData(self.model)
     self.controller = quadrotor.Controller(self.cfg.params, self.cfg.gains)
 
     m = self.model
-    self._body = m.body('quad').id
-    self._cam = m.camera('depth').id
+    self._body = m.body(body).id
+    self._robot_bodies = {b for b in range(m.nbody)
+                          if m.body_rootid[b] == m.body_rootid[self._body]}
+    self._ground = m.geom('ground').id
+    # Where a walking robot's feet and lower legs may touch: the ground, ramps,
+    # stairs.
+    self._walkable = {self._ground} | {
+        g for g in range(m.ngeom) if m.geom(g).name.startswith(house.WALKABLE)}
+    self._feet = {g for g in range(m.ngeom)  # and lower legs
+                  if m.geom(g).name.endswith(('FOOT_collision', 'SHANK_collision'))}
+    self._cam = m.camera(cam).id
     self._mocap = m.body_mocapid[m.body('setpoint').id]
+    if self.legged:
+      self.walker = lite3.Walker(m, self.data, root)
+      self.tracker = lite3.Tracker()
+      self._fallen = False
     self.contact_steps = 0
     self._contact_pairs = set()
     self.reset()
 
-    # Sensors only see physical geoms, not visual markers (the setpoint).
+    # Sensors only see physical geoms, not visual markers (the setpoint) or
+    # the robot's own legs.
     self._depth_option = mujoco.MjvOption()
     self._depth_option.geomgroup[scene.MARKER_GROUP] = 0
+    self._depth_option.geomgroup[scene.ROBOT_GROUP] = 0
 
     self._renderer = None
     if render_depth:
@@ -85,17 +129,26 @@ class Simulator:
 
     self.lidar = None
     if self.cfg.lidar is not None:
-      self.lidar = lidar_lib.Lidar(m, self.cfg.lidar, self._body)
+      lidar_cfg = self.cfg.lidar
+      if self.legged:
+        lidar_cfg = dataclasses.replace(lidar_cfg, mount=lite3.LIDAR_MOUNT)
+        self.cfg.lidar = lidar_cfg
+      self.lidar = lidar_lib.Lidar(m, lidar_cfg, self._body)
 
   # -- state -----------------------------------------------------------------
 
   def reset(self) -> None:
     mujoco.mj_resetData(self.model, self.data)
-    hover = self.cfg.params.mass * quadrotor.GRAVITY / 4.0
-    self.data.ctrl[:] = hover
-    self.data.act[:] = hover
-    self.controller.reset()
     self.contact_steps = 0
+    if self.legged:
+      self.data.qpos[2] = lite3.STAND_HEIGHT
+      self.walker.reset()
+      self._fallen = False
+    else:
+      hover = self.cfg.params.mass * quadrotor.GRAVITY / 4.0
+      self.data.ctrl[:] = hover
+      self.data.act[:] = hover
+      self.controller.reset()
     self.set_command(quadrotor.Command.hover(self.cfg.start), t=0.0)
     mujoco.mj_forward(self.model, self.data)
 
@@ -156,6 +209,9 @@ class Simulator:
   # -- stepping ----------------------------------------------------------------
 
   def step(self, n: int = 1) -> None:
+    if self.legged:
+      self._step_legged(n)
+      return
     m, d = self.model, self.data
     p = self.cfg.params
     for _ in range(n):
@@ -170,20 +226,46 @@ class Simulator:
       elif self._contact_pairs:
         self._contact_pairs = set()
 
+  def _step_legged(self, n: int) -> None:
+    m, d, w = self.model, self.data, self.walker
+    for _ in range(n):
+      if w.policy_due:
+        cmd = self._active_command()
+        yaw = 2.0 * math.atan2(d.qpos[6], d.qpos[3])  # torso stays level
+        w.twist = self.tracker.twist(cmd.pos, cmd.vel, cmd.yaw, d.qpos[0:3], yaw)
+      w.before_step()
+      mujoco.mj_step(m, d)
+      if d.ncon and self._touching():
+        self.contact_steps += 1
+      elif self._contact_pairs:
+        self._contact_pairs = set()
+    if not self._fallen and d.qpos[2] < 0.5 * lite3.STAND_HEIGHT:
+      self._fallen = True
+      log.warning('Lite3 fell at t=%.2f (torso at %s)', d.time,
+                  np.round(d.qpos[0:3], 3))
+
   def _touching(self) -> bool:
+    """True if the robot touches anything (a walking robot: but the ground)."""
     bodies = self.model.geom_bodyid
+    robot = self._robot_bodies
     touching = False
     pairs = set()
     for c in self.data.contact[:self.data.ncon]:
-      if bodies[c.geom1] == self._body or bodies[c.geom2] == self._body:
-        touching = True
-        pair = (int(c.geom1), int(c.geom2))
-        pairs.add(pair)
-        if pair not in self._contact_pairs:
-          log.warning('Contact at t=%.3f: %s / %s at %s (body at %s, setpoint %s)',
-                      self.data.time, self._geom_label(c.geom1),
-                      self._geom_label(c.geom2), np.round(c.pos, 3),
-                      np.round(self.data.qpos[0:3], 3), np.round(self._cmd.pos, 3))
+      a, b = bodies[c.geom1] in robot, bodies[c.geom2] in robot
+      if a == b:
+        continue  # self-contact or not the robot
+      if self.legged and self._ground in (c.geom1, c.geom2):
+        continue
+      if ({c.geom1, c.geom2} & self._feet) and ({c.geom1, c.geom2} & self._walkable):
+        continue
+      touching = True
+      pair = (int(c.geom1), int(c.geom2))
+      pairs.add(pair)
+      if pair not in self._contact_pairs:
+        log.warning('Contact at t=%.3f: %s / %s at %s (body at %s, setpoint %s)',
+                    self.data.time, self._geom_label(c.geom1),
+                    self._geom_label(c.geom2), np.round(c.pos, 3),
+                    np.round(self.data.qpos[0:3], 3), np.round(self._cmd.pos, 3))
     self._contact_pairs = pairs
     return touching
 

@@ -8,13 +8,15 @@ import subprocess
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import scene
+
 
 # Lidar returns drawn into the video, at most this many per frame.
 _MAX_POINTS = 4000
 
 
 class Recorder:
-  """Renders a camera that follows the quadrotor and pipes frames to ffmpeg.
+  """Renders a camera that follows the robot and pipes frames to ffmpeg.
 
   Frames are taken at ``fps`` in simulated time, so the video plays at the
   simulated speed regardless of ``--realtime-factor``. Lidar returns passed to
@@ -33,10 +35,14 @@ class Recorder:
                                      max_geom=model.ngeom + _MAX_POINTS + 1000)
     self._camera = mujoco.MjvCamera()
     self._camera.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-    self._camera.trackbodyid = model.body('quad').id
+    self._camera.trackbodyid = scene.robot_body(model)
     self._camera.distance = 5.0
     self._camera.azimuth = -135.0
     self._camera.elevation = -25.0
+    if model.body(self._camera.trackbodyid).name != 'quad':
+      # A walking robot: closer and from above, so walls do not hide it.
+      self._camera.distance = 3.2
+      self._camera.elevation = -50.0
     self._ffmpeg = subprocess.Popen(
         [ffmpeg, '-loglevel', 'error', '-y', '-f', 'rawvideo',
          '-pix_fmt', 'rgb24', '-s', f'{width}x{height}', '-r', f'{fps:g}',

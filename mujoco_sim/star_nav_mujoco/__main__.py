@@ -26,18 +26,38 @@ def _select_gl() -> None:
   os.environ['MUJOCO_GL'] = 'egl' if ok else 'osmesa'
 
 
+# Per-robot defaults: the quadruped walks, so no rings, it starts standing,
+# and it shows off in the house (ramp, stairs).
+_DEFAULTS = {
+    'quadrotor': dict(rings=50, start=(0.0, 0.0, 1.0), world='forest'),
+    'lite3': dict(rings=0, start=(0.0, 0.0, 0.34), world='house'),
+}
+
+
 def main(argv: list[str] | None = None) -> int:
   ap = argparse.ArgumentParser(
       prog='star_nav_mujoco',
-      description='MuJoCo quadrotor simulator for Star Nav. Talks to the ROS '
-      'bridge (mujoco_bridge) over ZeroMQ and serves a web viewer.')
+      description='MuJoCo simulator for Star Nav (quadrotor or Lite3 '
+      'quadruped). Talks to the ROS bridge (mujoco_bridge) over ZeroMQ and '
+      'serves a web viewer.')
+  ap.add_argument('--robot', choices=('quadrotor', 'lite3'),
+                  default='quadrotor')
+  ap.add_argument('--fetch-lite3', action='store_true',
+                  help='download the Lite3 model and walking policy, then '
+                  'exit')
+  ap.add_argument('--world', choices=('forest', 'house'), default=None,
+                  help='forest (random pillars and rings) or house (rooms, a '
+                  'ramp and stairs; house.py). Default: forest (quadrotor), '
+                  'house (lite3)')
   ap.add_argument('--seed', type=int, default=1, help='forest seed')
   ap.add_argument('--map-size', type=float, nargs=2, default=(50.0, 50.0),
                   metavar=('X', 'Y'))
   ap.add_argument('--pillars', type=int, default=100)
-  ap.add_argument('--rings', type=int, default=50)
-  ap.add_argument('--start', type=float, nargs=3, default=(0.0, 0.0, 1.0),
-                  metavar=('X', 'Y', 'Z'))
+  ap.add_argument('--rings', type=int, default=None,
+                  help='default: 50 (quadrotor), 0 (lite3)')
+  ap.add_argument('--start', type=float, nargs=3, default=None,
+                  metavar=('X', 'Y', 'Z'), help='default: 0 0 1 (quadrotor), '
+                  '0 0 0.34 (lite3, which ignores Z)')
   ap.add_argument('--bind', default='127.0.0.1',
                   help='address for the ZeroMQ sockets (use 0.0.0.0 to '
                   'accept a bridge on another host)')
@@ -64,14 +84,20 @@ def main(argv: list[str] | None = None) -> int:
   ap.add_argument('--duration', type=float, default=0.0,
                   help='stop after this many simulated seconds')
   ap.add_argument('--record', default='', metavar='FILE',
-                  help='record a video that follows the quadrotor (needs '
-                  'ffmpeg)')
+                  help='record a video that follows the robot (needs ffmpeg)')
   args = ap.parse_args(argv)
 
   logging.basicConfig(level=logging.INFO,
                       format='[%(asctime)s] [mujoco_sim] %(message)s',
                       datefmt='%H:%M:%S')
   logging.getLogger('OpenGL').setLevel(logging.WARNING)
+  if args.fetch_lite3:
+    from star_nav_mujoco import lite3  # pylint: disable=g-import-not-at-top
+    lite3.fetch(log=logging.info)
+    return 0
+  for key, value in _DEFAULTS[args.robot].items():
+    if getattr(args, key) is None:
+      setattr(args, key, value)
   _select_gl()
 
   from star_nav_mujoco import lidar  # pylint: disable=g-import-not-at-top
@@ -82,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
       world=world.WorldConfig(size_x=args.map_size[0], size_y=args.map_size[1],
                               seed=args.seed, pillar_num=args.pillars,
                               ring_num=args.rings),
-      start=tuple(args.start))
+      start=tuple(args.start), robot=args.robot, house=args.world == 'house')
   if args.sensor != 'depth':
     cfg.lidar = lidar.LidarConfig(
         beams=args.lidar_beams, vfov=tuple(args.lidar_vfov),
@@ -93,10 +119,16 @@ def main(argv: list[str] | None = None) -> int:
                      realtime_factor=args.realtime_factor,
                      viewer=not args.no_viewer, viewer_port=args.viewer_port,
                      duration=args.duration, record=args.record)
-  simulator = sim.Simulator(cfg, render_depth=args.sensor != 'lidar')
-  logging.info('World: %d obstacles (seed %d), sensor %s, GL backend %s, '
-               'MuJoCo %s', len(simulator.obstacles), args.seed, args.sensor,
-               os.environ['MUJOCO_GL'], __import__('mujoco').__version__)
+  from star_nav_mujoco import lite3  # pylint: disable=g-import-not-at-top
+  try:
+    simulator = sim.Simulator(cfg, render_depth=args.sensor != 'lidar')
+  except lite3.MissingAssets as e:
+    logging.error('%s', e)
+    return 1
+  logging.info('%s in a world of %d obstacles (seed %d), sensor %s, GL '
+               'backend %s, MuJoCo %s', args.robot, len(simulator.obstacles),
+               args.seed, args.sensor, os.environ['MUJOCO_GL'],
+               __import__('mujoco').__version__)
   # roslaunch stops nodes with SIGINT, then SIGTERM; both should let the
   # recording finish cleanly.
   signal.signal(signal.SIGTERM, signal.default_int_handler)
