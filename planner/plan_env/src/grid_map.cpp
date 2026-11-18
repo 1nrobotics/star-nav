@@ -55,6 +55,7 @@ void GridMap::initMap(ros::NodeHandle &nh)
   node_.param("grid_map/visualization_min_height", mp_.visualization_min_height_, -1.0e9);
   node_.param("grid_map/slice_min_z", mp_.slice_min_z_, 0.0);
   node_.param("grid_map/slice_max_z", mp_.slice_max_z_, 0.0);
+  node_.param("grid_map/virtual_ceil_height", mp_.virtual_ceil_height_, -1.0);  // <= 0: none
   node_.param("grid_map/virtual_ceil_yp", mp_.virtual_ceil_yp_, -0.1);
   node_.param("grid_map/virtual_ceil_yn", mp_.virtual_ceil_yn_, -0.1);
 
@@ -1049,10 +1050,10 @@ void GridMap::publishMap()
 }
 
 // The voxels between slice_min_z and slice_max_z around the sensor (the local
-// update range), flattened: occupied (100) if any of them is or if the voxel
-// at mid-height is in the inflated map (where the planner cannot fly, also
-// near obstacles just above or below the band), free (0) if at least half of
-// them are observed, otherwise unknown (-1).
+// update range), flattened: occupied (100) if any of them is; blocked (50) if
+// the voxel at mid-height is in the inflated map (where the planner cannot
+// fly, also near obstacles just above or below the band); free (0) if at
+// least half of them are observed; otherwise unknown (-1).
 void GridMap::publishSlice()
 {
   if (slice_pub_.getNumSubscribers() <= 0 || !md_.has_odom_)
@@ -1089,7 +1090,8 @@ void GridMap::publishSlice()
     for (int x = lo(0); x <= hi(0); ++x)
     {
       int known = 0;
-      bool occupied = check_inflation && md_.occupancy_buffer_inflate_[toAddress(x, y, mid(2))] > 0;
+      const bool blocked = check_inflation && md_.occupancy_buffer_inflate_[toAddress(x, y, mid(2))] > 0;
+      bool occupied = false;
       for (int z = lo(2); z <= hi(2) && !occupied; ++z)
       {
         const double log_odds = md_.occupancy_buffer_[toAddress(x, y, z)];
@@ -1101,6 +1103,8 @@ void GridMap::publishSlice()
       int8_t &cell = msg.data[(y - lo(1)) * msg.info.width + (x - lo(0))];
       if (occupied)
         cell = 100;
+      else if (blocked)
+        cell = 50;
       else if (2 * known >= layers)
         cell = 0;
     }

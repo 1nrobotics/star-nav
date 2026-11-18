@@ -371,6 +371,9 @@ inline int GridMap::getOccupancy(Eigen::Vector3d pos) {
 
 inline int GridMap::getInflateOccupancy(Eigen::Vector3d pos) {
   if (!isInMap(pos)) return -1;
+  // Above the virtual ceiling counts as occupied: the planner does not climb
+  // into space the sensors have not looked at.
+  if (mp_.virtual_ceil_height_ > 0.0 && pos(2) > mp_.virtual_ceil_height_) return 1;
 
   Eigen::Vector3i id;
   posToIndex(pos, id);

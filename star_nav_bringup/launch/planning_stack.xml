@@ -82,6 +82,10 @@
         <!-- Map slice at flight height for frontier exploration -->
         <arg name="slice_min_z" value="$(eval arg('altitude') - 0.25)"/>
         <arg name="slice_max_z" value="$(eval arg('altitude') + 0.25)"/>
+        <!-- Keep the planner within 0.4 m above the altitude: climbing over
+             obstacles takes it where a forward camera has not looked (a
+             propeller hit a ring 0.45 m up in frontier exploration). -->
+        <arg name="virtual_ceil_height" value="$(eval arg('altitude') + 0.4)"/>
 
         <!-- Planning parameters -->
         <arg name="max_vel" value="$(arg max_vel)" />

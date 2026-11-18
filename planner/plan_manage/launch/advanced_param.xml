@@ -43,6 +43,8 @@
        grid_map/slice (frontier exploration); off while max <= min. -->
   <arg name="slice_min_z" default="0.0"/>
   <arg name="slice_max_z" default="0.0"/>
+  <!-- The planner treats everything above this height (m) as occupied -->
+  <arg name="virtual_ceil_height" default="2.9"/>
 
   <arg name="point_num"/>
   <arg name="point0_x"/>
@@ -154,7 +156,7 @@
     <param name="grid_map/slice_min_z" value="$(arg slice_min_z)"/>
     <param name="grid_map/slice_max_z" value="$(arg slice_max_z)"/>
 
-    <param name="grid_map/virtual_ceil_height"   value="2.9"/>
+    <param name="grid_map/virtual_ceil_height"   value="$(arg virtual_ceil_height)"/>
     <param name="grid_map/visualization_truncate_height"   value="1.8"/>
     <param name="grid_map/visualization_min_height"   value="$(arg visualization_min_height)"/>
     <param name="grid_map/show_occ_time"  value="$(arg show_occ_time)"/>
