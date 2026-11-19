@@ -9,6 +9,9 @@
 #   ./scripts/setup_mujoco_env.sh --lite3         # also the Lite3 quadruped:
 #                                                 # onnxruntime, and its model
 #                                                 # and policy (downloaded, BSD-3)
+#   ./scripts/setup_mujoco_env.sh --t1            # also the T1 humanoid: its
+#                                                 # model and policy
+#                                                 # (downloaded, Apache-2.0)
 
 set -euo pipefail
 
@@ -16,9 +19,11 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 venv="${repo}/mujoco_sim/.venv"
 extras="test"
 lite3=false
+t1=false
 for a in "$@"; do
   case "${a}" in
-    --lite3) lite3=true; extras="test,lite3" ;;
+    --lite3) lite3=true; extras="${extras},lite3" ;;
+    --t1) t1=true ;;
     *) echo "unknown option: ${a}" >&2; exit 2 ;;
   esac
 done
@@ -49,5 +54,8 @@ echo "Using ${python} ($("${python}" --version))"
 "${venv}/bin/python" -c 'import mujoco, zmq; print("mujoco", mujoco.__version__, "pyzmq", zmq.__version__)'
 if [[ "${lite3}" == true ]]; then
   "${venv}/bin/python" -m star_nav_mujoco --fetch-lite3
+fi
+if [[ "${t1}" == true ]]; then
+  "${venv}/bin/python" -m star_nav_mujoco --fetch-t1
 fi
 echo "Ready: ${venv}"

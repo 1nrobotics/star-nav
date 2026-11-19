@@ -22,7 +22,7 @@ MARKER_GROUP = 2
 # Geom group of an attached robot's own geoms (its legs); sensors ignore it.
 ROBOT_GROUP = 3
 # The robot's root body, by robot.
-ROBOT_BODIES = ('quad', 'lite3/TORSO')
+ROBOT_BODIES = ('quad', 'lite3/TORSO', 't1/Trunk')
 
 
 def robot_body(model) -> int:
@@ -33,6 +33,17 @@ def robot_body(model) -> int:
     except KeyError:
       continue
   raise KeyError(f'no robot body ({", ".join(ROBOT_BODIES)}) in the model')
+
+
+def follow_camera(model) -> tuple[float, float]:
+  """Distance (m) and elevation (deg) of a camera following the robot.
+
+  A walking robot is seen closer and from above, so walls do not hide it.
+  """
+  name = model.body(robot_body(model)).name
+  if name == 'quad':
+    return 5.0, -25.0
+  return (4.0 if name.startswith('t1/') else 3.2), -50.0
 
 RING_SEGMENTS = 24
 RING_TUBE = 0.04
@@ -137,6 +148,15 @@ def build_xml(
     <material name="prop" rgba="0.9 0.4 0.1 0.8"/>
     <material name="target" rgba="0.1 0.6 1 0.6"/>
     <material name="lidar" rgba="0.2 0.25 0.3 1"/>
+    <!-- The house (house.py) and the ground; textures.py textures them -->
+    <material name="floor" rgba="0.78 0.6 0.42 1"/>
+    <material name="grass" rgba="0.36 0.52 0.26 1"/>
+    <material name="wall" rgba="0.88 0.86 0.82 1"/>
+    <material name="wood" rgba="0.62 0.45 0.3 1"/>
+    <material name="fabric" rgba="0.35 0.45 0.6 1"/>
+    <material name="stone" rgba="0.6 0.6 0.62 1"/>
+    <material name="red" rgba="0.75 0.3 0.25 1"/>
+    <material name="green" rgba="0.3 0.55 0.3 1"/>
   </asset>
   <default>
     <default class="obstacle">

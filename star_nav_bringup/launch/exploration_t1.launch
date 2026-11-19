@@ -1,0 +1,26 @@
+<launch>
+    <!-- Exploration with Booster Robotics' T1 humanoid (1.2 m, 12 leg joints) in MuJoCo:
+         roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true
+         Download the robot once first: the t1 option of
+         scripts/setup_mujoco_env.sh (docs/SIMULATION.md)
+         Everything is in exploration_legged.launch (robot:=t1); it takes
+         more options than the common ones below. -->
+    <arg name="use_rviz" default="false"/>
+    <arg name="viewer" default="true"/>
+    <arg name="viewer_port" default="8080"/>
+    <arg name="start_sim" default="true"/>
+    <arg name="sim_host" default="127.0.0.1"/>
+    <arg name="sim_args" default=""/>
+    <arg name="seed" default="1"/>
+    <!-- lidar or depth; house or forest; terrain filter (lidar) -->
+    <arg name="sensor" default="lidar"/>
+    <arg name="world" default="house"/>
+    <arg name="terrain" default="true"/>
+    <arg name="exploration_width" default="9.0"/>
+    <arg name="exploration_height" default="9.0"/>
+    <arg name="line_spacing" default="3.0"/>
+
+    <include file="$(find star_nav_bringup)/launch/exploration_legged.launch" pass_all_args="true">
+        <arg name="robot" value="t1"/>
+    </include>
+</launch>

@@ -45,6 +45,7 @@ PREFIX = 'lite3/'
 TRUNK = PREFIX + 'TORSO'
 CAMERA = PREFIX + 'depth'
 STAND_HEIGHT = 0.34  # torso height when standing (m)
+START_HEIGHT = STAND_HEIGHT
 TIMESTEP = 0.002  # physics; PD torques every step
 DECIMATION = 6  # policy every 12 ms (83 Hz), as the upstream runner
 
@@ -65,6 +66,10 @@ OMEGA_SCALE, JOINT_VEL_SCALE = 0.25, 0.05
 # front, the lidar on top.
 CAMERA_POS = (0.29, 0.0, 0.02)
 LIDAR_MOUNT = (0.0, 0.0, 0.10)
+# Collision geoms of the legs: touching the ground, a ramp or a step with
+# these is walking, not a collision (see Simulator._touching).
+LEG_GEOMS = ('FOOT_collision', 'SHANK_collision')
+HOUSE_WALL_HEIGHT = 1.0  # m; the robot sees and is seen over the walls
 
 
 class MissingAssets(RuntimeError):

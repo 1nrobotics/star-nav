@@ -22,16 +22,19 @@ from __future__ import annotations
 
 import math
 
+from star_nav_mujoco import scene
+
 WALL_H = 1.0
 WALL_T = 0.05  # half thickness
 LEG = 0.025  # table/chair leg half width
 
-WALL = (0.88, 0.86, 0.82, 1)
-WOOD = (0.62, 0.45, 0.3, 1)
-FABRIC = (0.35, 0.45, 0.6, 1)
-STONE = (0.6, 0.6, 0.62, 1)
-RED = (0.75, 0.3, 0.25, 1)
-GREEN = (0.3, 0.55, 0.3, 1)
+# Materials (defined in scene.py, textured by textures.py).
+WALL = 'wall'
+WOOD = 'wood'
+FABRIC = 'fabric'
+STONE = 'stone'
+RED = 'red'
+GREEN = 'green'
 
 WALKABLE = 'walk/'
 
@@ -44,16 +47,16 @@ PLATFORM_Y = (-1.2, 0.6)
 TREAD = 0.3
 
 
-def _box(name, centre, half, rgba, euler=None):
-  return ('box', name, tuple(centre), tuple(half), rgba, euler)
+def _box(name, centre, half, material, euler=None):
+  return ('box', name, tuple(centre), tuple(half), material, euler)
 
 
-def _wall_x(x, y0, y1):
-  return _box('', (x, (y0 + y1) / 2, WALL_H / 2), (WALL_T, (y1 - y0) / 2, WALL_H / 2), WALL)
+def _wall_x(x, y0, y1, h=WALL_H):
+  return _box('', (x, (y0 + y1) / 2, h / 2), (WALL_T, (y1 - y0) / 2, h / 2), WALL)
 
 
-def _wall_y(y, x0, x1):
-  return _box('', ((x0 + x1) / 2, y, WALL_H / 2), ((x1 - x0) / 2, WALL_T, WALL_H / 2), WALL)
+def _wall_y(y, x0, x1, h=WALL_H):
+  return _box('', ((x0 + x1) / 2, y, h / 2), ((x1 - x0) / 2, WALL_T, h / 2), WALL)
 
 
 def _table(x, y, hx, hy, h):
@@ -65,19 +68,20 @@ def _table(x, y, hx, hy, h):
   return out
 
 
-def geoms():
-  """(type, name, centre, half sizes, rgba, euler) of every geom."""
+def geoms(wall_height=WALL_H):
+  """(type, name, centre, half sizes, material, euler) of every geom."""
   g = []
   # Outer walls and the wall between west and east (open at y > 3.4).
-  g += [_wall_y(-5.5, -5.5, 5.5), _wall_y(5.5, -5.5, 5.5),
-        _wall_x(-5.5, -5.5, 5.5), _wall_x(5.5, -5.5, 5.5),
-        _wall_x(-0.6, -5.5, 3.4)]
+  h = wall_height
+  g += [_wall_y(-5.5, -5.5, 5.5, h), _wall_y(5.5, -5.5, 5.5, h),
+        _wall_x(-5.5, -5.5, 5.5, h), _wall_x(5.5, -5.5, 5.5, h),
+        _wall_x(-0.6, -5.5, 3.4, h)]
   # East: the terrain corridor on row x = 1.5.
   cx = sum(CORRIDOR_X) / 2
   half_w = (CORRIDOR_X[1] - CORRIDOR_X[0]) / 2 - WALL_T
   steps_end = PLATFORM_Y[1] + 2 * TREAD
-  g += [_wall_x(CORRIDOR_X[0], RAMP_Y[0] - 1.0, steps_end + 0.6),
-        _wall_x(CORRIDOR_X[1], RAMP_Y[0] - 1.0, steps_end + 0.6)]
+  g += [_wall_x(CORRIDOR_X[0], RAMP_Y[0] - 1.0, steps_end + 0.6, h),
+        _wall_x(CORRIDOR_X[1], RAMP_Y[0] - 1.0, steps_end + 0.6, h)]
   run = RAMP_Y[1] - RAMP_Y[0]
   pitch = math.atan2(RISE, run)
   length = math.hypot(run, RISE)
@@ -104,15 +108,18 @@ def geoms():
   return g
 
 
-def xml() -> str:
-  out = []
-  for kind, name, centre, half, rgba, euler in geoms():
+def xml(wall_height=WALL_H) -> str:
+  """The house's geoms; ``wall_height`` for all walls."""
+  # A wooden floor inside the walls, for show: sensors ignore its group.
+  out = ['<geom type="box" pos="0 0 0.001" size="5.5 5.5 0.001" material="floor" '
+         f'contype="0" conaffinity="0" group="{scene.MARKER_GROUP}"/>']
+  for kind, name, centre, half, material, euler in geoms(wall_height):
     attrs = f'class="obstacle" type="{kind}"'
     if name:
       attrs += f' name="{name}"'
-    attrs += ' pos="{}" size="{}" rgba="{}"'.format(
+    attrs += ' pos="{}" size="{}" material="{}"'.format(
         ' '.join(f'{v:.4g}' for v in centre), ' '.join(f'{v:.4g}' for v in half),
-        ' '.join(f'{v:g}' for v in rgba))
+        material)
     if euler is not None:
       # The scene uses MuJoCo's default angle unit, degrees.
       attrs += ' euler="{}"'.format(' '.join(f'{math.degrees(v):.6g}' for v in euler))
