@@ -210,11 +210,16 @@
   }
   .live-status:empty { display: none; }
   .live-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; }
-  .live-controls button {
+  .live-controls button, .live-robots button {
     font: inherit; font-size: .82rem; padding: 4px 10px; border-radius: 6px; cursor: pointer;
     border: 1px solid rgba(0,0,0,.15); background: rgba(255,255,255,.85); color: #1b1d1f;
   }
   .live-controls button[aria-pressed="false"] { opacity: .6; }
+  .live-robots { position: absolute; top: 10px; left: 10px; display: flex; gap: 0; }
+  .live-robots button { border-radius: 0; }
+  .live-robots button:first-child { border-radius: 6px 0 0 6px; }
+  .live-robots button:last-child { border-radius: 0 6px 6px 0; border-left: 0; }
+  .live-robots button[aria-pressed="true"] { background: #1b1d1f; color: #fff; opacity: 1; }
   .live-hud {
     position: absolute; left: 10px; bottom: 10px; font-size: .8rem; color: #1b1d1f;
     background: rgba(255,255,255,.8); padding: 3px 8px; border-radius: 6px;
@@ -237,6 +242,8 @@
     .diagram { padding: 12px; }
     .video-labels { grid-template-columns: 1fr; gap: 4px; }
     .live-frame { aspect-ratio: 4 / 3; }
+    .live-controls { top: auto; bottom: 10px; }
+    .live-hud { bottom: auto; top: 44px; }
     nav.links { gap: 14px; }
     nav.links a.hide-xs { display: none; }
   }
@@ -331,14 +338,20 @@
     <div class="wrap">
       <h2>Live MuJoCo in your browser</h2>
       <p class="sub">
-        MuJoCo&nbsp;4, compiled to WebAssembly, simulates the quadrotor in this page in
-        real time: the same model, forest (seed&nbsp;1) and SE(3) flight controller as the
-        simulator, following the setpoints EGO-Planner sent during a recorded mission.
+        MuJoCo&nbsp;4, compiled to WebAssembly, simulates the robot in this page in real
+        time, following the setpoints EGO-Planner sent during a recorded mission. The
+        quadrotor uses the same model, forest (seed&nbsp;1) and SE(3) flight controller as
+        the simulator; the Microduck walks with the same policy, servo model and tracker.
         Drag to orbit, scroll to zoom, right-drag to pan.
       </p>
       <div class="live-frame" id="live-frame">
         <div class="live-status" id="live-status">The interactive scene loads when you scroll here.</div>
+        <div class="live-robots" role="group" aria-label="Robot">
+          <button type="button" data-robot="drone" aria-pressed="true">Drone</button>
+          <button type="button" data-robot="microduck" aria-pressed="false">Microduck</button>
+        </div>
         <div class="live-controls">
+          <button type="button" id="live-speed" title="Simulation speed">1×</button>
           <button type="button" id="live-play">Pause</button>
           <button type="button" id="live-follow" aria-pressed="true">Follow drone</button>
           <button type="button" id="live-restart">Restart</button>
@@ -346,9 +359,13 @@
         <div class="live-hud" id="live-time"></div>
       </div>
       <p class="note" style="color: var(--muted); font-size: .9rem; margin-top: 10px;">
-        Blue: the planned path. Orange: the path flown in your browser. Physics runs at
-        500&nbsp;Hz on your CPU; the planner itself is not running here, only its output is
-        replayed, so the drone loops over the same mission.
+        Blue: the planned path. Orange: the path travelled in your browser. Physics runs on
+        your CPU (500&nbsp;Hz for the drone, 200&nbsp;Hz for the duck, whose walking policy
+        runs at 50&nbsp;Hz); the planner itself is not running here, only its output is
+        replayed, so the robot loops over the same mission. The Microduck's model and policy
+        are downloaded from
+        <a href="https://github.com/pollen-robotics/microduck_rl">Pollen Robotics</a>
+        (~21&nbsp;MB) when you pick it; its meshes are CC&nbsp;BY-NC-SA&nbsp;4.0.
       </p>
     </div>
   </section>
@@ -645,6 +662,8 @@ roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true</code></pre>
     play: document.getElementById('live-play'),
     follow: document.getElementById('live-follow'),
     restart: document.getElementById('live-restart'),
+    speed: document.getElementById('live-speed'),
+    robots: frame.querySelectorAll('.live-robots button'),
   };
   let started = false;
   const go = () => {
