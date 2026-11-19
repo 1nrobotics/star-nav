@@ -26,9 +26,14 @@ checked against a paper or the code are marked as such.
   precomputed paths. It has no notion of time or dynamics, which a separate
   path follower adds. It is simple, deterministic and cheap, which suits slow
   walking robots.
+- **MPPI** samples control sequences, rolls them out through a model and
+  averages them weighted by cost. It takes any cost and model and outputs
+  commands directly; it needs a reference path to choose a side around an
+  obstacle, and more compute than a path library.
 - **Next steps for Star Nav:** a 2D mode for EGO (with a height-band
   projection for the depth camera), then the CMU planner as a second backend
-  for the walking robots, and an MPC in place of the proportional `Tracker`.
+  for the walking robots, and an MPPI tracker in place of the proportional
+  `Tracker`.
 
 ## 1. EGO-Planner on ground robots
 
@@ -191,7 +196,159 @@ to actual velocity as a first-order lag, plus unicycle or omnidirectional
 kinematics. That captures the policy's response lag, which limits Star Nav's
 tracking today (T1: 0.42 m/s reached at a 0.5 m/s command).
 
-## 6. Making EGO-Planner 2D
+## 6. MPPI
+
+Model Predictive Path Integral control (Williams, Theodorou et al., Georgia
+Tech, 2016–2018) is the most widely used sampling MPC in ground robotics:
+Nav2's default-recommended controller, the AutoRally cars, and many off-road
+stacks. It does not take gradients or solve an optimization problem; it
+samples, rolls out and averages.
+
+### Algorithm
+
+Horizon T steps of dt, K samples, nominal control sequence U = (u₀ … u_{T−1}),
+noise covariance Σ, temperature λ. Every control cycle:
+
+```
+1. sample   ε^k ~ N(0, Σ) for k = 1..K;  v^k_t = clip(u_t + ε^k_t)
+2. roll out x^k_{t+1} = f(x^k_t, v^k_t) from the current state
+3. cost     S_k = φ(x^k_T) + Σ_t [ q(x^k_t) + γ u_tᵀ Σ⁻¹ ε^k_t ]
+4. weight   w_k = exp(−(S_k − min S) / λ) / Σ_j exp(−(S_j − min S) / λ)
+5. update   u_t ← u_t + Σ_k w_k ε^k_t
+6. smooth   filter U (optional, e.g. Savitzky–Golay)
+7. execute  u₀
+8. shift    U left by one step (warm start for the next cycle)
+```
+
+The last term of step 3 is a control cost from the derivation; implementations
+make γ small or drop it. λ sets how selective the average is: as λ → 0 it
+takes the best sample, as λ grows it averages all of them.
+
+**Theory, briefly.** For a system with noisy controls, the optimal
+distribution of control sequences is q*(V) ∝ p(V) exp(−S(V)/λ), the sampling
+distribution reweighted by the cost. MPPI minimizes the KL divergence from its
+own (Gaussian) control distribution to q*; the solution is the mean of q*,
+which steps 4–5 estimate by importance sampling. CEM differs in keeping only
+the best (elite) samples and refitting the variance; MPPI weights all samples
+softly and usually keeps Σ fixed.
+
+### Strengths and problems
+
+| Strength | Why it matters |
+|---|---|
+| Cost need not be differentiable | Occupancy grids, traversability maps, learned costs, hard collision checks |
+| Model need not be differentiable or linear | Kinematics, slip dynamics, learned (neural) dynamics |
+| Parallel | Rollouts are independent: thousands on a CPU with vectorization, tens of thousands on a GPU |
+| Warm start | One iteration per cycle is usually enough; controls stay continuous |
+| Planning and control in one | Outputs velocity commands that both avoid and track |
+
+| Problem | Cause | Usual remedy |
+|---|---|---|
+| Chattering | Averaged noise does not cancel | Smooth U (Nav2); Smooth-MPPI samples the control's derivative |
+| Stuck in front of an obstacle | All samples near it; the average sits in the middle | More noise or samples; Log-MPPI (heavier-tailed sampling); a reference path |
+| Left or right | Samples stay near the nominal sequence | Several nominal sequences; seed samples from the global path |
+| Tuning | λ, Σ and cost weights interact | Normalize costs; set Σ from the robot's acceleration, then λ |
+| No hard constraints | The average can leave the limits | Clip samples and the result; collision as a very large cost |
+| Compute | K × T model steps | Vectorize; a simple model; a short horizon |
+
+### Nav2's implementation
+
+`nav2_mppi_controller` (C++, xtensor, CPU) is the most complete open
+implementation: differential-drive, omnidirectional and Ackermann models, and
+a cost made of switchable critics:
+
+| Critic | Penalizes |
+|---|---|
+| Constraint | Speed and acceleration beyond the limits |
+| Cost / Obstacles | Costmap: collision, closeness to obstacles |
+| PathAlign, PathFollow, PathAngle | Leaving the global path, not progressing along it, heading off it |
+| Goal, GoalAngle | Distance to the goal and its heading, near the goal |
+| PreferForward | Driving backwards |
+| Twirling | Spinning in place (omnidirectional robots) |
+
+Its defaults are of the order of 1000–2000 samples, 56 steps of 0.05 s
+(2.8 s), λ ≈ 0.3, one iteration per cycle at 20–30 Hz (from memory; not
+verified against the current release). The split, a global path plus MPPI
+tracking and avoiding, matches Star Nav's EGO reference plus tracker.
+
+**Off-road.** AutoRally drove MPPI with a learned vehicle model near the
+limits on dirt. Learned traversability costs (TartanDrive, TerrainNet-style
+maps) plug straight into q(x), where a non-differentiable cost is an
+advantage. Risk-aware variants replace the expected cost by a quantile
+(CVaR) on uncertain terrain.
+
+### MPPI vs the path library
+
+Both generate candidates, score them and pick; they differ in where
+candidates come from, how the result is chosen, and what comes out.
+
+| | CMU path library | MPPI |
+|---|---|---|
+| Candidates | 343 offline splines, rotated to 36 headings | K control sequences sampled each cycle around the last solution |
+| Candidate space | Geometric paths, no time or speed | Control sequences rolled out to state-time trajectories |
+| Dynamics | None; feasibility built into the path shapes | In the rollout (kinematics, a lag, a learned model) |
+| Collision check | Lookup: voxel → paths through it, one lookup per obstacle point | Map query at every step of every rollout (K × T) |
+| Cost | Mostly binary collision, plus heading and terrain | Any weighted sum |
+| Selection | Discrete: path scores summed per group, best group | Soft weighted average; may lie outside the samples |
+| Frame to frame | Stateless | Warm-started |
+| Output | A path for a separate follower | Velocity commands |
+| Speed | Decoupled, set by the follower | Optimized |
+| Determinism | Deterministic, reproducible | Stochastic |
+| Resolution | Limited by the library | Continuous, accuracy set by K |
+| Compute | Well under a millisecond | Milliseconds on a CPU for hundreds to thousands of samples |
+
+Two behaviours differ most:
+
+1. **An obstacle straight ahead.** Samples passing left and right both score
+   well, and samples through the middle score badly. MPPI's average can land
+   in the middle; warm starting with a small λ usually collapses it to one
+   side, but nothing guarantees it. The path library chooses one group, and
+   summing scores per group asks "which direction has the most free
+   continuations", a robust choice. This is why MPPI is usually guided by a
+   global path, which decides the side.
+2. **Dynamics.** The path library guarantees geometric feasibility only;
+   whether the robot keeps up is the follower's problem. CMU's pure-pursuit
+   follower is enough for wheels but ignores a lag like the T1's (0.42 m/s
+   at a 0.5 m/s command). MPPI rolls the lag out, so its plan is what this
+   robot will actually do with these commands.
+
+They are two ends of one family. MPPI with a fixed sample set, λ → 0, no
+warm start and a collision-only cost is a path library. The two also
+combine: seed some of MPPI's samples with library paths or fixed manoeuvres
+(left, right, turn in place) and sample the rest randomly. Biased-MPPI
+(Trevisan and Alonso-Mora, RA-L 2024) generalizes this by drawing samples
+from ancillary controllers.
+
+### For Star Nav
+
+| Option | Replaces | For | Against |
+|---|---|---|---|
+| Path library (CMU) | EGO and `Tracker`, plus a follower | Very fast, deterministic, proven on ground robots; its 2D check fixes the depth camera case | Largest change; EGO's tuning and tests redone; no lag model; offline data files |
+| MPPI tracker | `Tracker` only | Small change, same interface; compensates the walking policies' lag; checks a 2D map, which also covers the depth camera case | Heavier compute; tuning; relies on EGO to pick the side |
+| MPPI seeded with manoeuvres | `Tracker` only | As above, less stuck in the middle | A little more code |
+
+The MPPI tracker comes first: it fits the EGO-reference-plus-tracker split,
+stays in `mujoco_sim` (no ROS), and EGO already decides the side, which
+removes MPPI's main weakness. A sketch (not implemented):
+
+- **Model:** omnidirectional kinematics with a first-order velocity lag.
+  State (x, y, ψ, vx, vy, ω), body-frame command (vx, vy, ω);
+  v ← v + (u − v) dt/τ, τ ≈ 0.2–0.3 s from a step response, optionally a
+  speed gain (≈ 0.84 for the T1).
+- **Cost:** distance to the EGO reference at the matching time and its
+  heading; the planner's inflated occupancy (or the terrain filter's map),
+  collision as a large cost; limits; sideways and backward penalties.
+- **Start:** K = 512, T = 30 × 0.05 s (1.5 s), λ = 0.3; Σ from the
+  achievable change per step (dog: 0.3 m/s in vx, vy and 0.5 rad/s;
+  T1: smaller vy).
+- **Implementation:** NumPy, K × T × 3 arrays; milliseconds per cycle on a
+  CPU, enough for 50 Hz; no new dependency.
+- **Checks:** tracking error and speed reached against `Tracker` on flat
+  ground, then `lite3_smoke` and `t1_smoke`, then
+  `t1_smoke.test world:=forest sensor:=depth` (does the 2D map check stop
+  the contacts?).
+
+## 7. Making EGO-Planner 2D
 
 Setting the height constant is not enough on its own. In this repository:
 
@@ -222,7 +379,7 @@ the depth camera, the grid map needs a height-band projection.
 | Low obstacles | Need the band projection / terrain filter | Same |
 | Drones | Useful too | Ground robots only |
 
-## 7. The CMU stack on a humanoid
+## 8. The CMU stack on a humanoid
 
 The interface fits: CMU outputs a velocity command, and humanoid policies
 take (vx, vy, ωz). The work is in parameters and the robot's peculiarities.
@@ -246,7 +403,7 @@ For the T1 in this simulator:
 - **Licensing:** the CMU repositories are believed to be BSD; check each
   before importing and update [LICENSES.md](LICENSES.md).
 
-## 8. What this means for Star Nav
+## 9. What this means for Star Nav
 
 1. **2D mode for EGO** (`planning_2d`, on for walking robots) and a
    height-band projection in the grid map, so `sensor:=depth` works; keep the
@@ -254,8 +411,8 @@ For the T1 in this simulator:
 2. **CMU local planner as a second backend** for walking robots
    (`exploration_legged.launch planner:=ego|cmu`), compared on the same
    missions.
-3. **MPC tracking** in place of the proportional `Tracker`, with a lagged
-   velocity model of the walking policy.
+3. **MPPI tracking** in place of the proportional `Tracker`, with a lagged
+   velocity model of the walking policy (section 6; not started).
 4. **A rover** (differential drive) in MuJoCo with outdoor terrain; EGO +
    terrain filter for gentle ground, an SE(2) planner for rough ground.
 5. The simulator (procedural forests, depth, lidar, ground truth) could
@@ -277,5 +434,6 @@ For the T1 in this simulator:
 - ViPlanner, [arXiv 2310.00982](https://arxiv.org/abs/2310.00982); [iPlanner](https://github.com/leggedrobotics/iPlanner)
 - Wild Visual Navigation, [arXiv 2305.08510](https://arxiv.org/abs/2305.08510); Trailblazer, [arXiv 2505.09739](https://arxiv.org/abs/2505.09739); Verti-Bench, [arXiv 2502.11426](https://arxiv.org/abs/2502.11426)
 - CMU code: [localPlanner.cpp](https://github.com/HongbiaoZ/autonomous_exploration_development_environment/blob/noetic/src/local_planner/src/localPlanner.cpp), [terrainAnalysis.cpp](https://github.com/HongbiaoZ/autonomous_exploration_development_environment/blob/noetic/src/terrain_analysis/src/terrainAnalysis.cpp), [path_generator.m](https://github.com/HongbiaoZ/autonomous_exploration_development_environment/blob/noetic/src/local_planner/paths/path_generator.m); [autonomy_stack_go2](https://github.com/jizhang-cmu/autonomy_stack_go2); [open-source list](https://frc.ri.cmu.edu/~zhangji/others.html)
+- MPPI: Williams et al., Information-Theoretic MPC, T-RO 2018, [arXiv 1707.02342](https://arxiv.org/abs/1707.02342); Log-MPPI, [arXiv 2203.16599](https://arxiv.org/abs/2203.16599); Smooth-MPPI, [arXiv 2112.09988](https://arxiv.org/abs/2112.09988); Biased-MPPI, [arXiv 2401.09241](https://arxiv.org/abs/2401.09241); [nav2_mppi_controller](https://github.com/ros-navigation/navigation2/tree/main/nav2_mppi_controller)
 - FAR Planner, [arXiv 2110.09460](https://arxiv.org/abs/2110.09460); Falco, [CMU RI](https://ri.cmu.edu/?p=125590)
 - FFI, [Development of off-road autonomy for UGVs](https://www.ffi.no/en/publications-archive/development-of-off-road-autonomy-for-unmanned-ground-vehicles)
