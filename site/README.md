@@ -1,12 +1,12 @@
 # Project page
 
-Three static pages with no build step, linked from each other's header:
+Three static pages with no build step, sharing `style.css`:
 
 | Page | What |
 | --- | --- |
-| `index.html` | The quadrotor: exploration, simulators, live MuJoCo scene |
-| `quadruped.html` | The Lite3 quadruped on the same stack (self-contained, no external scripts) |
-| `humanoid.html` | The Booster T1 humanoid on the same stack (self-contained, no external scripts) |
+| `index.html` | Home: the three robots, the quadrotor's results, the architecture, the live MuJoCo scene, quick start |
+| `quadruped.html` | The Lite3 quadruped: simulation results and key facts (no external scripts) |
+| `humanoid.html` | The Booster T1 humanoid: simulation results and key facts (no external scripts) |
 
 `index.html` is a static page with no build step. The only external scripts
 are those of the live MuJoCo scene (below), loaded from jsDelivr when a visitor
