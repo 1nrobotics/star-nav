@@ -133,6 +133,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 - [Obstacle Sensors: depth camera or lidar](docs/SENSORS.md)
 - [Quadruped (Lite3): development status](docs/QUADRUPED.md)
 - [Humanoid (T1): development status](docs/HUMANOID.md)
+- [Planning for ground robots: survey notes](docs/GROUND_PLANNING.md)
 - [Hardware Guide](docs/HARDWARE.md)
 - [Licensing Notes](docs/LICENSES.md)
 - [Contributing](CONTRIBUTING.md)

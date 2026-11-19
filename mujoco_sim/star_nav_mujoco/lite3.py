@@ -133,6 +133,17 @@ def fetch(root: pathlib.Path | None = None, log=print) -> pathlib.Path:
   log(f'Lite3: model, {len(MESHES)} meshes and the policy are in {root}')
   return root
 
+# The upstream meshes are one flat grey. Per part (the visual geoms'
+# <part>_visual names): rgba, specular, shininess. The STL meshes have no
+# texture coordinates, so these are plain materials.
+APPEARANCE = {
+    'lite3_torso': ([0.17, 0.18, 0.20, 1.0], 0.5, 0.6),  # dark shell
+    'lite3_hip': ([0.70, 0.72, 0.75, 1.0], 0.8, 0.8),  # bare motor housings
+    'lite3_thigh': ([0.22, 0.23, 0.26, 1.0], 0.5, 0.6),
+    'lite3_shank': ([0.60, 0.62, 0.65, 1.0], 0.7, 0.7),
+    'lite3_foot': ([0.06, 0.06, 0.06, 1.0], 0.1, 0.1),  # rubber
+}
+
 
 def attach(spec: mujoco.MjSpec, start: tuple[float, float], root: pathlib.Path,
            lidar: bool = False) -> None:
@@ -154,9 +165,15 @@ def attach(spec: mujoco.MjSpec, start: tuple[float, float], root: pathlib.Path,
                    pos=LIDAR_MOUNT[:2] + (LIDAR_MOUNT[2] - 0.03,),
                    size=[0.035, 0.02, 0], rgba=[0.2, 0.25, 0.3, 1],
                    contype=0, conaffinity=0, group=scene.MARKER_GROUP)
+  for name, (rgba, specular, shininess) in APPEARANCE.items():
+    child.add_material(name=name, rgba=rgba, specular=specular,
+                       shininess=shininess)
   for geom in child.geoms:
     if geom.conaffinity or geom.contype:
       geom.group = scene.ROBOT_GROUP
+    elif geom.name.endswith('_visual'):
+      part = geom.name[:-len('_visual')].rsplit('_', 1)[-1]
+      geom.material = 'lite3_' + part.lower()
   frame = spec.worldbody.add_frame(pos=[start[0], start[1], 0.0])
   frame.attach_body(torso, PREFIX, '')
 
