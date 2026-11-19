@@ -1,11 +1,12 @@
 # Project page
 
-Two static pages with no build step, linked from each other's header:
+Three static pages with no build step, linked from each other's header:
 
 | Page | What |
 | --- | --- |
 | `index.html` | The quadrotor: exploration, simulators, live MuJoCo scene |
 | `quadruped.html` | The Lite3 quadruped on the same stack (self-contained, no external scripts) |
+| `humanoid.html` | The Booster T1 humanoid on the same stack (self-contained, no external scripts) |
 
 `index.html` is a static page with no build step. The only external scripts
 are those of the live MuJoCo scene (below), loaded from jsDelivr when a visitor
@@ -48,7 +49,8 @@ against the Python one on random states (thrusts equal to 1e-14 N).
 ## Demo videos
 
 The videos (`exploration-demo.mp4`, `lidar-exploration-demo.mp4`, and on the
-quadruped page `lite3-house-rviz.mp4`, `lite3-house.mp4`, `lite3-forest-lidar.mp4`) are not tracked in git, to keep the
+quadruped page `lite3-house-rviz.mp4`, `lite3-house.mp4`, `lite3-forest-lidar.mp4`, and on the
+humanoid page `t1-house.mp4`) are not tracked in git, to keep the
 repository small (`.gitignore`). They are attached to the `site-assets` GitHub
 release, and the Pages workflow downloads them at deploy time. To preview
 locally, download them into `assets/`; without them the page shows the poster
@@ -71,6 +73,9 @@ gh release upload site-assets site/assets/exploration-demo.mp4 site/assets/lidar
 3D view is crop 1000:810:585:60) and sped up 4× (`setpts=PTS/4` in the
 filter). The other two quadruped videos are the simulator's follow camera
 alone (`--record` in `sim_args`), sped up 4×. Posters: `assets/lite3-*.jpg`.
+`t1-house.mp4` is the follow camera of one `exploration_t1.launch` mission
+(`sim_args:="--record ..."`), sped up 4× and scaled to 960 × 540 (crf 30);
+poster `assets/t1-house.jpg`.
 Pass `-draw_mouse 0` to ffmpeg's x11grab to keep the pointer out.
 
 The quadrotor video puts the simulator's follow camera next to the RViz window for one mission

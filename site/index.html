@@ -113,10 +113,10 @@
   :root[data-theme="dark"] .btn.primary { color: #0b1020; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0b1020; } }
 
-  .robots { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0 28px; }
+  .robots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 16px 0 28px; }
   .robot { display: block; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; color: var(--text); box-shadow: var(--shadow); }
   .robot:hover { text-decoration: none; border-color: var(--muted); }
-  .robot img { display: block; width: 100%; aspect-ratio: 16 / 6; object-fit: cover; object-position: left center; }
+  .robot img { display: block; width: 100%; aspect-ratio: 16 / 8; object-fit: cover; object-position: left center; }
   .robot .body { padding: 12px 16px 14px; }
   .robot .body b { font-size: 1.02rem; }
   .robot .body span { display: block; color: var(--muted); font-size: .9rem; margin-top: 2px; }
@@ -259,7 +259,8 @@
       <a class="hide-xs" href="#architecture">Architecture</a>
       <a href="#quick-start">Quick start</a>
       <a class="hide-sm" href="https://github.com/1nrobotics/star-nav">GitHub</a>
-      <a class="other" href="quadruped.html">Quadruped →</a>
+      <a class="other hide-sm" href="quadruped.html">Quadruped →</a>
+      <a class="other" href="humanoid.html">Humanoid →</a>
     </nav>
   </div>
 </header>
@@ -271,8 +272,9 @@
       Star Nav is a ROS Noetic navigation stack: a waypoint exploration
       manager and the EGO-Planner local planner, fed by a depth camera or a
       lidar. The same stack flies a quadrotor through an unknown forest and
-      walks DeepRobotics' Lite3 quadruped through a house with a ramp and
-      stairs, both in a MuJoCo&nbsp;4 simulator you can watch in the browser.
+      walks DeepRobotics' Lite3 quadruped and Booster Robotics' T1 humanoid
+      through a house with a ramp and stairs, all in a MuJoCo&nbsp;4 simulator
+      you can watch in the browser.
     </p>
     <div class="cta">
       <a class="btn primary" href="#quick-start">Run it in 5 minutes</a>
@@ -290,6 +292,10 @@
       <a class="robot" href="quadruped.html">
         <img src="assets/lite3-house-rviz.jpg" alt="The Lite3 quadruped in the MuJoCo house" loading="lazy">
         <div class="body"><b>Quadruped (Lite3) →</b><span>Learned walking policy, lidar, terrain filter for ramps and steps.</span></div>
+      </a>
+      <a class="robot" href="humanoid.html">
+        <img src="assets/t1-house.jpg" alt="The T1 humanoid in the textured MuJoCo house" loading="lazy">
+        <div class="body"><b>Humanoid (T1) →</b><span>Booster's walking policy in NumPy, lidar on the head, textured scenes.</span></div>
       </a>
     </div>
   </div>

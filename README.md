@@ -12,7 +12,7 @@ simulators to develop and test them. One planning stack drives every robot:
 | Robot-specific parts | SE(3) flight controller; `px4ctrl` for PX4 | velocity tracker; terrain filter for ramps and steps | the same as the Lite3 |
 | Launch | `exploration_mujoco.launch` | `exploration_lite3.launch` | `exploration_t1.launch` |
 | End-to-end test | `sim_smoke.test`, `mujoco_smoke.test` (CI) | `lite3_smoke.test` (local: the robot is downloaded) | `t1_smoke.test` (local) |
-| Page | [project page](https://1nrobotics.github.io/star-nav/) | [quadruped page](https://1nrobotics.github.io/star-nav/quadruped.html) | [status](docs/HUMANOID.md) |
+| Page | [project page](https://1nrobotics.github.io/star-nav/) | [quadruped page](https://1nrobotics.github.io/star-nav/quadruped.html) | [humanoid page](https://1nrobotics.github.io/star-nav/humanoid.html) |
 | Hardware | `hardware/vk180` branch ([Hardware Guide](docs/HARDWARE.md)) | simulation only so far ([status](docs/QUADRUPED.md)) | simulation only |
 
 The `main` branch is simulation-first and hardware-independent. Integration
