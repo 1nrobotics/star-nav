@@ -163,6 +163,43 @@ Tests follow the layers:
    stepping. An Airy-like 96 × 900 scan takes about 32 ms per frame in the
    forest (measured with 4 threads), a third of the 10 Hz budget.
 
+## Review findings (November 2026)
+
+From a read-through of the simulator, bridge, launch files, tests and CI.
+These are about behaviour and test coverage; the weak points above are
+about structure. Nothing here is fixed yet.
+
+1. **Walking robots have no CI.** `sim-smoke.yml` runs the quadrotor only.
+   `test_lite3.py` and `test_t1.py` skip without the downloaded assets, and
+   `lite3_smoke` and `t1_smoke` are not in the workflow.
+2. **The terrain filter's step limit ignores the robot.** `max_step` is 9 cm
+   for both robots; `exploration_legged.launch` does not set it. The T1
+   falls on 7 cm steps going up, yet the planner treats them as walkable.
+3. **A fall is not reported.** It is logged only, and contact with the
+   ground plane is never counted, so a fallen robot shows 0 contacts and
+   the test fails on a later waypoint timeout
+   ([HUMANOID.md](HUMANOID.md#falls-and-getting-up)).
+4. **The terrain filter assumes clean data.** Each cell keeps its lowest
+   return for ever, so one noisy return below the floor makes a permanent
+   false obstacle. Lidar noise is 0 by default, which hides this. The
+   filter has no unit tests.
+5. **The house has no ground truth.** The world message carries pillars and
+   rings only, so the house has no `global_cloud`, no obstacle markers and
+   no map-accuracy check.
+6. **Quadrotor names on shared code.** `quadrotor.Command` is the command
+   type for every robot, and a `quadrotor.Controller` is built for walking
+   robots too. The bridge logs "quadrotor collision", topics are
+   `drone_0_*`, and `pyproject.toml` does not mention the T1.
+7. **Smaller:**
+   - When the viewer replaces `sim.data`, `Walker` keeps the old one (not
+     verified that the viewer ever does this).
+   - `receive()` in the bridge does not check the second `zmq_msg_recv`.
+   - `_download` is duplicated in `lite3.py` and `t1.py`.
+
+Suggested order: CI for the walking robots (download and cache the assets);
+`max_step` per robot and unit tests for the terrain filter; the fall flag;
+then the cleanup below.
+
 ## Proposed cleanup (not implemented)
 
 Small, separately reviewable steps, in this order:
