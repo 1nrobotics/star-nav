@@ -26,21 +26,21 @@ mission waypoints (exploration_manager)
   -> EGO-Planner: B-spline at a fixed height (0.34 m, the torso)
   -> traj_server: position, velocity, yaw setpoints (the same as for the drone)
   ==== ZeroMQ bridge ==== MuJoCo
-  -> lite3.Tracker: setpoint -> body-frame (forward, sideways, turn)
+  -> tracking.Holonomic: setpoint -> body-frame (forward, sideways, turn)
   -> walking policy (ONNX, 83 Hz): command -> 12 joint targets
   -> PD (500 Hz): joint targets -> torques
 
 lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
 ```
 
-### Control (`mujoco_sim/star_nav_mujoco/lite3.py`)
+### Control (`mujoco_sim/star_nav_mujoco/robots/lite3.py`)
 
 - **Model and policy**: DeepRobotics' Lite3 MJCF
   ([deep_robotics_model](https://github.com/DeepRoboticsLab/deep_robotics_model))
   and the PPO velocity policy from
   [Lite3_rl_deploy](https://github.com/DeepRoboticsLab/Lite3_rl_deploy), both
   BSD-3-Clause. They are downloaded at pinned commits with a SHA-256 check
-  (`star-nav-mujoco --fetch-lite3`), not committed. We did not train anything.
+  (`star-nav-mujoco --fetch lite3`), not committed. We did not train anything.
 - **Policy**: 45 observations (body angular velocity, projected gravity,
   command, joint positions and velocities, last action). The command is limited
   to ±0.8. The policy outputs joint offsets from the standing pose. It runs
@@ -63,7 +63,8 @@ lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
 ### Planning
 
 - **Planner**: EGO-Planner, the same as for the drone, at a fixed altitude of
-  0.34 m. The parameters are in `star_nav_bringup/launch/exploration_legged.launch`:
+  0.34 m. The parameters are in `star_nav_bringup/launch/exploration_lite3.launch`
+  (the robot's sizes) and `exploration_ground.launch` (the rest):
 
   | Parameter | Value |
   |---|---|

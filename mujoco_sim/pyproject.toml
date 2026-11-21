@@ -23,7 +23,7 @@ lite3 = ["onnxruntime>=1.17"]
 star-nav-mujoco = "star_nav_mujoco.__main__:main"
 
 [tool.setuptools]
-packages = ["star_nav_mujoco"]
+packages = ["star_nav_mujoco", "star_nav_mujoco.robots"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

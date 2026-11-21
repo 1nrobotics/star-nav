@@ -21,8 +21,7 @@
     <arg name="sliding_map" default="true"/>
     <arg name="show_occ_time" default="false"/>
 
-    <include file="$(find star_nav_bringup)/launch/exploration_legged.launch">
-        <arg name="robot" value="lite3"/>
+    <include file="$(find star_nav_bringup)/launch/exploration_lite3.launch">
         <arg name="use_rviz" value="false"/>
         <arg name="viewer" value="false"/>
         <arg name="start_sim" value="$(arg start_sim)"/>

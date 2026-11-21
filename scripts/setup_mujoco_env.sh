@@ -12,18 +12,20 @@
 #   ./scripts/setup_mujoco_env.sh --t1            # also the T1 humanoid: its
 #                                                 # model and policy
 #                                                 # (downloaded, Apache-2.0)
+#
+# --<robot> works for every robot in mujoco_sim/star_nav_mujoco/robots/ that
+# has files to download; several can be given.
 
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 venv="${repo}/mujoco_sim/.venv"
 extras="test"
-lite3=false
-t1=false
+robots=()
 for a in "$@"; do
   case "${a}" in
-    --lite3) lite3=true; extras="${extras},lite3" ;;
-    --t1) t1=true ;;
+    --lite3) robots+=(lite3); extras="${extras},lite3" ;;  # needs onnxruntime
+    --?*) robots+=("${a#--}") ;;
     *) echo "unknown option: ${a}" >&2; exit 2 ;;
   esac
 done
@@ -52,10 +54,7 @@ echo "Using ${python} ($("${python}" --version))"
 "${venv}/bin/pip" install --quiet --upgrade pip
 "${venv}/bin/pip" install --quiet -e "${repo}/mujoco_sim[${extras}]"
 "${venv}/bin/python" -c 'import mujoco, zmq; print("mujoco", mujoco.__version__, "pyzmq", zmq.__version__)'
-if [[ "${lite3}" == true ]]; then
-  "${venv}/bin/python" -m star_nav_mujoco --fetch-lite3
-fi
-if [[ "${t1}" == true ]]; then
-  "${venv}/bin/python" -m star_nav_mujoco --fetch-t1
-fi
+for robot in "${robots[@]+"${robots[@]}"}"; do
+  "${venv}/bin/python" -m star_nav_mujoco --fetch "${robot}"
+done
 echo "Ready: ${venv}"

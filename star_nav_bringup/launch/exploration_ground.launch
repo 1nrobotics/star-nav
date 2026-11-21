@@ -1,26 +1,20 @@
 <launch>
     <!-- ================================================ -->
-    <!-- Exploration with a walking robot (MuJoCo)          -->
+    <!-- Exploration with a ground robot (MuJoCo)           -->
     <!-- ================================================ -->
-    <!-- Used by exploration_lite3.launch and exploration_t1.launch; robot:=
-         picks the robot and its sizes below.
+    <!-- The part every ground robot shares. Start it through the robot's own
+         launch file (exploration_lite3.launch, exploration_t1.launch),
+         which sets the robot's sizes below.
 
          Same planning stack and sensors as exploration_mujoco.launch, on a
-         walking robot instead of the quadrotor: DeepRobotics' Lite3
-         quadruped or Booster Robotics' T1 humanoid. The simulator walks it
-         with the upstream velocity policy and steers it to the planner's
-         setpoints and yaw. Download the robot once first: the lite3 or t1
-         option of scripts/setup_mujoco_env.sh (docs/SIMULATION.md).
+         robot that walks or drives. The simulator moves it with the robot's
+         own velocity policy and steers it to the planner's setpoints and yaw
+         (mujoco_sim/star_nav_mujoco/robots/).
 
-         Lidar (default sensor): the Lite3 has it on the back, 10 cm above
-         the torso centre, seeing -30 to 52 deg (a Mid-360, -7 to 52, tilted
-         forward sees about this far down ahead); the T1 on top of its head
-         (1.2 m), seeing -50 to 30 deg. Either way the ground near the robot
-         is seen. With the lidar, scripts/terrain_filter.py turns the scans
-         into obstacle columns: ramps and steps up to 9 cm are walkable,
-         overhead returns (a table top above the Lite3) are not obstacles.
-         The depth camera looks forward from the torso (Lite3) or the face
-         (T1).
+         With the lidar (default sensor), scripts/terrain_filter.py turns the
+         scans into obstacle columns: ramps and steps up to max_step are
+         walkable, returns above robot_height (a table top above the Lite3)
+         are not obstacles. The depth camera looks forward from the robot.
 
          world:=forest      the quadrotor's pillar forest instead of the
                             default house (rooms with furniture, a ramp, a
@@ -32,18 +26,25 @@
          viewer:=false      no web viewer (headless runs, CI)
          sensor:=depth      avoid obstacles with the depth camera instead -->
 
-    <arg name="robot" default="lite3"/>
-    <!-- Per robot: walking height of the torso (the planner's altitude),
-         lidar mount in the torso frame, beam elevations, height above which
-         returns are overhead, inflation (the T1's arms reach 0.27 m out),
-         the RViz map's top and speed -->
-    <arg name="altitude" value="$(eval 0.34 if robot == 'lite3' else 0.67)"/>
-    <arg name="lidar_offset" value="$(eval '[0.0, 0.0, 0.10]' if robot == 'lite3' else '[0.07, 0.0, 0.53]')"/>
-    <arg name="lidar_vfov" default="$(eval '-30 52' if robot == 'lite3' else '-50 30')"/>
-    <arg name="robot_height" value="$(eval 0.55 if robot == 'lite3' else 1.25)"/>
-    <arg name="obstacles_inflation" default="$(eval 0.3 if robot == 'lite3' else 0.35)"/>
-    <arg name="visualization_max_height" value="$(eval 0.6 if robot == 'lite3' else 1.2)"/>
-    <arg name="max_vel" value="$(eval 0.6 if robot == 'lite3' else 0.5)"/>
+    <!-- The robot: a module of mujoco_sim/star_nav_mujoco/robots/ -->
+    <arg name="robot"/>
+    <!-- Its sizes, set by its launch file. altitude and lidar_offset repeat
+         stand_height and lidar_mount of the robot's module
+         (mujoco_sim/tests/test_robots.py checks them).
+         altitude: height its body stands at (the planner's flight height)
+         lidar_offset: lidar position in the body frame
+         robot_height: returns above this are overhead, not obstacles
+         max_step: the highest step that is walkable
+         obstacles_inflation: clearance the planner keeps
+         visualization_max_height: top of the map shown in RViz
+         max_vel: speed limit of the planner (m/s) -->
+    <arg name="altitude"/>
+    <arg name="lidar_offset"/>
+    <arg name="robot_height"/>
+    <arg name="max_step"/>
+    <arg name="obstacles_inflation"/>
+    <arg name="visualization_max_height"/>
+    <arg name="max_vel"/>
 
     <arg name="drone_id" default="0"/>
     <arg name="obj_num" default="10"/>
@@ -91,7 +92,7 @@
     <arg name="viewer_flag" value="--no-viewer" unless="$(arg viewer)"/>
     <node if="$(arg start_sim)" pkg="star_nav_bringup" type="mujoco_sim.sh"
           name="mujoco_sim" output="screen" required="true"
-          args="--robot $(arg robot) --world $(arg world) --seed $(arg seed) --map-size $(arg map_size_x) $(arg map_size_y) --sensor $(arg sensor) --lidar-vfov $(arg lidar_vfov) $(arg viewer_flag) $(arg sim_args)"/>
+          args="--robot $(arg robot) --world $(arg world) --seed $(arg seed) --map-size $(arg map_size_x) $(arg map_size_y) --sensor $(arg sensor) $(arg viewer_flag) $(arg sim_args)"/>
 
     <!-- ============================== -->
     <!-- 2. ROS bridge                  -->
@@ -123,6 +124,7 @@
         <param name="map_size_y" value="$(arg map_size_y)"/>
         <param name="column_max_z" value="$(eval arg('map_size_z') - 0.1)"/>
         <param name="robot_height" value="$(arg robot_height)"/>
+        <param name="max_step" value="$(arg max_step)"/>
     </node>
 
     <!-- ============================== -->
@@ -155,10 +157,10 @@
         <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
         <!-- Terrain filter output replaces the local map on every scan -->
         <arg name="pointcloud_raycasting" value="$(eval arg('sensor') == 'lidar' and arg('lidar_raycasting') and not arg('use_terrain'))"/>
-        <!-- LIDAR_MOUNT of lite3.py / t1.py, in the torso frame -->
+        <!-- In the frame of the robot's body -->
         <arg name="lidar_offset" value="$(arg lidar_offset)"/>
-        <!-- A walking robot: returns below 10 cm are floor (free space);
-             waypoints at torso height -->
+        <!-- On the ground: returns below 10 cm are floor (free space);
+             waypoints at body height -->
         <arg name="obstacle_min_height" value="$(eval -1000.0 if arg('use_terrain') else 0.1)"/>
         <arg name="altitude" value="$(arg altitude)"/>
         <arg name="max_vel" value="$(arg max_vel)"/>

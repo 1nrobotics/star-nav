@@ -140,7 +140,7 @@ Simulator flags, passed with `sim_args:="..."`:
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--lidar-beams` | 32 | Number of beams (rows) |
-| `--lidar-vfov LOW HIGH` | -22.5 22.5 | Elevation of the lowest and highest beam (deg) |
+| `--lidar-vfov LOW HIGH` | the robot's (quadrotor: -22.5 22.5) | Elevation of the lowest and highest beam (deg) |
 | `--lidar-columns` | 1024 | Azimuth samples per revolution |
 | `--lidar-rate` | 10 | Scans per second |
 | `--lidar-range` | 10 | Maximum range (m) |

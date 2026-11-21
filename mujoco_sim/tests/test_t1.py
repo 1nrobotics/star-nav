@@ -1,7 +1,7 @@
 """Tests for the T1 humanoid and the scene textures.
 
 The weight-extraction and texture tests always run. The walking and sensor
-tests need the downloaded model and policy (``star-nav-mujoco --fetch-t1``);
+tests need the downloaded model and policy (``star-nav-mujoco --fetch t1``);
 they are skipped without them.
 """
 
@@ -20,9 +20,9 @@ from star_nav_mujoco import lidar
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
 from star_nav_mujoco import sim
-from star_nav_mujoco import t1
 from star_nav_mujoco import textures
 from star_nav_mujoco import world
+from star_nav_mujoco.robots import t1
 
 
 # -- no assets needed -----------------------------------------------------------
@@ -96,12 +96,12 @@ def _assets_available() -> bool:
 
 needs_t1 = pytest.mark.skipif(
     not _assets_available(),
-    reason='T1 not downloaded (star-nav-mujoco --fetch-t1)')
+    reason='T1 not downloaded (star-nav-mujoco --fetch t1)')
 
 
 def _robot(obstacles, **kw):
   cfg = sim.SimConfig(world=world.WorldConfig(size_x=10, size_y=10),
-                      start=(0.0, 0.0, t1.STAND_HEIGHT), robot=sim.T1, **kw)
+                      start=(0.0, 0.0, t1.STAND_HEIGHT), robot='t1', **kw)
   return sim.Simulator(cfg, obstacles=obstacles, render_depth=False)
 
 
@@ -130,7 +130,7 @@ def test_walks_to_a_setpoint_and_turns_to_its_yaw():
   yaw = 2.0 * math.atan2(s.data.qpos[6], s.data.qpos[3])
   assert np.hypot(s.pos[0] - 2.0, s.pos[1] - 1.0) < 0.15
   assert abs(math.remainder(yaw - math.pi / 2, 2 * math.pi)) < math.radians(10)
-  assert not s._fallen and s.contact_steps == 0
+  assert not s.fallen and s.contact_steps == 0
   s.close()
 
 
@@ -147,7 +147,7 @@ def test_obstacle_contact_is_counted_but_not_the_floor():
 def test_sensors_do_not_see_the_robot():
   s = sim.Simulator(sim.SimConfig(
       world=world.WorldConfig(size_x=10, size_y=10),
-      start=(0.0, 0.0, t1.STAND_HEIGHT), robot=sim.T1,
+      start=(0.0, 0.0, t1.STAND_HEIGHT), robot='t1',
       lidar=lidar.LidarConfig(vfov=(-50.0, 30.0))), obstacles=[])
   s.step(int(1.0 / t1.TIMESTEP))
   scan = s.scan_lidar()
@@ -164,7 +164,7 @@ def test_sensors_do_not_see_the_robot():
 
 def _house(start, yaw):
   cfg = sim.SimConfig(start=(start[0], start[1], t1.STAND_HEIGHT),
-                      robot=sim.T1, house=True)
+                      robot='t1', house=True)
   s = sim.Simulator(cfg, render_depth=False)
   s.data.qpos[3:7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
   s.step(int(1.0 / t1.TIMESTEP))
@@ -193,5 +193,5 @@ def test_walks_up_the_house_ramp_and_down_the_stairs():
   peak = _walk_y(s, -4.0, 3.0, 0.4, math.pi / 2)
   assert peak > t1.STAND_HEIGHT + house.RISE - 0.04  # on the platform
   assert abs(s.pos[1] - 3.0) < 0.25
-  assert not s._fallen and s.contact_steps == 0
+  assert not s.fallen and s.contact_steps == 0
   s.close()

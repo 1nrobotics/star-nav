@@ -1,6 +1,6 @@
 """Builds the MuJoCo scene (MJCF) for the forest world and the quadrotor.
 
-Other robots (the Lite3 quadruped) are attached to it with MjSpec.
+Other robots (``robots/``) are attached to it with MjSpec.
 """
 
 from __future__ import annotations
@@ -21,30 +21,6 @@ CAM_OFFSET = 0.14  # metres ahead of the body centre
 MARKER_GROUP = 2
 # Geom group of an attached robot's own geoms (its legs); sensors ignore it.
 ROBOT_GROUP = 3
-# The robot's root body, by robot.
-ROBOT_BODIES = ('quad', 'lite3/TORSO', 't1/Trunk')
-
-
-def robot_body(model) -> int:
-  """Returns the id of the robot's root body."""
-  for name in ROBOT_BODIES:
-    try:
-      return model.body(name).id
-    except KeyError:
-      continue
-  raise KeyError(f'no robot body ({", ".join(ROBOT_BODIES)}) in the model')
-
-
-def follow_camera(model) -> tuple[float, float]:
-  """Distance (m) and elevation (deg) of a camera following the robot.
-
-  A walking robot is seen closer and from above, so walls do not hide it.
-  """
-  name = model.body(robot_body(model)).name
-  if name == 'quad':
-    return 5.0, -25.0
-  return (4.0 if name.startswith('t1/') else 3.2), -50.0
-
 RING_SEGMENTS = 24
 RING_TUBE = 0.04
 

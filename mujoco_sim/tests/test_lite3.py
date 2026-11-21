@@ -1,7 +1,7 @@
 """Tests for the Lite3 quadruped.
 
 The tracker tests always run. The walking and sensor tests need the
-downloaded model and policy (``star-nav-mujoco --fetch-lite3``) and
+downloaded model and policy (``star-nav-mujoco --fetch lite3``) and
 onnxruntime; they are skipped without them.
 """
 
@@ -14,17 +14,18 @@ import numpy as np
 import pytest
 
 from star_nav_mujoco import lidar
-from star_nav_mujoco import lite3
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import sim
+from star_nav_mujoco import tracking
 from star_nav_mujoco import world
+from star_nav_mujoco.robots import lite3
 
 
 # -- tracker (no assets needed) -------------------------------------------------
 
 
 def test_tracker_walks_sideways_in_the_body_frame():
-  t = lite3.Tracker()
+  t = tracking.Holonomic()
   # Facing +y; the setpoint is 0.2 m along +x: that is to the right.
   fwd, side, turn = t.twist([0.2, 0.0, 0.3], np.zeros(3), math.pi / 2,
                             np.zeros(3), math.pi / 2)
@@ -33,13 +34,13 @@ def test_tracker_walks_sideways_in_the_body_frame():
 
 
 def test_tracker_follows_setpoint_velocity_within_the_limit():
-  t = lite3.Tracker()
+  t = tracking.Holonomic()
   fwd, side, _ = t.twist(np.zeros(3), [2.0, 0.0, 0.0], 0.0, np.zeros(3), 0.0)
   assert fwd == pytest.approx(t.max_speed) and side == 0.0
 
 
 def test_tracker_turns_towards_the_planner_yaw():
-  t = lite3.Tracker()
+  t = tracking.Holonomic()
   _, _, turn = t.twist(np.zeros(3), np.zeros(3), 1.0, np.zeros(3), 0.0)
   assert turn == pytest.approx(t.max_turn)
   _, _, turn = t.twist(np.zeros(3), np.zeros(3), -0.2, np.zeros(3), 0.0)
@@ -47,7 +48,7 @@ def test_tracker_turns_towards_the_planner_yaw():
 
 
 def test_tracker_stands_at_a_resting_setpoint():
-  t = lite3.Tracker()
+  t = tracking.Holonomic()
   twist = t.twist([0.01, 0.0, 0.3], np.zeros(3), 0.01, np.zeros(3), 0.0)
   np.testing.assert_array_equal(twist, 0.0)
 
@@ -65,12 +66,12 @@ def _assets_available() -> bool:
 
 needs_lite3 = pytest.mark.skipif(
     not _assets_available(),
-    reason='Lite3 not downloaded (star-nav-mujoco --fetch-lite3)')
+    reason='Lite3 not downloaded (star-nav-mujoco --fetch lite3)')
 
 
 def _robot(obstacles, **kw):
   cfg = sim.SimConfig(world=world.WorldConfig(size_x=10, size_y=10),
-                      start=(0.0, 0.0, lite3.STAND_HEIGHT), robot=sim.LITE3, **kw)
+                      start=(0.0, 0.0, lite3.STAND_HEIGHT), robot='lite3', **kw)
   return sim.Simulator(cfg, obstacles=obstacles, render_depth=False)
 
 
@@ -99,7 +100,7 @@ def test_walks_to_a_setpoint_and_turns_to_its_yaw():
   yaw = 2.0 * math.atan2(s.data.qpos[6], s.data.qpos[3])
   assert np.hypot(s.pos[0] - 2.0, s.pos[1] - 1.0) < 0.1
   assert abs(math.remainder(yaw - math.pi / 2, 2 * math.pi)) < math.radians(8)
-  assert not s._fallen and s.contact_steps == 0
+  assert not s.fallen and s.contact_steps == 0
   s.close()
 
 
@@ -128,7 +129,7 @@ def test_lidar_does_not_see_the_robot():
 
 def _house(start, yaw):
   cfg = sim.SimConfig(start=(start[0], start[1], lite3.STAND_HEIGHT),
-                      robot=sim.LITE3, house=True)
+                      robot='lite3', house=True)
   s = sim.Simulator(cfg, render_depth=False)
   s.data.qpos[3:7] = [math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2)]
   s.step(int(1.0 / lite3.TIMESTEP))
@@ -163,5 +164,5 @@ def test_walks_over_the_house_ramp_platform_and_stairs(up):
     end = -4.0
   assert peak > lite3.STAND_HEIGHT + house.RISE - 0.03  # on the platform
   assert abs(s.pos[1] - end) < 0.2
-  assert not s._fallen and s.contact_steps == 0
+  assert not s.fallen and s.contact_steps == 0
   s.close()

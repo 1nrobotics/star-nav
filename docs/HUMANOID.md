@@ -32,7 +32,7 @@ waypoints ─► EGO-Planner (0.67 m, 0.5 m/s, 0.35 m inflation) ─► pos_cmd
                                                    joint PD, 500 Hz ─► MuJoCo
 ```
 
-### Control (`mujoco_sim/star_nav_mujoco/t1.py`)
+### Control (`mujoco_sim/star_nav_mujoco/robots/t1.py`)
 
 - **Model**: `T1_locomotion.xml` with its 24 meshes, attached to the scene with
   `MjSpec` under the `t1/` prefix. A depth camera goes in the face and a lidar
@@ -50,15 +50,16 @@ waypoints ─► EGO-Planner (0.67 m, 0.5 m/s, 0.35 m inflation) ─► pos_cmd
 - **Action**: joint targets = standing pose + action (clipped to ±1); PD with
   kp 200 and kd 5 on hips and knees, 50 and 1 on ankles, at every 2 ms step,
   clipped to the model's torque limits.
-- **Steering**: the Lite3's `Tracker` (setpoint velocity plus 1.5/s ×
+- **Steering**: the Lite3's tracker, `tracking.Holonomic` (setpoint velocity plus 1.5/s ×
   position error, turn to the planner's yaw, stand on a resting setpoint).
 
 ### Planning
 
-Everything is in `exploration_legged.launch` (`robot:=t1`), shared with the
-Lite3. Per robot, it sets the walking height, the lidar mount and beam angles,
-the terrain filter's overhead height, the inflation, the planner speed, and
-the top of the map shown in RViz.
+`exploration_t1.launch` sets the robot's sizes: the walking height, the lidar
+mount, the terrain filter's overhead height, the inflation, the planner speed,
+and the top of the map shown in RViz. Everything else is in
+`exploration_ground.launch`, shared with the Lite3. The lidar's beam angles
+are in `robots/t1.py`.
 
 | | Lite3 | T1 |
 |---|---|---|

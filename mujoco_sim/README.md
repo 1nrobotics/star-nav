@@ -57,7 +57,7 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--robot` | quadrotor | `quadrotor`, `lite3` (quadruped) or `t1` (humanoid), see below |
-| `--fetch-lite3`, `--fetch-t1` | | Download the Lite3 or T1 model and policy, then exit |
+| `--fetch ROBOT` | | Download the model and policy of `lite3` or `t1`, then exit |
 | `--world` | forest | `forest` or `house` (rooms, ramp, platform, stairs; `house.py`) |
 | `--seed` | 1 | Forest layout |
 | `--map-size X Y` | 50 50 | Forest extent (m) |
@@ -101,12 +101,12 @@ camera bypasses the terrain filter, so use it in the forest (flat ground).
   last action, as upstream's ONNX runner; joint PD (kp 30, kd 1, 30 N m) at
   every 2 ms physics step. Measured on flat ground: forward 0.5 → 0.49 m/s,
   sideways 0.3 → 0.24 m/s, turn 0.5 → 0.45 rad/s.
-- `lite3.Tracker` turns the planner's setpoint into a body-frame command
+- `tracking.Holonomic` turns the planner's setpoint into a body-frame command
   (setpoint velocity plus 1.5/s × position error, at most 0.8 m/s) and turns
   towards the planner's yaw; it stands on a resting setpoint.
 - Sensors: the depth camera at the front of the torso, the lidar 10 cm above
-  the torso centre (`exploration_legged.launch`: −30° … 52°, about what a
-  Mid-360 tilted forward sees ahead). Neither sees the robot's own legs
+  the torso centre, seeing −30° … 52° (about what a Mid-360 tilted forward
+  sees ahead). Neither sees the robot's own legs
   (geom group 3).
 - Terrain: on the lidar path, `star_nav_bringup/scripts/terrain_filter.py`
   keeps a 2.5D grid (lowest return per 0.1 m cell, highest within 0.55 m
@@ -148,7 +148,7 @@ above the walking height would stop that.
   [booster_gym](https://github.com/BoosterRobotics/booster_gym) (Apache-2.0)
   into `~/.cache/star_nav/t1` (`STAR_NAV_T1_DIR` to change), not committed:
   `T1_locomotion.xml` with its meshes, and the trained actor `T1.pt`
-  (checked by SHA-256). `T1.pt` is a TorchScript MLP; `t1.py` reads its
+  (checked by SHA-256). `T1.pt` is a TorchScript MLP; `robots/t1.py` reads its
   weights from the archive's raw tensor files (no unpickling, no PyTorch) and
   runs it in NumPy.
 - Walking: the policy runs at 50 Hz on gravity direction, body angular
@@ -157,7 +157,7 @@ above the walking height would stop that.
   action, as upstream's `play_mujoco.py`; joint PD (hips and knees kp 200,
   kd 5; ankles 50, 1) at every 2 ms physics step. Measured on flat ground:
   forward 0.5 → 0.42 m/s, sideways 0.3 → 0.26 m/s, turn 0.5 → 0.51 rad/s.
-- Steering: the Lite3's `Tracker`. Sensors: the depth camera in the face
+- Steering: the Lite3's `tracking.Holonomic`. Sensors: the depth camera in the face
   (1.07 m), the lidar on top of the head (1.2 m, −50° … 30°); neither sees
   the robot (its meshes are in group 2, its collision geoms in group 3).
 - The planner walks it at 0.5 m/s, waypoints at trunk height (0.67 m), with
