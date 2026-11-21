@@ -409,7 +409,7 @@ For the T1 in this simulator:
    height-band projection in the grid map, so `sensor:=depth` works; keep the
    virtual ceiling for drones.
 2. **CMU local planner as a second backend** for walking robots
-   (`exploration_legged.launch planner:=ego|cmu`), compared on the same
+   (`exploration_ground.launch planner:=ego|cmu`), compared on the same
    missions.
 3. **MPPI tracking** in place of the proportional `Tracker`, with a lagged
    velocity model of the walking policy (section 6; not started).
