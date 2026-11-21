@@ -115,6 +115,16 @@ rostest star_nav_bringup t1_smoke.test                     # house, lidar
 ```
 Status and limitations: [HUMANOID.md](HUMANOID.md).
 
+Two wheels: Mondo Robotics' Beni, a 0.2 m balancing robot, driving with its
+upstream policy (MIT, downloaded, not committed). It gets up by itself after
+a fall, and cannot climb steps:
+
+```bash
+./scripts/setup_mujoco_env.sh --beni
+roslaunch star_nav_bringup exploration_beni.launch use_rviz:=true
+rostest star_nav_bringup beni_smoke.test                   # forest, lidar
+```
+
 Details, options and the bridge protocol: [mujoco_sim/README.md](../mujoco_sim/README.md).
 
 ## Interactive Workflow: Docker (Linux host)

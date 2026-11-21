@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "star-nav-mujoco"
 version = "0.1.0"
-description = "Standalone MuJoCo simulator (quadrotor, Lite3 quadruped) for the Star Nav planning stack"
+description = "Standalone MuJoCo simulator (quadrotor, Lite3 quadruped, T1 humanoid, Beni) for the Star Nav planning stack"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [

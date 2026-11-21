@@ -22,7 +22,7 @@ MARKER_GROUP = 2
 # Geom group of an attached robot's own geoms (its legs); sensors ignore it.
 ROBOT_GROUP = 3
 # The robot's root body, by robot.
-ROBOT_BODIES = ('quad', 'lite3/TORSO', 't1/Trunk')
+ROBOT_BODIES = ('quad', 'lite3/TORSO', 't1/Trunk', 'beni/base_link')
 
 
 def robot_body(model) -> int:
@@ -43,6 +43,8 @@ def follow_camera(model) -> tuple[float, float]:
   name = model.body(robot_body(model)).name
   if name == 'quad':
     return 5.0, -25.0
+  if name.startswith('beni/'):
+    return 2.0, -40.0  # 0.2 m tall
   return (4.0 if name.startswith('t1/') else 3.2), -50.0
 
 RING_SEGMENTS = 24

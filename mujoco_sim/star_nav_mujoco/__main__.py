@@ -32,6 +32,7 @@ _DEFAULTS = {
     'quadrotor': dict(rings=50, start=(0.0, 0.0, 1.0), world='forest'),
     'lite3': dict(rings=0, start=(0.0, 0.0, 0.34), world='house'),
     't1': dict(rings=0, start=(0.0, 0.0, 0.67), world='house'),
+    'beni': dict(rings=0, start=(0.0, 0.0, 0.11), world='house'),
 }
 
 
@@ -39,25 +40,27 @@ def main(argv: list[str] | None = None) -> int:
   ap = argparse.ArgumentParser(
       prog='star_nav_mujoco',
       description='MuJoCo simulator for Star Nav (quadrotor, Lite3 '
-      'quadruped or T1 humanoid). Talks to the ROS bridge (mujoco_bridge) '
+      'quadruped, T1 humanoid or Beni). Talks to the ROS bridge (mujoco_bridge) '
       'over ZeroMQ and serves a web viewer.')
-  ap.add_argument('--robot', choices=('quadrotor', 'lite3', 't1'),
+  ap.add_argument('--robot', choices=('quadrotor', 'lite3', 't1', 'beni'),
                   default='quadrotor')
   ap.add_argument('--fetch-lite3', action='store_true',
                   help='download the Lite3 model and walking policy, then '
                   'exit')
   ap.add_argument('--fetch-t1', action='store_true',
                   help='download the T1 model and walking policy, then exit')
+  ap.add_argument('--fetch-beni', action='store_true',
+                  help='download the Beni model and policy, then exit')
   ap.add_argument('--world', choices=('forest', 'house'), default=None,
                   help='forest (random pillars and rings) or house (rooms, a '
                   'ramp and stairs; house.py). Default: forest (quadrotor), '
-                  'house (lite3, t1)')
+                  'house (lite3, t1, beni)')
   ap.add_argument('--seed', type=int, default=1, help='forest seed')
   ap.add_argument('--map-size', type=float, nargs=2, default=(50.0, 50.0),
                   metavar=('X', 'Y'))
   ap.add_argument('--pillars', type=int, default=100)
   ap.add_argument('--rings', type=int, default=None,
-                  help='default: 50 (quadrotor), 0 (lite3, t1)')
+                  help='default: 50 (quadrotor), 0 (lite3, t1, beni)')
   ap.add_argument('--start', type=float, nargs=3, default=None,
                   metavar=('X', 'Y', 'Z'), help='default: 0 0 1 (quadrotor); '
                   'walking robots ignore Z')
@@ -101,6 +104,10 @@ def main(argv: list[str] | None = None) -> int:
   if args.fetch_t1:
     from star_nav_mujoco import t1  # pylint: disable=g-import-not-at-top
     t1.fetch(log=logging.info)
+    return 0
+  if args.fetch_beni:
+    from star_nav_mujoco import beni  # pylint: disable=g-import-not-at-top
+    beni.fetch(log=logging.info)
     return 0
   for key, value in _DEFAULTS[args.robot].items():
     if getattr(args, key) is None:

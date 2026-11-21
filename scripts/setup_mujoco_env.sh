@@ -12,6 +12,9 @@
 #   ./scripts/setup_mujoco_env.sh --t1            # also the T1 humanoid: its
 #                                                 # model and policy
 #                                                 # (downloaded, Apache-2.0)
+#   ./scripts/setup_mujoco_env.sh --beni          # also Beni (two wheels): its
+#                                                 # model and policy
+#                                                 # (downloaded, MIT)
 
 set -euo pipefail
 
@@ -20,10 +23,12 @@ venv="${repo}/mujoco_sim/.venv"
 extras="test"
 lite3=false
 t1=false
+beni=false
 for a in "$@"; do
   case "${a}" in
     --lite3) lite3=true; extras="${extras},lite3" ;;
     --t1) t1=true ;;
+    --beni) beni=true ;;
     *) echo "unknown option: ${a}" >&2; exit 2 ;;
   esac
 done
@@ -57,5 +62,8 @@ if [[ "${lite3}" == true ]]; then
 fi
 if [[ "${t1}" == true ]]; then
   "${venv}/bin/python" -m star_nav_mujoco --fetch-t1
+fi
+if [[ "${beni}" == true ]]; then
+  "${venv}/bin/python" -m star_nav_mujoco --fetch-beni
 fi
 echo "Ready: ${venv}"

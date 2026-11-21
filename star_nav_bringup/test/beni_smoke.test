@@ -1,0 +1,59 @@
+<launch>
+    <!-- Headless end-to-end check with Beni (two wheels, balancing) in MuJoCo:
+         rostest star_nav_bringup beni_smoke.test
+         Needs the robot: the beni option of scripts/setup_mujoco_env.sh. By
+         default it drives the mission through the pillar forest with the
+         lidar (and checks the map against the world). world:=house drives
+         it through the house; it cannot climb the steps there. -->
+    <arg name="exploration_width" default="9.0"/>
+    <arg name="exploration_height" default="9.0"/>
+    <arg name="line_spacing" default="3.0"/>
+    <arg name="expected_waypoints" default="12"/>
+    <arg name="start_sim" default="true"/>
+    <arg name="sim_host" default="127.0.0.1"/>
+    <arg name="sim_args" default=""/>
+    <arg name="sensor" default="lidar"/>
+    <arg name="world" default="forest"/>
+    <arg name="terrain" default="true"/>
+    <arg name="lidar_raycasting" default="true"/>
+    <arg name="lidar_max_hits" default="6"/>
+    <arg name="sliding_map" default="true"/>
+    <arg name="show_occ_time" default="false"/>
+
+    <include file="$(find star_nav_bringup)/launch/exploration_legged.launch">
+        <arg name="robot" value="beni"/>
+        <arg name="use_rviz" value="false"/>
+        <arg name="viewer" value="false"/>
+        <arg name="start_sim" value="$(arg start_sim)"/>
+        <arg name="sim_host" value="$(arg sim_host)"/>
+        <arg name="sim_args" value="$(arg sim_args)"/>
+        <arg name="sensor" value="$(arg sensor)"/>
+        <arg name="world" value="$(arg world)"/>
+        <arg name="terrain" value="$(arg terrain)"/>
+        <arg name="lidar_raycasting" value="$(arg lidar_raycasting)"/>
+        <arg name="lidar_max_hits" value="$(arg lidar_max_hits)"/>
+        <arg name="sliding_map" value="$(arg sliding_map)"/>
+        <arg name="show_occ_time" value="$(arg show_occ_time)"/>
+        <arg name="exploration_width" value="$(arg exploration_width)"/>
+        <arg name="exploration_height" value="$(arg exploration_height)"/>
+        <arg name="line_spacing" value="$(arg line_spacing)"/>
+    </include>
+
+    <test test-name="beni_smoke" pkg="star_nav_bringup" type="sim_smoke_test.py" time-limit="600.0">
+        <param name="expected_waypoints" value="$(arg expected_waypoints)"/>
+        <param name="exploration_width" value="$(arg exploration_width)"/>
+        <param name="exploration_height" value="$(arg exploration_height)"/>
+        <param name="contacts_topic" value="/mujoco/contacts"/>
+        <!-- Check the sensor data and the planner's map against the world -->
+        <param name="obstacles_topic" value="/mujoco/obstacles" if="$(eval world == 'forest')"/>
+        <!-- The raw lidar (the terrain filter's output is obstacle columns) -->
+        <param name="sensor_cloud_topic" value="$(eval '/drone_0_lidar/cloud' if terrain else '/drone_0_pcl_render_node/cloud')" if="$(eval sensor == 'lidar')"/>
+        <param name="min_map_recall" value="0.95" if="$(eval sensor == 'lidar')"/>
+        <param name="mission_timeout" value="420.0"/>
+        <!-- 0.2 m inflation (two voxels): inflated voxels reach ~0.35 m -->
+        <param name="phantom_tol" value="0.5"/>
+        <!-- The terrain filter extrudes each obstacle cell to the map top, so
+             voxels above a short pillar are expected: no phantom check -->
+        <param name="max_phantom_ratio" value="1.0" if="$(eval sensor == 'lidar' and terrain)"/>
+    </test>
+</launch>

@@ -47,6 +47,11 @@ Notes:
   (`--fetch-t1`) at a pinned commit and not redistributed here;
   `star_nav_mujoco/t1.py` reads the policy's weights and reimplements its
   observation and PD control from `play_mujoco.py`.
+- The Beni model (MJCF, meshes, textures) and policy (`policy.onnx`) are
+  Mondo Robotics' open-beni (MIT). They are downloaded on request
+  (`--fetch-beni`) at a pinned commit and not redistributed here;
+  `star_nav_mujoco/beni.py` reads the policy's weights and reimplements its
+  observation and motor model from the training code.
 - The scene textures (`star_nav_mujoco/textures.py`) are generated with
   NumPy at run time; no image files are used.
 - The MuJoCo quadrotor controller implements the published geometric

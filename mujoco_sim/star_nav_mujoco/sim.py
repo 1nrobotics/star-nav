@@ -1,7 +1,7 @@
 """Robot simulator: MuJoCo physics, controller, depth camera and lidar.
 
-The robot is the quadrotor (default), the Lite3 quadruped or the T1 humanoid;
-all follow the planner's position setpoints and carry the same sensors.
+The robot is the quadrotor (default), the Lite3 quadruped, the T1 humanoid or
+Beni (two wheels, balancing); all follow the planner's position setpoints and carry the same sensors.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import time
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import beni
 from star_nav_mujoco import house
 from star_nav_mujoco import lidar as lidar_lib
 from star_nav_mujoco import lite3
@@ -34,9 +35,10 @@ _CAM_TO_OPTICAL = np.diag([1.0, -1.0, -1.0])
 QUADROTOR = 'quadrotor'
 LITE3 = 'lite3'
 T1 = 't1'
-ROBOTS = (QUADROTOR, LITE3, T1)
-# Walking robots and their modules (model, policy, sensor mounts).
-LEGGED = {LITE3: lite3, T1: t1}
+BENI = 'beni'
+ROBOTS = (QUADROTOR, LITE3, T1, BENI)
+# Ground robots and their modules (model, policy, sensor mounts).
+LEGGED = {LITE3: lite3, T1: t1, BENI: beni}
 
 
 @dataclasses.dataclass

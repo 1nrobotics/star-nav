@@ -2,8 +2,8 @@
     <!-- ================================================ -->
     <!-- Exploration with a walking robot (MuJoCo)          -->
     <!-- ================================================ -->
-    <!-- Used by exploration_lite3.launch and exploration_t1.launch; robot:=
-         picks the robot and its sizes below.
+    <!-- Used by exploration_lite3.launch, exploration_t1.launch and
+         exploration_beni.launch; robot:= picks the robot and its sizes below.
 
          Same planning stack and sensors as exploration_mujoco.launch, on a
          walking robot instead of the quadrotor: DeepRobotics' Lite3
@@ -11,6 +11,10 @@
          with the upstream velocity policy and steers it to the planner's
          setpoints and yaw. Download the robot once first: the lite3 or t1
          option of scripts/setup_mujoco_env.sh (docs/SIMULATION.md).
+
+         robot:=beni is Mondo Robotics' Beni, which balances on two wheels
+         (0.2 m tall, the beni option of the setup script): the same stack,
+         lower and faster, and nothing higher than 4 cm is walkable.
 
          Lidar (default sensor): the Lite3 has it on the back, 10 cm above
          the torso centre, seeing -30 to 52 deg (a Mid-360, -7 to 52, tilted
@@ -35,15 +39,16 @@
     <arg name="robot" default="lite3"/>
     <!-- Per robot: walking height of the torso (the planner's altitude),
          lidar mount in the torso frame, beam elevations, height above which
-         returns are overhead, inflation (the T1's arms reach 0.27 m out),
-         the RViz map's top and speed -->
-    <arg name="altitude" value="$(eval 0.34 if robot == 'lite3' else 0.67)"/>
-    <arg name="lidar_offset" value="$(eval '[0.0, 0.0, 0.10]' if robot == 'lite3' else '[0.07, 0.0, 0.53]')"/>
-    <arg name="lidar_vfov" default="$(eval '-30 52' if robot == 'lite3' else '-50 30')"/>
-    <arg name="robot_height" value="$(eval 0.55 if robot == 'lite3' else 1.25)"/>
-    <arg name="obstacles_inflation" default="$(eval 0.3 if robot == 'lite3' else 0.35)"/>
-    <arg name="visualization_max_height" value="$(eval 0.6 if robot == 'lite3' else 1.2)"/>
-    <arg name="max_vel" value="$(eval 0.6 if robot == 'lite3' else 0.5)"/>
+         returns are overhead, the highest step that is walkable, inflation
+         (the T1's arms reach 0.27 m out), the RViz map's top and speed -->
+    <arg name="altitude" value="$(eval dict(lite3=0.34, t1=0.67, beni=0.11)[robot])"/>
+    <arg name="lidar_offset" value="$(eval dict(lite3='[0.0, 0.0, 0.10]', t1='[0.07, 0.0, 0.53]', beni='[0.0, 0.0, 0.14]')[robot])"/>
+    <arg name="lidar_vfov" default="$(eval dict(lite3='-30 52', t1='-50 30', beni='-30 52')[robot])"/>
+    <arg name="robot_height" value="$(eval dict(lite3=0.55, t1=1.25, beni=0.35)[robot])"/>
+    <arg name="max_step" default="$(eval dict(lite3=0.09, t1=0.09, beni=0.04)[robot])"/>
+    <arg name="obstacles_inflation" default="$(eval dict(lite3=0.3, t1=0.35, beni=0.2)[robot])"/>
+    <arg name="visualization_max_height" value="$(eval dict(lite3=0.6, t1=1.2, beni=0.4)[robot])"/>
+    <arg name="max_vel" value="$(eval dict(lite3=0.6, t1=0.5, beni=0.8)[robot])"/>
 
     <arg name="drone_id" default="0"/>
     <arg name="obj_num" default="10"/>
@@ -123,6 +128,7 @@
         <param name="map_size_y" value="$(arg map_size_y)"/>
         <param name="column_max_z" value="$(eval arg('map_size_z') - 0.1)"/>
         <param name="robot_height" value="$(arg robot_height)"/>
+        <param name="max_step" value="$(arg max_step)"/>
     </node>
 
     <!-- ============================== -->
@@ -155,7 +161,7 @@
         <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
         <!-- Terrain filter output replaces the local map on every scan -->
         <arg name="pointcloud_raycasting" value="$(eval arg('sensor') == 'lidar' and arg('lidar_raycasting') and not arg('use_terrain'))"/>
-        <!-- LIDAR_MOUNT of lite3.py / t1.py, in the torso frame -->
+        <!-- LIDAR_MOUNT of lite3.py / t1.py / beni.py, in the torso frame -->
         <arg name="lidar_offset" value="$(arg lidar_offset)"/>
         <!-- A walking robot: returns below 10 cm are floor (free space);
              waypoints at torso height -->
