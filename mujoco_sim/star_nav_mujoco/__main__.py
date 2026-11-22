@@ -48,6 +48,8 @@ def main(argv: list[str] | None = None) -> int:
                   'exit')
   ap.add_argument('--fetch-t1', action='store_true',
                   help='download the T1 model and walking policy, then exit')
+  ap.add_argument('--fetch-mid360', action='store_true',
+                  help="download Livox's Mid-360 beam table, then exit")
   ap.add_argument('--world', choices=('forest', 'house'), default=None,
                   help='forest (random pillars and rings) or house (rooms, a '
                   'ramp and stairs; house.py). Default: forest (quadrotor), '
@@ -70,6 +72,13 @@ def main(argv: list[str] | None = None) -> int:
                   default='depth', help='onboard sensor(s) to simulate')
   ap.add_argument('--depth-rate', type=float, default=30.0)
   lid = ap.add_argument_group('lidar (with --sensor lidar or both)')
+  lid.add_argument('--lidar-pattern', choices=('uniform', 'mid360'),
+                   default='uniform', help='uniform: a spinning lidar with '
+                   "evenly spaced beams. mid360: Livox Mid-360's "
+                   'non-repetitive pattern, 200,000 points per second, '
+                   'elevations -7 to 52 deg (beams, columns and vfov unused)')
+  lid.add_argument('--lidar-pitch', type=float, default=0.0,
+                   help='tilt the sensor nose-down by this angle (deg)')
   lid.add_argument('--lidar-beams', type=int, default=32)
   lid.add_argument('--lidar-columns', type=int, default=1024,
                    help='azimuth samples per revolution')
@@ -102,6 +111,10 @@ def main(argv: list[str] | None = None) -> int:
     from star_nav_mujoco import t1  # pylint: disable=g-import-not-at-top
     t1.fetch(log=logging.info)
     return 0
+  if args.fetch_mid360:
+    from star_nav_mujoco import lidar  # pylint: disable=g-import-not-at-top
+    lidar.fetch_mid360(log=logging.info)
+    return 0
   for key, value in _DEFAULTS[args.robot].items():
     if getattr(args, key) is None:
       setattr(args, key, value)
@@ -118,6 +131,7 @@ def main(argv: list[str] | None = None) -> int:
       start=tuple(args.start), robot=args.robot, house=args.world == 'house')
   if args.sensor != 'depth':
     cfg.lidar = lidar.LidarConfig(
+        pattern=args.lidar_pattern, pitch=args.lidar_pitch,
         beams=args.lidar_beams, vfov=tuple(args.lidar_vfov),
         columns=args.lidar_columns, rate=args.lidar_rate,
         range_max=args.lidar_range, noise=args.lidar_noise)
@@ -129,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
   from star_nav_mujoco import lite3  # pylint: disable=g-import-not-at-top
   try:
     simulator = sim.Simulator(cfg, render_depth=args.sensor != 'lidar')
-  except lite3.MissingAssets as e:
+  except (lite3.MissingAssets, lidar.MissingPattern) as e:
     logging.error('%s', e)
     return 1
   logging.info('%s in a world of %d obstacles (seed %d), sensor %s, GL '

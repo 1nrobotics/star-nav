@@ -47,6 +47,9 @@ Notes:
   (`--fetch-t1`) at a pinned commit and not redistributed here;
   `star_nav_mujoco/t1.py` reads the policy's weights and reimplements its
   observation and PD control from `play_mujoco.py`.
+- The Mid-360 lidar pattern (`--lidar-pattern mid360`) uses the beam table
+  `mid360.csv` of Livox's livox_laser_simulation (MIT). It is downloaded on
+  request (`--fetch-mid360`) at a pinned commit and not redistributed here.
 - The scene textures (`star_nav_mujoco/textures.py`) are generated with
   NumPy at run time; no image files are used.
 - The MuJoCo quadrotor controller implements the published geometric

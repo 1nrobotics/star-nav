@@ -12,6 +12,8 @@
 #   ./scripts/setup_mujoco_env.sh --t1            # also the T1 humanoid: its
 #                                                 # model and policy
 #                                                 # (downloaded, Apache-2.0)
+#   ./scripts/setup_mujoco_env.sh --mid360        # also Livox's Mid-360 beam
+#                                                 # table (downloaded, MIT)
 
 set -euo pipefail
 
@@ -20,10 +22,12 @@ venv="${repo}/mujoco_sim/.venv"
 extras="test"
 lite3=false
 t1=false
+mid360=false
 for a in "$@"; do
   case "${a}" in
     --lite3) lite3=true; extras="${extras},lite3" ;;
     --t1) t1=true ;;
+    --mid360) mid360=true ;;
     *) echo "unknown option: ${a}" >&2; exit 2 ;;
   esac
 done
@@ -57,5 +61,8 @@ if [[ "${lite3}" == true ]]; then
 fi
 if [[ "${t1}" == true ]]; then
   "${venv}/bin/python" -m star_nav_mujoco --fetch-t1
+fi
+if [[ "${mid360}" == true ]]; then
+  "${venv}/bin/python" -m star_nav_mujoco --fetch-mid360
 fi
 echo "Ready: ${venv}"

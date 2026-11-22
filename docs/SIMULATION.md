@@ -89,6 +89,17 @@ rostest star_nav_bringup mujoco_smoke.test sensor:=lidar
 SENSOR=lidar ./scripts/run_mujoco_smoke_test.sh
 ```
 
+The lidar is a spinning one with evenly spaced beams by default. It can
+instead use the non-repetitive pattern of Livox's Mid-360 (200,000 points per
+second, elevations −7° … 52°; the beam table is Livox's, MIT, downloaded, not
+committed), optionally tilted nose-down:
+
+```bash
+./scripts/setup_mujoco_env.sh --mid360
+rostest star_nav_bringup mujoco_smoke.test sensor:=lidar sim_args:="--lidar-pattern mid360"
+rostest star_nav_bringup lite3_smoke.test sim_args:="--lidar-pattern mid360 --lidar-pitch 30"
+```
+
 Quadruped: the same stack on DeepRobotics' Lite3, walking with its upstream
 velocity policy. By default it walks through a furnished house with a ramp, a
 platform and stairs on the mission route, with the lidar on its back; a

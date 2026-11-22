@@ -67,6 +67,8 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | `--sensor` | depth | `depth`, `lidar` or `both` ([docs/SENSORS.md](../docs/SENSORS.md)) |
 | `--depth-rate` | 30 | Depth camera rate (Hz) |
 | `--lidar-*` | 32 x 1024, 10 Hz | Lidar beams, columns, vertical FOV, rate, range, noise |
+| `--lidar-pattern` | uniform | `uniform` (spinning, evenly spaced beams) or `mid360` (Livox Mid-360; fetch its beam table once with `--fetch-mid360`) |
+| `--lidar-pitch` | 0 | Tilt the lidar nose-down (deg) |
 | `--realtime-factor` | 1.0 | Simulated seconds per wall-clock second |
 | `--no-viewer`, `--viewer-port` | off, 8080 | Web viewer |
 | `--record FILE` | off | Write an MP4 from the viewer's follow camera, with lidar returns as dots (needs `ffmpeg`) |
@@ -185,7 +187,11 @@ above the walking height would stop that.
 - Lidar (`--sensor lidar`): 32 beams over −22.5° … +22.5°, 1024 columns,
   10 Hz, 0.3–10 m, mounted 6 cm above the body centre. Each revolution is
   cast at one instant with `mj_multiRay` in parallel threads; points are sent
-  in the sensor frame with the sensor pose. Sensors ignore visual-only
+  in the sensor frame with the sensor pose. With `--lidar-pattern mid360` the
+  beams follow Livox's Mid-360 table instead (elevations −7.2° … 52.2°,
+  20,000 beams per 10 Hz scan, each scan the next part of the 4 s table, so
+  successive scans differ); the 0.3 m minimum range is kept and there is no
+  motion distortion. Sensors ignore visual-only
   markers (geom group 2), such as the setpoint sphere.
 - Unlike the kinematic simulator, both sensors also see the ground, so the
   planner's occupancy map contains the floor (below 0.35 m with inflation,
