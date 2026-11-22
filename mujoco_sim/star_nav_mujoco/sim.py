@@ -364,7 +364,7 @@ def run(sim: Simulator, rc: RunConfig) -> None:
                              copy=False)
           next_lidar = max(next_lidar + lidar_period, sim.time)
           if recorder is not None:
-            lidar_world = scan.pos + scan.points @ sim.rot.T
+            lidar_world = scan.pos + scan.points @ scan.rot.T
         if recorder is not None:
           recorder.maybe_capture(sim.data, lidar_world)
 

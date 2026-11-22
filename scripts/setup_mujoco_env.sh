@@ -12,6 +12,8 @@
 #   ./scripts/setup_mujoco_env.sh --t1            # also the T1 humanoid: its
 #                                                 # model and policy
 #                                                 # (downloaded, Apache-2.0)
+#   ./scripts/setup_mujoco_env.sh --mid360        # also Livox's Mid-360 beam
+#                                                 # table (downloaded, MIT)
 #
 # --<robot> works for every robot in mujoco_sim/star_nav_mujoco/robots/ that
 # has files to download; several can be given.
@@ -22,9 +24,11 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 venv="${repo}/mujoco_sim/.venv"
 extras="test"
 robots=()
+mid360=false
 for a in "$@"; do
   case "${a}" in
     --lite3) robots+=(lite3); extras="${extras},lite3" ;;  # needs onnxruntime
+    --mid360) mid360=true ;;
     --?*) robots+=("${a#--}") ;;
     *) echo "unknown option: ${a}" >&2; exit 2 ;;
   esac
@@ -57,4 +61,7 @@ echo "Using ${python} ($("${python}" --version))"
 for robot in "${robots[@]+"${robots[@]}"}"; do
   "${venv}/bin/python" -m star_nav_mujoco --fetch "${robot}"
 done
+if [[ "${mid360}" == true ]]; then
+  "${venv}/bin/python" -m star_nav_mujoco --fetch-mid360
+fi
 echo "Ready: ${venv}"

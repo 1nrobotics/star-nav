@@ -298,6 +298,48 @@ def test_lidar_noise():
   s.close()
 
 
+def test_lidar_pitch_tilts_the_sensor():
+  cfg = sim.SimConfig(lidar=lidar.LidarConfig(beams=1, vfov=(0.0, 0.0), pitch=30.0))
+  s = sim.Simulator(cfg, render_depth=False, obstacles=[])
+  scan = s.scan_lidar()
+  world_pts = scan.pos + scan.points.astype(float) @ _quat_to_rot(scan.quat).T
+  np.testing.assert_allclose(_quat_to_rot(scan.quat), scan.rot, atol=1e-9)
+  # The horizontal beam now meets the ground ahead, at height / tan(30 deg).
+  assert np.abs(world_pts[:, 2]).max() < 2e-3
+  ahead = world_pts[np.argmax(world_pts[:, 0])]
+  assert ahead[0] == pytest.approx(scan.pos[2] / np.tan(np.deg2rad(30.0)), abs=0.01)
+  assert world_pts[:, 0].min() > 0  # nothing behind: those beams point up
+  s.close()
+
+
+def test_mid360_pattern():
+  try:
+    table = lidar.mid360_directions()
+  except lidar.MissingPattern:
+    pytest.skip('Mid-360 beam table not downloaded (--fetch-mid360)')
+  np.testing.assert_allclose(np.linalg.norm(table, axis=1), 1.0)
+  elevation = np.rad2deg(np.arcsin(table[:, 2]))
+  assert -7.3 < elevation.min() < -7.0 and 52.0 < elevation.max() < 52.3
+
+  cfg = sim.SimConfig(lidar=lidar.LidarConfig(pattern=lidar.MID360, pitch=45.0))
+  s = sim.Simulator(cfg, render_depth=False, obstacles=[])
+  first, second = s.scan_lidar(), s.scan_lidar()
+  assert len(s.lidar.directions) == 20000  # 200,000 points/s at 10 Hz
+  for scan in (first, second):
+    world_pts = scan.pos + scan.points.astype(float) @ scan.rot.T
+    assert len(world_pts) > 1000
+    assert np.abs(world_pts[:, 2]).max() < 2e-3  # all on the ground
+  # Non-repetitive: the next scan uses the next part of the table.
+  assert not np.array_equal(first.points[:100], second.points[:100])
+  s.close()
+
+
+def test_mid360_table_missing(tmp_path, monkeypatch):
+  monkeypatch.setenv('STAR_NAV_LIDAR_DIR', str(tmp_path))
+  with pytest.raises(lidar.MissingPattern, match='--fetch-mid360'):
+    lidar.Lidar(None, lidar.LidarConfig(pattern=lidar.MID360), 0)
+
+
 def test_lidar_protocol_round_trip(lidar_scene):
   _, scan, _ = lidar_scene
   t, pos, quat, beams, pts = protocol.unpack_lidar(protocol.pack_lidar(scan, 32))
