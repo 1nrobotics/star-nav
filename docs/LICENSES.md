@@ -47,6 +47,11 @@ Notes:
   (`--fetch t1`) at a pinned commit and not redistributed here;
   `star_nav_mujoco/robots/t1.py` reads the policy's weights and reimplements its
   observation and PD control from `play_mujoco.py`.
+- The Beni model (MJCF, meshes, textures) and policy (`policy.onnx`) are
+  Mondo Robotics' open-beni (MIT). They are downloaded on request
+  (`--fetch beni`) at a pinned commit and not redistributed here;
+  `star_nav_mujoco/robots/beni.py` reads the policy's weights and reimplements its
+  observation and motor model from the training code.
 - The Mid-360 lidar pattern (`--lidar-model mid360`) uses the beam table
   `mid360.csv` of Livox's livox_laser_simulation (MIT). It is downloaded on
   request (`--fetch mid360`) at a pinned commit and not redistributed here.

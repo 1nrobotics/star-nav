@@ -3,8 +3,8 @@
     <!-- Exploration with a ground robot (MuJoCo)           -->
     <!-- ================================================ -->
     <!-- The part every ground robot shares. Start it through the robot's own
-         launch file (exploration_lite3.launch, exploration_t1.launch),
-         which sets the robot's sizes below.
+         launch file (exploration_lite3.launch, exploration_t1.launch,
+         exploration_beni.launch), which sets the robot's sizes below.
 
          Same planning stack and sensors as exploration_mujoco.launch, on a
          robot that walks or drives. The simulator moves it with the robot's

@@ -1,0 +1,42 @@
+<launch>
+    <!-- Exploration with Mondo Robotics' Beni (two wheels, balancing, 0.2 m
+         tall) in MuJoCo:
+         roslaunch star_nav_bringup exploration_beni.launch use_rviz:=true
+         Download the robot once first: the beni option of
+         scripts/setup_mujoco_env.sh (docs/SIMULATION.md)
+         The lidar is on its head (0.22 m). -->
+    <arg name="robot" value="beni"/>
+    <!-- Beni: base at 0.11 m; lower and faster than the walking robots,
+         and nothing higher than 4 cm is walkable -->
+    <arg name="altitude" value="0.11"/>
+    <arg name="lidar_offset" value="[0.0, 0.0, 0.14]"/>
+    <arg name="robot_height" value="0.35"/>
+    <arg name="max_step" default="0.04"/>
+    <arg name="obstacles_inflation" default="0.2"/>
+    <arg name="visualization_max_height" value="0.4"/>
+    <arg name="max_vel" value="0.8"/>
+
+    <!-- The rest is in exploration_ground.launch, which takes more options
+         than these -->
+    <arg name="use_rviz" default="false"/>
+    <arg name="viewer" default="true"/>
+    <arg name="viewer_port" default="8080"/>
+    <arg name="start_sim" default="true"/>
+    <arg name="sim_host" default="127.0.0.1"/>
+    <arg name="sim_args" default=""/>
+    <arg name="seed" default="1"/>
+    <!-- lidar or depth; house or forest; terrain filter (lidar) -->
+    <arg name="sensor" default="lidar"/>
+    <arg name="lidar" default="uniform"/>
+    <arg name="world" default="house"/>
+    <arg name="terrain" default="true"/>
+    <arg name="lidar_raycasting" default="true"/>
+    <arg name="lidar_max_hits" default="6"/>
+    <arg name="sliding_map" default="true"/>
+    <arg name="show_occ_time" default="false"/>
+    <arg name="exploration_width" default="9.0"/>
+    <arg name="exploration_height" default="9.0"/>
+    <arg name="line_spacing" default="3.0"/>
+
+    <include file="$(find star_nav_bringup)/launch/exploration_ground.launch" pass_all_args="true"/>
+</launch>

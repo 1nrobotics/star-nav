@@ -14,7 +14,7 @@ Written November 2026.
 │ __main__.py   command line → SimConfig, LidarConfig, RunConfig   │
 │ sim.py        Simulator: scene, stepping, contacts, sensors      │
 │               run(): real-time loop, ZeroMQ, viewer, recording   │
-│ robots/       one module per robot: quadrotor, lite3, t1         │
+│ robots/       one module per robot: quadrotor, lite3, t1, beni   │
 │               __init__.py: the Robot interface and the registry  │
 │ shared by     tracking.py (setpoint → velocity command)          │
 │ the robots    policy.py (MLP, GRU, ONNX weights, in NumPy)       │
@@ -83,7 +83,7 @@ four rotor thrusts.
 |---|---|
 | `attach(spec, start, root, lidar)` | Attach the upstream MJCF with `MjSpec` under a prefix (`lite3/`); add the depth camera and the lidar housing; move collision geoms to `ROBOT_GROUP` |
 | `locomotion(model, data, root)` | The policy and joint control: `twist`, `policy_due`, `before_step()`, `reset()` |
-| `tracker` | A class of `tracking.py`: `Holonomic` (Lite3, T1) |
+| `tracker` | A class of `tracking.py`: `Holonomic` (Lite3, T1) or `Unicycle` (Beni) |
 | `timestep`, `stand_height`, `start_height`, `support_geoms` | Physics step of the policy; body height standing and when placed; the geoms it stands on |
 
 ### Control chain per physics step
@@ -179,8 +179,8 @@ while True:
 
 Tests follow the layers:
 - `mujoco_sim/tests/test_*.py`: pure Python, no ROS.
-- `mujoco_smoke.test`, `lite3_smoke.test`, `t1_smoke.test`: the full ROS
-  chain.
+- `mujoco_smoke.test`, `lite3_smoke.test`, `t1_smoke.test`,
+  `beni_smoke.test`: the full ROS chain.
 
 ## Weak points
 
@@ -205,10 +205,10 @@ Tests follow the layers:
 From a read-through of the simulator, bridge, launch files, tests and CI.
 
 1. **Ground robots have no CI.** `sim-smoke.yml` runs the quadrotor only.
-   `test_lite3.py` and `test_t1.py` skip without the
+   `test_lite3.py`, `test_t1.py` and `test_beni.py` skip without the
    downloaded assets, and their smoke tests are not in the workflow.
 2. **The terrain filter's step limit is too high for the T1.** `max_step`
-   is now set per robot (Lite3 and T1 9 cm), but the T1 falls on
+   is now set per robot (Lite3 and T1 9 cm, Beni 4 cm), but the T1 falls on
    7 cm steps going up, yet the planner treats them as walkable.
 3. **A fall is not reported.** `Simulator.fallen` is set and logged, but it
    is not in the state message, and contact with the ground plane is never
@@ -314,4 +314,4 @@ fall.
 
 Each step that touches the simulator or bridge needs `pytest` in
 `mujoco_sim/` and the smoke tests (`mujoco_smoke`, `lite3_smoke`,
-`t1_smoke`), as [AGENTS.md](../AGENTS.md) requires.
+`t1_smoke`, `beni_smoke`), as [AGENTS.md](../AGENTS.md) requires.

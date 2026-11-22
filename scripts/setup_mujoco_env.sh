@@ -12,6 +12,9 @@
 #   ./scripts/setup_mujoco_env.sh --t1            # also the T1 humanoid: its
 #                                                 # model and policy
 #                                                 # (downloaded, Apache-2.0)
+#   ./scripts/setup_mujoco_env.sh --beni          # also Beni (two wheels): its
+#                                                 # model and policy
+#                                                 # (downloaded, MIT)
 #   ./scripts/setup_mujoco_env.sh --mid360        # also Livox's Mid-360 beam
 #                                                 # table (downloaded, MIT)
 #

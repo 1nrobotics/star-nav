@@ -3,7 +3,8 @@
 A ground robot's locomotion policy follows a velocity (forward, sideways,
 turn rate). A tracker gives it that velocity from the position setpoint and
 yaw the planner sends, and the robot's pose. Each robot names its tracker
-(``Robot.tracker``): ``Holonomic`` for one that walks in any direction.
+(``Robot.tracker``): ``Holonomic`` for one that walks in any direction,
+``Unicycle`` for one that cannot move sideways.
 """
 
 from __future__ import annotations
@@ -46,3 +47,44 @@ class Holonomic:
         np.clip(self.k_yaw * yaw_err, -self.max_turn, self.max_turn))
     return np.array([fwd, side, turn], np.float32)
 
+
+@dataclasses.dataclass
+class Unicycle:
+  """Follows the setpoint with a forward speed and a turn rate only.
+
+  The robot cannot move sideways. It turns towards where it should go (the
+  setpoint's velocity plus a position correction) and drives the part of
+  that velocity that lies ahead; facing more than ``turn_first`` away, it
+  turns on the spot. At a resting setpoint it turns to the planner's yaw.
+  """
+  k_pos: float = 1.5  # 1/s, position error to velocity
+  k_yaw: float = 3.0  # 1/s, heading error to turn rate
+  max_speed: float = 1.0  # m/s
+  max_turn: float = 2.5  # rad/s
+  turn_first: float = math.radians(60)
+  hold: float = 0.05  # m: stop within this of a resting setpoint ...
+  release: float = 0.12  # ... until it is this far away again
+  hold_yaw: float = math.radians(5)
+  _holding: bool = False
+
+  def twist(self, sp_pos, sp_vel, sp_yaw, pos, yaw) -> np.ndarray:
+    err = np.asarray(sp_pos[:2], float) - pos[:2]
+    v = np.asarray(sp_vel[:2], float)
+    dist = float(np.hypot(*err))
+    resting = float(np.hypot(*v)) < 0.02
+    self._holding = resting and dist < (self.release if self._holding
+                                        else self.hold)
+    if self._holding:
+      fwd, heading = 0.0, sp_yaw
+      dead = self.hold_yaw
+    else:
+      vel = v + self.k_pos * err
+      speed = min(float(np.hypot(*vel)), self.max_speed)
+      heading = math.atan2(vel[1], vel[0])
+      off = math.remainder(heading - yaw, 2.0 * math.pi)
+      fwd = speed * math.cos(off) if abs(off) < self.turn_first else 0.0
+      dead = 0.0
+    off = math.remainder(heading - yaw, 2.0 * math.pi)
+    turn = 0.0 if abs(off) < dead else float(
+        np.clip(self.k_yaw * off, -self.max_turn, self.max_turn))
+    return np.array([fwd, 0.0, turn], np.float32)

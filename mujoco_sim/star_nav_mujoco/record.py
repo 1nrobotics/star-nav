@@ -65,7 +65,7 @@ class Recorder:
     pts = points[::step]
     # Colour by height: blue near the ground to red at 2.5 m.
     h = np.clip(pts[:, 2] / 2.5, 0.0, 1.0)
-    # Smaller for a camera that is close (a small robot).
+    # Smaller for a camera that is close (Beni).
     size = np.array([min(0.025, 0.007 * self._camera.distance), 0.0, 0.0])
     eye = np.eye(3).flatten()
     for p, k in zip(pts, h):

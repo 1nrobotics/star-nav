@@ -56,12 +56,12 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--robot` | quadrotor | `quadrotor`, `lite3` (quadruped) or `t1` (humanoid), see below |
-| `--fetch NAME` | | Download the model and policy of `lite3` or `t1`, or the beam table of the `mid360` lidar model, then exit |
+| `--robot` | quadrotor | `quadrotor`, `lite3` (quadruped), `t1` (humanoid) or `beni` (two wheels), see below |
+| `--fetch NAME` | | Download the model and policy of `lite3`, `t1` or `beni`, or the beam table of the `mid360` lidar model, then exit |
 | `--world` | forest | `forest` or `house` (rooms, ramp, platform, stairs; `house.py`) |
 | `--seed` | 1 | Forest layout |
 | `--map-size X Y` | 50 50 | Forest extent (m) |
-| `--pillars`, `--rings` | 100, 50 (lite3, t1: 0 rings) | Obstacle counts |
+| `--pillars`, `--rings` | 100, 50 (lite3, t1, beni: 0 rings) | Obstacle counts |
 | `--start X Y Z` | 0 0 1 (walking robots ignore Z) | Spawn and initial hover point |
 | `--bind` | 127.0.0.1 | ZeroMQ address (`0.0.0.0` for a bridge on another host) |
 | `--sensor` | depth | `depth`, `lidar` or `both` ([docs/SENSORS.md](../docs/SENSORS.md)) |
@@ -172,6 +172,48 @@ above the walking height would stop that.
   down; climbing the 7 cm steps fails most of the time (it was trained on
   terrain with ~2 cm steps). The mission goes up the ramp and down the steps.
 - In the house, its walls are 1.6 m high instead of 1 m.
+
+## Beni (two wheels)
+
+Mondo Robotics' [Beni](https://github.com/Mondo-Robotics/open-beni) is a
+1.3 kg robot that balances on two wheels, about 0.2 m tall. It drives with
+Mondo Robotics' own policy, through the same worlds and planner:
+
+```bash
+./scripts/setup_mujoco_env.sh --beni      # model + policy (no extra Python packages)
+roslaunch star_nav_bringup exploration_beni.launch use_rviz:=true    # house
+rostest star_nav_bringup beni_smoke.test                   # forest, lidar
+rostest star_nav_bringup beni_smoke.test world:=house
+```
+
+- Model and policy are downloaded at a pinned commit of open-beni (MIT) into
+  `~/.cache/star_nav/beni` (`STAR_NAV_BENI_DIR` to change), not committed:
+  `beni.xml` with its meshes and textures, and the trained actor
+  `policy.onnx` (checked by SHA-256). `robots/beni.py` reads the weights from the
+  ONNX file's initializers (a few lines of protobuf decoding; no onnxruntime)
+  and runs the network, a GRU and an MLP, in NumPy.
+- Driving: the policy runs at 100 Hz on the base and head gyros, gravity
+  direction, the command (forward speed, turn rate), joint positions and
+  velocities, its last action and a base-height command, as upstream's
+  training code; it sets hip and knee angles, wheel speeds and the head's
+  yaw. `robots/beni.py` has upstream's motor model (PD, torque limits, the knee
+  spring, 6 ms delay) at every 2 ms physics step. Measured on flat ground:
+  forward 0.6 → 0.65 m/s, 1.5 → 1.5 m/s, turn 1.5 → 1.55 rad/s. On a zero
+  command it creeps forward at a few cm/s.
+- The policy gets the robot back on its wheels after a fall (within 0.5 s
+  from lying on its front or back). Its jump command is not used.
+- Steering: `tracking.Unicycle`. The robot cannot move sideways, so it turns
+  towards where it should go and drives the part of the velocity that lies
+  ahead, turning on the spot when facing more than 60 degrees away.
+- Sensors: the depth camera in the head and the lidar on top (0.25 m above
+  the ground). The planner works 0.11 m above the ground with 0.2 m
+  inflation and up to 0.8 m/s; the terrain filter treats returns more than
+  0.35 m above the ground as overhead (it can drive under the table) and
+  steps above 4 cm as obstacles.
+- Terrain: it drives up the house's 12 degree ramp, but not up its 7 cm
+  steps (the wheels' radius is 3.8 cm), and going down them its body may
+  touch a step's edge. With the 4 cm limit the planner goes around the
+  corridor.
 
 ## Model
 

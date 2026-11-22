@@ -21,7 +21,7 @@ GROUND = [n for n in robots.names() if robots.get(n).on_ground]
 def test_the_quadrotor_is_the_default_and_listed_first():
   assert robots.names()[0] == robots.DEFAULT == 'quadrotor'
   assert sim.SimConfig().robot == 'quadrotor'
-  assert {'lite3', 't1'} <= set(robots.names())
+  assert {'lite3', 't1', 'beni'} <= set(robots.names())
 
 
 def test_an_unknown_robot_is_rejected():

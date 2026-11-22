@@ -85,6 +85,16 @@ roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true      # house, li
 The same mission and planner on a 1.2 m humanoid. See
 [docs/HUMANOID.md](docs/HUMANOID.md).
 
+### Two wheels (Mondo Robotics Beni) in MuJoCo
+
+```bash
+./scripts/setup_mujoco_env.sh --beni                                # once: model + policy
+roslaunch star_nav_bringup exploration_beni.launch use_rviz:=true    # house, lidar
+```
+
+The same mission and planner on a 0.2 m robot that balances on two wheels.
+See [mujoco_sim/README.md](mujoco_sim/README.md#beni-two-wheels).
+
 ### Interactive simulation with RViz (Linux host)
 
 ```bash
@@ -146,7 +156,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 ## Repository Layout
 
 - `star_nav_bringup/`: launch files, RViz config and the simulation smoke tests
-- `mujoco_sim/`: standalone MuJoCo simulator for the quadrotor, the Lite3 quadruped and the T1 humanoid (Python, no ROS)
+- `mujoco_sim/`: standalone MuJoCo simulator for the quadrotor, the Lite3 quadruped, the T1 humanoid and Beni (Python, no ROS)
 - `mujoco_bridge/`: ROS bridge between `mujoco_sim` and the planning stack
 - `planner/`: EGO-Planner-based planning stack and exploration manager
 - `uav_simulator/`: simulation, mapping, and local sensing components
