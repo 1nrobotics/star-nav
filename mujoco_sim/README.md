@@ -195,7 +195,8 @@ above the walking height would stop that.
 - Textures (`textures.py`): wooden floor, plaster walls, wood, fabric,
   concrete, grass and bark, generated with NumPy when the model is built.
   They are for show: sensors measure geometry, and the house floor is a
-  visual-only geom.
+  visual-only geom. The Lite3's meshes, one flat grey upstream, get a dark
+  shell, bare motor housings and rubber feet (`lite3.APPEARANCE`).
 - Contacts: the number of physics steps in which the quadrotor touched
   anything, published by the bridge on `/mujoco/contacts`. The simulator log
   names the geoms and the position of each new contact.
