@@ -42,6 +42,10 @@
     <arg name="obstacles_inflation" default="0.2"/>
     <!-- Obstacle sensor for the planner: depth (camera) or lidar (360 deg) -->
     <arg name="sensor" default="depth"/>
+    <!-- Lidar model the simulator imitates: uniform (ideal spinning lidar)
+         or mid360 (Livox Mid-360; fetch its beam table first, see
+         docs/SIMULATION.md) -->
+    <arg name="lidar" default="uniform"/>
     <!-- Lidar only: ray-cast scans into the probabilistic map (true) or let
          each scan replace the local map (false) -->
     <arg name="lidar_raycasting" default="true"/>
@@ -59,7 +63,7 @@
     <arg name="viewer_flag" value="--no-viewer" unless="$(arg viewer)"/>
     <node if="$(arg start_sim)" pkg="star_nav_bringup" type="mujoco_sim.sh"
           name="mujoco_sim" output="screen" required="true"
-          args="--seed $(arg seed) --map-size $(arg map_size_x) $(arg map_size_y) --start 0 0 1.0 --sensor $(arg sensor) $(arg viewer_flag) $(arg sim_args)"/>
+          args="--seed $(arg seed) --map-size $(arg map_size_x) $(arg map_size_y) --start 0 0 1.0 --sensor $(arg sensor) --lidar-model $(arg lidar) $(arg viewer_flag) $(arg sim_args)"/>
 
     <!-- ============================== -->
     <!-- 2. ROS bridge                  -->

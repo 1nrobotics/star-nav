@@ -11,7 +11,9 @@ os.environ.setdefault('MUJOCO_GL', 'egl')
 import numpy as np
 import pytest
 
+from star_nav_mujoco import assets
 from star_nav_mujoco import lidar
+from star_nav_mujoco import lidar_models
 from star_nav_mujoco import protocol
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
@@ -312,17 +314,42 @@ def test_lidar_pitch_tilts_the_sensor():
   s.close()
 
 
-def test_mid360_pattern():
+def test_lidar_range_is_the_models_unless_given():
+  for name in lidar_models.names():
+    model = lidar_models.get(name)
+    cfg = lidar.LidarConfig(model=name).resolved()
+    assert (cfg.range_min, cfg.range_max) == (model.range_min, model.range_max)
+    assert cfg.pitch == 0.0
+  assert lidar.LidarConfig(model='mid360', range_max=12.0).resolved().range_max == 12.0
+  with pytest.raises(ValueError, match='unknown lidar model'):
+    lidar.LidarConfig(model='nope').resolved()
+
+
+def test_uniform_model():
+  cfg = lidar.LidarConfig(beams=4, columns=8, vfov=(-10.0, 20.0))
+  model = lidar_models.get('uniform')
+  table = model.table(cfg)
+  assert model.repetitive and model.lines(cfg) == 4
+  assert table.shape == (32, 3) and model.scan_size(cfg, table) == 32
+  np.testing.assert_allclose(np.linalg.norm(table, axis=1), 1.0)
+  elevation = np.rad2deg(np.arcsin(table[:, 2]))
+  assert elevation.min() == pytest.approx(-10.0) and elevation.max() == pytest.approx(20.0)
+
+
+def test_mid360_model():
+  model = lidar_models.get('mid360')
   try:
-    table = lidar.mid360_directions()
-  except lidar.MissingPattern:
-    pytest.skip('Mid-360 beam table not downloaded (--fetch-mid360)')
+    table = model.table(lidar.LidarConfig(model='mid360'))
+  except assets.MissingAssets:
+    pytest.skip('Mid-360 beam table not downloaded (--fetch mid360)')
+  assert not model.repetitive
   np.testing.assert_allclose(np.linalg.norm(table, axis=1), 1.0)
   elevation = np.rad2deg(np.arcsin(table[:, 2]))
   assert -7.3 < elevation.min() < -7.0 and 52.0 < elevation.max() < 52.3
 
-  cfg = sim.SimConfig(lidar=lidar.LidarConfig(pattern=lidar.MID360, pitch=45.0))
+  cfg = sim.SimConfig(lidar=lidar.LidarConfig(model='mid360', pitch=45.0))
   s = sim.Simulator(cfg, render_depth=False, obstacles=[])
+  assert s.cfg.lidar.range_max == model.range_max
   first, second = s.scan_lidar(), s.scan_lidar()
   assert len(s.lidar.directions) == 20000  # 200,000 points/s at 10 Hz
   for scan in (first, second):
@@ -336,8 +363,8 @@ def test_mid360_pattern():
 
 def test_mid360_table_missing(tmp_path, monkeypatch):
   monkeypatch.setenv('STAR_NAV_LIDAR_DIR', str(tmp_path))
-  with pytest.raises(lidar.MissingPattern, match='--fetch-mid360'):
-    lidar.Lidar(None, lidar.LidarConfig(pattern=lidar.MID360), 0)
+  with pytest.raises(assets.MissingAssets, match='--fetch mid360'):
+    lidar.Lidar(None, lidar.LidarConfig(model='mid360'), 0)
 
 
 def test_lidar_protocol_round_trip(lidar_scene):

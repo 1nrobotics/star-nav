@@ -89,15 +89,17 @@ rostest star_nav_bringup mujoco_smoke.test sensor:=lidar
 SENSOR=lidar ./scripts/run_mujoco_smoke_test.sh
 ```
 
-The lidar is a spinning one with evenly spaced beams by default. It can
-instead use the non-repetitive pattern of Livox's Mid-360 (200,000 points per
-second, elevations −7° … 52°; the beam table is Livox's, MIT, downloaded, not
-committed), optionally tilted nose-down:
+The lidar is an ideal spinning one with evenly spaced beams by default
+(`lidar:=uniform`). `lidar:=mid360` imitates Livox's Mid-360 instead: its
+non-repetitive pattern (200,000 points per second, elevations −7° … 52°; the
+beam table is Livox's, MIT, downloaded, not committed) and its range. Each
+robot mounts the sensor its own way (the T1 carries the Mid-360 tilted 30°
+nose-down); `--lidar-pitch` in `sim_args` overrides the tilt:
 
 ```bash
 ./scripts/setup_mujoco_env.sh --mid360
-rostest star_nav_bringup mujoco_smoke.test sensor:=lidar sim_args:="--lidar-pattern mid360"
-rostest star_nav_bringup lite3_smoke.test sim_args:="--lidar-pattern mid360 --lidar-pitch 30"
+rostest star_nav_bringup mujoco_smoke.test sensor:=lidar lidar:=mid360
+rostest star_nav_bringup lite3_smoke.test lidar:=mid360 sim_args:="--lidar-pitch 30"
 ```
 
 Quadruped: the same stack on DeepRobotics' Lite3, walking with its upstream

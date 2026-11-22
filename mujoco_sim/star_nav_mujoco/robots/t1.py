@@ -251,6 +251,9 @@ class T1(robots.GroundRobot):
   support_geoms = SUPPORT_GEOMS
   lidar_mount = LIDAR_MOUNT
   lidar_vfov = (-50.0, 30.0)  # from the head: the floor from 1 m ahead
+  # The Mid-360's lowest beam is 7 deg down: level on the head it passes
+  # over the furniture, and the T1 walks into a table.
+  lidar_pitch = {'mid360': 30.0}
   follow_camera = (4.0, -50.0)
   house_wall_height = HOUSE_WALL_HEIGHT
   check_assets = staticmethod(check_assets)

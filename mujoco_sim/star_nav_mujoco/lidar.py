@@ -1,104 +1,50 @@
 """360-degree lidar, simulated with MuJoCo ray casting.
 
-Two scan patterns: ``uniform``, a spinning lidar with evenly spaced beams, and
-``mid360``, the non-repetitive pattern of Livox's Mid-360. The Mid-360 beam
-table is Livox's (github.com/Livox-SDK/livox_laser_simulation, MIT); it is
-downloaded once (``star-nav-mujoco --fetch-mid360``) and is not part of this
-repository.
+Which sensor it imitates is a ``lidar_models.LidarModel`` (an ideal spinning
+lidar, Livox's Mid-360): the model gives the beam directions and the range,
+this module casts them.
 """
 
 from __future__ import annotations
 
 import concurrent.futures
 import dataclasses
-import hashlib
 import os
-import pathlib
-import urllib.request
 
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import lidar_models
 from star_nav_mujoco import scene
-
-
-UNIFORM, MID360 = 'uniform', 'mid360'
-PATTERNS = (UNIFORM, MID360)
-
-# Livox's beam table for the Mid-360: 800,000 directions (azimuth, zenith),
-# 4 s at 200,000 points per second; elevations -7.2 to 52.2 degrees.
-MID360_REPO = 'Livox-SDK/livox_laser_simulation'
-MID360_COMMIT = '1cce1073633a062b92e30243a4c2920e45551bb5'
-MID360_PATH = 'scan_mode/mid360.csv'
-MID360_SHA256 = 'aa1fc08b6a4400608dbd6ee832b7ea3a9c3c37197e734f60f58fe5abf762269a'
-MID360_POINT_RATE = 200000  # points per second
-
-
-class MissingPattern(RuntimeError):
-  """The Mid-360 beam table has not been downloaded."""
-
-
-def pattern_dir() -> pathlib.Path:
-  env = os.environ.get('STAR_NAV_LIDAR_DIR')
-  return pathlib.Path(env) if env else pathlib.Path.home() / '.cache/star_nav/lidar'
-
-
-def fetch_mid360(root: pathlib.Path | None = None, log=print) -> pathlib.Path:
-  """Downloads the pinned Mid-360 beam table (17 MB) into ``root``."""
-  root = root or pattern_dir()
-  dest = root / 'mid360.csv'
-  log(f'Downloading {MID360_PATH} ({MID360_REPO}@{MID360_COMMIT[:7]}) to {root}')
-  root.mkdir(parents=True, exist_ok=True)
-  tmp = dest.with_suffix('.csv.part')
-  url = f'https://raw.githubusercontent.com/{MID360_REPO}/{MID360_COMMIT}/{MID360_PATH}'
-  digest = hashlib.sha256()
-  with urllib.request.urlopen(url, timeout=60) as r, open(tmp, 'wb') as f:
-    while chunk := r.read(1 << 20):
-      digest.update(chunk)
-      f.write(chunk)
-  if digest.hexdigest() != MID360_SHA256:
-    tmp.unlink()
-    raise RuntimeError(f'mid360.csv: unexpected sha256 {digest.hexdigest()}')
-  tmp.replace(dest)
-  (root / 'SOURCE.md').write_text(
-      'Downloaded by star_nav_mujoco.lidar.fetch_mid360; not redistributed.\n\n'
-      f'- mid360.csv: https://github.com/{MID360_REPO}/blob/{MID360_COMMIT}/'
-      f'{MID360_PATH} (MIT, Livox)\n')
-  return dest
-
-
-def _directions(azimuth: np.ndarray, elevation: np.ndarray) -> np.ndarray:
-  return np.stack([np.cos(elevation) * np.cos(azimuth),
-                   np.cos(elevation) * np.sin(azimuth), np.sin(elevation)],
-                  axis=-1)
-
-
-def mid360_directions(root: pathlib.Path | None = None) -> np.ndarray:
-  """The Mid-360 beam table as unit vectors, in firing order."""
-  path = (root or pattern_dir()) / 'mid360.csv'
-  if not path.exists():
-    raise MissingPattern(
-        f'Mid-360 beam table not found in {path.parent}. Download it once '
-        'with "star-nav-mujoco --fetch-mid360".')
-  table = np.loadtxt(path, delimiter=',', skiprows=1, usecols=(1, 2))
-  return _directions(np.deg2rad(table[:, 0]), np.deg2rad(90.0 - table[:, 1]))
 
 
 @dataclasses.dataclass
 class LidarConfig:
   """A 360-degree lidar (defaults: spinning, 32 x 1024 beams, 10 Hz)."""
 
-  pattern: str = UNIFORM  # UNIFORM or MID360
-  # UNIFORM only; the Mid-360 has its own beam table.
+  model: str = lidar_models.DEFAULT  # a name in lidar_models
+  # The uniform model only; other models have their own beams.
   beams: int = 32
   vfov: tuple[float, float] = (-22.5, 22.5)  # elevation of lowest/highest beam (deg)
   columns: int = 1024  # azimuth steps per revolution
   rate: float = 10.0  # scans per second
-  range_min: float = 0.3  # returns closer than this are dropped (m)
-  range_max: float = 10.0  # no return beyond this (m)
+  # None: the model's.
+  range_min: float | None = None  # returns closer than this are dropped (m)
+  range_max: float | None = None  # no return beyond this (m)
   noise: float = 0.0  # range noise standard deviation (m)
   mount: tuple[float, float, float] = (0.0, 0.0, 0.06)  # sensor origin in body frame
-  pitch: float = 0.0  # sensor tilted nose-down by this angle (deg)
+  # Sensor tilted nose-down by this angle (deg). None: the robot's for this
+  # model (robots.Robot.lidar_pitch), level without a robot.
+  pitch: float | None = None
+
+  def resolved(self) -> LidarConfig:
+    """This configuration with the model's values where it has None."""
+    model = lidar_models.get(self.model)
+    return dataclasses.replace(
+        self,
+        range_min=model.range_min if self.range_min is None else self.range_min,
+        range_max=model.range_max if self.range_max is None else self.range_max,
+        pitch=self.pitch or 0.0)
 
 
 @dataclasses.dataclass
@@ -113,28 +59,22 @@ class Scan:
 class Lidar:
   """Casts one scan instantly (no motion distortion).
 
-  A scan is one revolution (``uniform``) or the next 1 / ``rate`` seconds of
-  the beam table (``mid360``), so successive Mid-360 scans differ. The sensor
+  A scan is the model's whole beam table (a repetitive scan, one revolution)
+  or the next 1 / ``rate`` seconds of it (a non-repetitive scan, so
+  successive scans differ). The sensor
   frame is the body frame (x forward, y left, z up) offset by ``mount`` and
   tilted nose-down by ``pitch``. Rays ignore the robot's own geoms.
   """
 
   def __init__(self, model: mujoco.MjModel, cfg: LidarConfig, body: int,
                threads: int | None = None, seed: int = 0):
-    self.cfg = cfg
+    self.cfg = cfg = cfg.resolved()
+    self.sensor = lidar_models.get(cfg.model)
+    self.lines = self.sensor.lines(cfg)
     self._model = model
     self._body = body
-    if cfg.pattern == MID360:
-      self._table = mid360_directions()
-      n = round(MID360_POINT_RATE / cfg.rate)
-    elif cfg.pattern == UNIFORM:
-      elevation = np.deg2rad(np.linspace(cfg.vfov[0], cfg.vfov[1], cfg.beams))
-      azimuth = np.linspace(0.0, 2.0 * np.pi, cfg.columns, endpoint=False)
-      el, az = np.meshgrid(elevation, azimuth, indexing='ij')
-      self._table = _directions(az, el).reshape(-1, 3)
-      n = len(self._table)
-    else:
-      raise ValueError(f'unknown lidar pattern {cfg.pattern!r}')
+    self._table = self.sensor.table(cfg)
+    n = self.sensor.scan_size(cfg, self._table)
     self._next = 0  # first beam of the next scan in the table
     self.directions = self._table[:n]  # of the last scan, sensor frame
     self._mount = np.asarray(cfg.mount, dtype=float)

@@ -61,7 +61,7 @@ particular robot. `robots/__init__.py` defines the interface:
 | `body`, `camera` | Root body (a free joint) and depth camera in the compiled model |
 | `on_ground` | Touching the ground is not a contact |
 | `world`, `rings`, `start`, `lidar_vfov` | Defaults of the command line |
-| `lidar_mount`, `follow_camera`, `house_wall_height` | Lidar position on the body; viewer and recorder camera; wall height in the house |
+| `lidar_mount`, `lidar_pitch`, `follow_camera`, `house_wall_height` | Lidar position on the body and nose-down tilt by lidar model; viewer and recorder camera; wall height in the house |
 | `check_assets()`, `fetch(log)` | Files downloaded at a pinned commit, never committed (`assets.py`) |
 | `build(cfg, obstacles, extra)` | Returns the scene (`MjSpec`) with the robot in it |
 | `controller(model, data, cfg)` | Returns a `Controller`: `reset()`, and `step(cmd)` before every `mj_step` |
@@ -269,8 +269,10 @@ changing: more robots, better controllers, and measured results.
    Two variants (two trackers, say) run on the same seeds, so the comparison
    is paired and the answer is better, worse or not distinguishable, with a
    veto on any safety regression (falls, contacts).
-6. **Lidar scan patterns.** `LidarConfig.pattern`: `uniform` (today's, the
-   default), `mid360`, `airy`.
+6. **Lidar models.** Done for `uniform` and `mid360`: one class per sensor
+   in `lidar_models.py` (beam directions, beams per scan, range), chosen with
+   `--lidar-model` (`lidar:=` in the launch files); the robot gives the mount
+   position and tilt. Still open: `airy`, and more than one sensor at a time.
    - `mid360`: Livox's measured pattern (`scan_mode/mid360.csv` from
      [livox_laser_simulation](https://github.com/Livox-SDK/livox_laser_simulation),
      MIT, 16.8 MB). Download it at setup, never commit it, and update

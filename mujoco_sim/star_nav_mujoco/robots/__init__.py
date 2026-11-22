@@ -64,11 +64,24 @@ class Robot:
   lidar_vfov = (-22.5, 22.5)  # deg
   # Lidar position in the body frame; None: LidarConfig.mount.
   lidar_mount: tuple[float, float, float] | None = None
+  # Lidar tilted nose-down (deg), by lidar model (lidar_models); a model not
+  # listed is mounted level.
+  lidar_pitch: dict[str, float] = {}
   follow_camera = (5.0, -25.0)  # viewer and recorder: distance (m), elevation
   house_wall_height = 1.0  # m
 
   def check_assets(self):
     """Raises ``assets.MissingAssets`` if the robot's files are not there."""
+
+  def mount_lidar(self, cfg):
+    """A ``lidar.LidarConfig`` as this robot carries it."""
+    import dataclasses  # pylint: disable=g-import-not-at-top
+
+    mount = cfg.mount if self.lidar_mount is None else self.lidar_mount
+    pitch = cfg.pitch
+    if pitch is None:
+      pitch = self.lidar_pitch.get(cfg.model, 0.0)
+    return dataclasses.replace(cfg, mount=mount, pitch=pitch)
 
   # Downloads the robot's files: fetch(log=print). None: nothing to download.
   fetch = None

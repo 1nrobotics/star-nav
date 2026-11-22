@@ -61,9 +61,8 @@ class Simulator:
           dataclasses.replace(self.cfg.world, start=self.cfg.start[:2]))
     self.obstacles = obstacles
     self.robot = robots.get(self.cfg.robot)
-    if self.cfg.lidar is not None and self.robot.lidar_mount is not None:
-      self.cfg.lidar = dataclasses.replace(self.cfg.lidar,
-                                           mount=self.robot.lidar_mount)
+    if self.cfg.lidar is not None:
+      self.cfg.lidar = self.robot.mount_lidar(self.cfg.lidar)
     extra = ''
     if self.cfg.house:
       extra = house.xml(self.robot.house_wall_height)
@@ -115,6 +114,7 @@ class Simulator:
     self.lidar = None
     if self.cfg.lidar is not None:
       self.lidar = lidar_lib.Lidar(m, self.cfg.lidar, self._body)
+      self.cfg.lidar = self.lidar.cfg  # with the model's range
 
   # -- state -----------------------------------------------------------------
 
@@ -254,7 +254,7 @@ class Simulator:
     return protocol.Depth(self.data.time, pos, quat, intr, mm)
 
   def scan_lidar(self) -> lidar_lib.Scan:
-    """Casts one lidar revolution (points in the sensor frame)."""
+    """Casts one lidar scan (points in the sensor frame)."""
     if self.lidar is None:
       raise RuntimeError('Simulator was created without a lidar')
     return self.lidar.scan(self.data)
@@ -360,7 +360,7 @@ def run(sim: Simulator, rc: RunConfig) -> None:
           stats['cast'] += time.perf_counter() - t0
           stats['lidar'] += 1
           pub.send_multipart([protocol.TOPIC_LIDAR,
-                              protocol.pack_lidar(scan, sim.cfg.lidar.beams)],
+                              protocol.pack_lidar(scan, sim.lidar.lines)],
                              copy=False)
           next_lidar = max(next_lidar + lidar_period, sim.time)
           if recorder is not None:

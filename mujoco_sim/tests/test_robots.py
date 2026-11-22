@@ -73,6 +73,22 @@ def test_listing_the_robots_does_not_import_mujoco():
   assert subprocess.run([sys.executable, '-c', code], check=False).returncode == 0
 
 
+def test_the_robot_mounts_its_lidar():
+  from star_nav_mujoco import lidar
+  from star_nav_mujoco import lidar_models
+
+  for name in robots.names():
+    robot = robots.get(name)
+    assert set(robot.lidar_pitch) <= set(lidar_models.names()), name
+    cfg = robot.mount_lidar(lidar.LidarConfig())
+    assert cfg.mount == (robot.lidar_mount or lidar.LidarConfig().mount)
+    assert cfg.pitch == 0.0
+  t1 = robots.get('t1')
+  # Tilted for the Mid-360 unless the caller says otherwise.
+  assert t1.mount_lidar(lidar.LidarConfig(model='mid360')).pitch == 30.0
+  assert t1.mount_lidar(lidar.LidarConfig(model='mid360', pitch=0.0)).pitch == 0.0
+
+
 @pytest.mark.skipif(not LAUNCH.is_dir(), reason='star_nav_bringup not here')
 @pytest.mark.parametrize('name', GROUND)
 def test_launch_file_agrees_with_the_robot(name):

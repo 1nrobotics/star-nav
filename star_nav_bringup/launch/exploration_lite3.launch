@@ -28,6 +28,7 @@
     <arg name="seed" default="1"/>
     <!-- lidar or depth; house or forest; terrain filter (lidar) -->
     <arg name="sensor" default="lidar"/>
+    <arg name="lidar" default="uniform"/>
     <arg name="world" default="house"/>
     <arg name="terrain" default="true"/>
     <arg name="lidar_raycasting" default="true"/>

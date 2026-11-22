@@ -30,7 +30,13 @@ def main(argv: list[str] | None = None) -> int:
   # MuJoCo reads MUJOCO_GL when it is imported: nothing here may import it
   # before _select_gl().
   from star_nav_mujoco import assets  # pylint: disable=g-import-not-at-top
+  from star_nav_mujoco import lidar_models  # pylint: disable=g-import-not-at-top
   from star_nav_mujoco import robots  # pylint: disable=g-import-not-at-top
+
+  # What --fetch can download: robots and lidar models.
+  fetchable = {n: robots.get for n in robots.names()}
+  fetchable.update({n: lidar_models.get for n in lidar_models.names()
+                    if lidar_models.get(n).fetch is not None})
 
   ap = argparse.ArgumentParser(
       prog='star_nav_mujoco',
@@ -38,13 +44,13 @@ def main(argv: list[str] | None = None) -> int:
       ', '.join(robots.names()) + '). Talks to the ROS bridge (mujoco_bridge) '
       'over ZeroMQ and serves a web viewer.')
   ap.add_argument('--robot', choices=robots.names(), default=robots.DEFAULT)
-  ap.add_argument('--fetch', choices=robots.names(), metavar='ROBOT',
-                  help="download a robot's model and policy, then exit")
-  for name in robots.names():  # the earlier spelling, e.g. --fetch-lite3
+  ap.add_argument('--fetch', choices=tuple(fetchable), metavar='NAME',
+                  help="download a robot's model and policy, or a lidar "
+                  "model's beam table (" + ', '.join(fetchable) +
+                  '), then exit')
+  for name in fetchable:  # the earlier spelling, e.g. --fetch-lite3
     ap.add_argument(f'--fetch-{name}', dest='fetch', action='store_const',
                     const=name, help=argparse.SUPPRESS)
-  ap.add_argument('--fetch-mid360', action='store_true',
-                  help="download Livox's Mid-360 beam table, then exit")
   ap.add_argument('--world', choices=('forest', 'house'), default=None,
                   help='forest (random pillars and rings) or house (rooms, a '
                   'ramp and stairs; house.py). Default: forest (quadrotor), '
@@ -67,24 +73,28 @@ def main(argv: list[str] | None = None) -> int:
                   default='depth', help='onboard sensor(s) to simulate')
   ap.add_argument('--depth-rate', type=float, default=30.0)
   lid = ap.add_argument_group('lidar (with --sensor lidar or both)')
-  lid.add_argument('--lidar-pattern', choices=('uniform', 'mid360'),
-                   default='uniform', help='uniform: a spinning lidar with '
-                   "evenly spaced beams. mid360: Livox Mid-360's "
-                   'non-repetitive pattern, 200,000 points per second, '
-                   'elevations -7 to 52 deg (beams, columns and vfov unused)')
-  lid.add_argument('--lidar-pitch', type=float, default=0.0,
-                   help='tilt the sensor nose-down by this angle (deg)')
-  lid.add_argument('--lidar-beams', type=int, default=32)
-  lid.add_argument('--lidar-columns', type=int, default=1024,
-                   help='azimuth samples per revolution')
-  lid.add_argument('--lidar-vfov', type=float, nargs=2, default=None,
-                   metavar=('LOW', 'HIGH'), help='beam elevations (deg). '
-                   "Default: the robot's (quadrotor: -22.5 22.5)")
+  lid.add_argument('--lidar-model', '--lidar-pattern',
+                   choices=lidar_models.names(), default=lidar_models.DEFAULT,
+                   help='the sensor to imitate. ' + '; '.join(
+                       f'{n}: {lidar_models.get(n).title}'
+                       for n in lidar_models.names()))
+  lid.add_argument('--lidar-pitch', type=float, default=None,
+                   help='tilt the sensor nose-down by this angle (deg). '
+                   "Default: the robot's for this model")
+  lid.add_argument('--lidar-range', type=float, default=None,
+                   help="maximum range (m). Default: the model's (" +
+                   ', '.join(f'{n}: {lidar_models.get(n).range_max:g}'
+                             for n in lidar_models.names()) + ')')
   lid.add_argument('--lidar-rate', type=float, default=10.0)
-  lid.add_argument('--lidar-range', type=float, default=10.0,
-                   help='maximum range (m)')
   lid.add_argument('--lidar-noise', type=float, default=0.0,
                    help='range noise standard deviation (m)')
+  uni = ap.add_argument_group('the uniform lidar model')
+  uni.add_argument('--lidar-beams', type=int, default=32)
+  uni.add_argument('--lidar-columns', type=int, default=1024,
+                   help='azimuth samples per revolution')
+  uni.add_argument('--lidar-vfov', type=float, nargs=2, default=None,
+                   metavar=('LOW', 'HIGH'), help='beam elevations (deg). '
+                   "Default: the robot's (quadrotor: -22.5 22.5)")
   ap.add_argument('--realtime-factor', type=float, default=1.0)
   ap.add_argument('--no-viewer', action='store_true',
                   help='do not start the web viewer')
@@ -100,15 +110,11 @@ def main(argv: list[str] | None = None) -> int:
                       datefmt='%H:%M:%S')
   logging.getLogger('OpenGL').setLevel(logging.WARNING)
   if args.fetch:
-    fetch = robots.get(args.fetch).fetch
+    fetch = fetchable[args.fetch](args.fetch).fetch
     if fetch is None:
       logging.info('%s: nothing to download', args.fetch)
     else:
       fetch(log=logging.info)
-    return 0
-  if args.fetch_mid360:
-    from star_nav_mujoco import lidar  # pylint: disable=g-import-not-at-top
-    lidar.fetch_mid360(log=logging.info)
     return 0
   _select_gl()
   robot = robots.get(args.robot)
@@ -127,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
       start=tuple(args.start), robot=args.robot, house=args.world == 'house')
   if args.sensor != 'depth':
     cfg.lidar = lidar.LidarConfig(
-        pattern=args.lidar_pattern, pitch=args.lidar_pitch,
+        model=args.lidar_model, pitch=args.lidar_pitch,
         beams=args.lidar_beams, vfov=tuple(args.lidar_vfov),
         columns=args.lidar_columns, rate=args.lidar_rate,
         range_max=args.lidar_range, noise=args.lidar_noise)
@@ -138,13 +144,19 @@ def main(argv: list[str] | None = None) -> int:
                      duration=args.duration, record=args.record)
   try:
     simulator = sim.Simulator(cfg, render_depth=args.sensor != 'lidar')
-  except (assets.MissingAssets, lidar.MissingPattern) as e:
+  except assets.MissingAssets as e:
     logging.error('%s', e)
     return 1
   logging.info('%s in a world of %d obstacles (seed %d), sensor %s, GL '
                'backend %s, MuJoCo %s', args.robot, len(simulator.obstacles),
                args.seed, args.sensor, os.environ['MUJOCO_GL'],
                __import__('mujoco').__version__)
+  if simulator.lidar is not None:
+    lc = simulator.cfg.lidar
+    logging.info('lidar: %s, %d points per scan at %g Hz, range %g to %g m, '
+                 'pitch %g deg', simulator.lidar.sensor.title,
+                 len(simulator.lidar.directions), lc.rate, lc.range_min,
+                 lc.range_max, lc.pitch)
   # roslaunch stops nodes with SIGINT, then SIGTERM; both should let the
   # recording finish cleanly.
   signal.signal(signal.SIGTERM, signal.default_int_handler)

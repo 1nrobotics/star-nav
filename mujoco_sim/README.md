@@ -57,7 +57,7 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--robot` | quadrotor | `quadrotor`, `lite3` (quadruped) or `t1` (humanoid), see below |
-| `--fetch ROBOT` | | Download the model and policy of `lite3` or `t1`, then exit |
+| `--fetch NAME` | | Download the model and policy of `lite3` or `t1`, or the beam table of the `mid360` lidar model, then exit |
 | `--world` | forest | `forest` or `house` (rooms, ramp, platform, stairs; `house.py`) |
 | `--seed` | 1 | Forest layout |
 | `--map-size X Y` | 50 50 | Forest extent (m) |
@@ -66,9 +66,11 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | `--bind` | 127.0.0.1 | ZeroMQ address (`0.0.0.0` for a bridge on another host) |
 | `--sensor` | depth | `depth`, `lidar` or `both` ([docs/SENSORS.md](../docs/SENSORS.md)) |
 | `--depth-rate` | 30 | Depth camera rate (Hz) |
-| `--lidar-*` | 32 x 1024, 10 Hz | Lidar beams, columns, vertical FOV, rate, range, noise |
-| `--lidar-pattern` | uniform | `uniform` (spinning, evenly spaced beams) or `mid360` (Livox Mid-360; fetch its beam table once with `--fetch-mid360`) |
-| `--lidar-pitch` | 0 | Tilt the lidar nose-down (deg) |
+| `--lidar-model` | uniform | The lidar to imitate (`lidar_models.py`): `uniform` (ideal spinning lidar) or `mid360` (Livox Mid-360; fetch its beam table once with `--fetch mid360`) |
+| `--lidar-range` | the model's (uniform: 10, mid360: 40) | Maximum range (m) |
+| `--lidar-pitch` | the robot's for the model (T1 with `mid360`: 30, otherwise 0) | Tilt the lidar nose-down (deg) |
+| `--lidar-rate`, `--lidar-noise` | 10 Hz, 0 | Scans per second, range noise (m) |
+| `--lidar-beams`, `--lidar-columns`, `--lidar-vfov` | 32, 1024, the robot's | The `uniform` model only: beams, azimuth steps, lowest and highest elevation (deg) |
 | `--realtime-factor` | 1.0 | Simulated seconds per wall-clock second |
 | `--no-viewer`, `--viewer-port` | off, 8080 | Web viewer |
 | `--record FILE` | off | Write an MP4 from the viewer's follow camera, with lidar returns as dots (needs `ffmpeg`) |
@@ -187,11 +189,13 @@ above the walking height would stop that.
 - Lidar (`--sensor lidar`): 32 beams over −22.5° … +22.5°, 1024 columns,
   10 Hz, 0.3–10 m, mounted 6 cm above the body centre. Each revolution is
   cast at one instant with `mj_multiRay` in parallel threads; points are sent
-  in the sensor frame with the sensor pose. With `--lidar-pattern mid360` the
+  in the sensor frame with the sensor pose. With `--lidar-model mid360` the
   beams follow Livox's Mid-360 table instead (elevations −7.2° … 52.2°,
   20,000 beams per 10 Hz scan, each scan the next part of the 4 s table, so
-  successive scans differ); the 0.3 m minimum range is kept and there is no
-  motion distortion. Sensors ignore visual-only
+  successive scans differ) and the range is 0.1–40 m; there is no motion
+  distortion. A lidar model is one class in `lidar_models.py` (beam
+  directions, beams per scan, range); where the sensor sits is the robot's
+  `lidar_mount` and `lidar_pitch`. Sensors ignore visual-only
   markers (geom group 2), such as the setpoint sphere.
 - Unlike the kinematic simulator, both sensors also see the ground, so the
   planner's occupancy map contains the floor (below 0.35 m with inflation,
