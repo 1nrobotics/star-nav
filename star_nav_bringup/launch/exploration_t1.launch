@@ -3,8 +3,19 @@
          roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true
          Download the robot once first: the t1 option of
          scripts/setup_mujoco_env.sh (docs/SIMULATION.md)
-         Everything is in exploration_legged.launch (robot:=t1); it takes
-         more options than the common ones below. -->
+         The lidar is on top of the head (1.2 m), seeing -50 to 30 deg. -->
+    <arg name="robot" value="t1"/>
+    <!-- The T1: trunk at 0.67 m; its arms reach 0.27 m out -->
+    <arg name="altitude" value="0.67"/>
+    <arg name="lidar_offset" value="[0.07, 0.0, 0.53]"/>
+    <arg name="robot_height" value="1.25"/>
+    <arg name="max_step" default="0.09"/>
+    <arg name="obstacles_inflation" default="0.35"/>
+    <arg name="visualization_max_height" value="1.2"/>
+    <arg name="max_vel" value="0.5"/>
+
+    <!-- The rest is in exploration_ground.launch, which takes more options
+         than these -->
     <arg name="use_rviz" default="false"/>
     <arg name="viewer" default="true"/>
     <arg name="viewer_port" default="8080"/>
@@ -14,13 +25,16 @@
     <arg name="seed" default="1"/>
     <!-- lidar or depth; house or forest; terrain filter (lidar) -->
     <arg name="sensor" default="lidar"/>
+    <arg name="lidar" default="uniform"/>
     <arg name="world" default="house"/>
     <arg name="terrain" default="true"/>
+    <arg name="lidar_raycasting" default="true"/>
+    <arg name="lidar_max_hits" default="6"/>
+    <arg name="sliding_map" default="true"/>
+    <arg name="show_occ_time" default="false"/>
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
 
-    <include file="$(find star_nav_bringup)/launch/exploration_legged.launch" pass_all_args="true">
-        <arg name="robot" value="t1"/>
-    </include>
+    <include file="$(find star_nav_bringup)/launch/exploration_ground.launch" pass_all_args="true"/>
 </launch>

@@ -140,7 +140,7 @@ Simulator flags, passed with `sim_args:="..."`:
 | Flag | Default | Meaning |
 | --- | --- | --- |
 | `--lidar-beams` | 32 | Number of beams (rows) |
-| `--lidar-vfov LOW HIGH` | -22.5 22.5 | Elevation of the lowest and highest beam (deg) |
+| `--lidar-vfov LOW HIGH` | the robot's (quadrotor: -22.5 22.5) | Elevation of the lowest and highest beam (deg) |
 | `--lidar-columns` | 1024 | Azimuth samples per revolution |
 | `--lidar-rate` | 10 | Scans per second |
 | `--lidar-range` | 10 | Maximum range (m) |
@@ -148,8 +148,7 @@ Simulator flags, passed with `sim_args:="..."`:
 
 The sensor sits 6 cm above the body centre, aligned with the body (x forward,
 z up); `exploration_mujoco.launch` passes the same offset to the planner as
-`grid_map/lidar_offset`. Rays ignore the quadrotor itself and visual-only markers such as the
-blue setpoint sphere. Casting runs in parallel threads: ~7 ms per scan on 4
+`grid_map/lidar_offset`. Rays ignore the quadrotor itself and visual-only markers (geom group 2). Casting runs in parallel threads: ~7 ms per scan on 4
 cores of an i7-12700H, ~13 ms while the planner runs.
 
 ## How Accuracy Is Checked
@@ -160,7 +159,7 @@ Three layers, all automated:
    turned, every lidar return, transformed with the published sensor pose,
    lies within 2 mm of an analytic surface (ground, cylinder or ring capsule);
    returns respect the range and field of view; rays ignore the quadrotor and
-   the setpoint marker. Depth pixels back-project onto the ground and pillar
+   visual-only markers. Depth pixels back-project onto the ground and pillar
    surfaces the same way.
 2. **What the planner receives (`mujoco_smoke.test`).** The bridge publishes
    the exact obstacle geometry on `/mujoco/obstacles`. During the mission the

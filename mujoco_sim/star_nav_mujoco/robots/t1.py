@@ -1,7 +1,7 @@
 """Booster T1 humanoid walking with its upstream velocity policy.
 
 The robot model and the policy come from Booster Robotics' booster_gym and
-are downloaded on first use (``star-nav-mujoco --fetch-t1``); they are not
+are downloaded on first use (``star-nav-mujoco --fetch t1``); they are not
 part of this repository. Both are Apache-2.0:
 
 * MJCF and meshes: github.com/BoosterRobotics/booster_gym
@@ -15,24 +15,23 @@ weights are read straight from the archive's tensor files, without unpickling
 anything, and the network runs in numpy: no PyTorch needed.
 
 The policy follows a body-frame velocity command (forward, sideways, turn
-rate) like the Lite3's, so the same ``Tracker`` steers it.
+rate) like the Lite3's, so the same ``tracking.Holonomic`` steers it.
 """
 
 from __future__ import annotations
 
-import hashlib
 import math
-import os
 import pathlib
-import urllib.request
 import zipfile
 
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import assets
+from star_nav_mujoco import policy as policy_lib
+from star_nav_mujoco import robots
 from star_nav_mujoco import scene
-from star_nav_mujoco.lite3 import MissingAssets
-from star_nav_mujoco.lite3 import Tracker  # noqa: F401  the same steering
+from star_nav_mujoco.assets import MissingAssets
 
 # Pinned upstream revision.
 REPO = 'BoosterRobotics/booster_gym'
@@ -77,16 +76,13 @@ CAMERA_POS = (0.15, 0.0, 0.40)
 LIDAR_MOUNT = (0.07, 0.0, 0.53)
 # Collision geoms of the legs: touching the ground, a ramp or a step with
 # these is walking, not a collision (see Simulator._touching).
-LEG_GEOMS = ('SHANK_collision', 'FOOT_collision')
+SUPPORT_GEOMS = ('SHANK_collision', 'FOOT_collision')
 # The house's walls are taller than the robot (1.16 m).
 HOUSE_WALL_HEIGHT = 1.6
 
 
 def asset_dir() -> pathlib.Path:
-  env = os.environ.get('STAR_NAV_T1_DIR')
-  if env:
-    return pathlib.Path(env).expanduser()
-  return pathlib.Path('~/.cache/star_nav/t1').expanduser()
+  return assets.directory('t1')
 
 
 def check_assets(root: pathlib.Path | None = None) -> pathlib.Path:
@@ -95,17 +91,8 @@ def check_assets(root: pathlib.Path | None = None) -> pathlib.Path:
   if missing:
     raise MissingAssets(
         f'T1 files not found in {root}. Download them once with '
-        '"star-nav-mujoco --fetch-t1" (see mujoco_sim/README.md).')
+        '"star-nav-mujoco --fetch t1" (see mujoco_sim/README.md).')
   return root
-
-
-def _download(url: str, dest: pathlib.Path) -> None:
-  dest.parent.mkdir(parents=True, exist_ok=True)
-  tmp = dest.with_suffix(dest.suffix + '.part')
-  with urllib.request.urlopen(url, timeout=60) as r, open(tmp, 'wb') as f:
-    while chunk := r.read(1 << 20):
-      f.write(chunk)
-  tmp.replace(dest)
 
 
 def extract_weights(archive: pathlib.Path) -> dict[str, np.ndarray]:
@@ -133,22 +120,19 @@ def extract_weights(archive: pathlib.Path) -> dict[str, np.ndarray]:
 def fetch(root: pathlib.Path | None = None, log=print) -> pathlib.Path:
   """Downloads the pinned model, meshes and policy into ``root``."""
   root = root or asset_dir()
-  raw = f'https://raw.githubusercontent.com/{REPO}/{COMMIT}'
+  raw = assets.github(REPO, COMMIT)
   log(f'Downloading the T1 model ({REPO}@{COMMIT[:7]}) to {root}')
-  _download(f'{raw}/{MODEL_XML}', root / MODEL_XML)
+  assets.download(f'{raw}/{MODEL_XML}', root / MODEL_XML)
   mesh_dir = (root / MODEL_XML).parent / 'meshes'
   for name in MESHES:
-    _download(f'{raw}/resources/T1/meshes/{name}.STL', mesh_dir / f'{name}.STL')
+    assets.download(f'{raw}/resources/T1/meshes/{name}.STL',
+                    mesh_dir / f'{name}.STL')
   log(f'Downloading {POLICY_PATH}')
   policy = root / 'T1.pt'
-  _download(f'{raw}/{POLICY_PATH}', policy)
-  digest = hashlib.sha256(policy.read_bytes()).hexdigest()
-  if digest != POLICY_SHA256:
-    policy.unlink()
-    raise RuntimeError(f'T1.pt: unexpected sha256 {digest}')
+  assets.download(f'{raw}/{POLICY_PATH}', policy, POLICY_SHA256)
   np.savez(root / WEIGHTS_FILE, **extract_weights(policy))
   (root / 'SOURCE.md').write_text(
-      'Downloaded by star_nav_mujoco.t1.fetch; not redistributed.\n\n'
+      'Downloaded by star_nav_mujoco.robots.t1.fetch; not redistributed.\n\n'
       f'- {MODEL_XML}, meshes/, T1.pt: https://github.com/{REPO}/tree/{COMMIT}'
       ' (Apache-2.0, Booster Robotics)\n'
       f'- {WEIGHTS_FILE}: the weights of T1.pt\n')
@@ -181,16 +165,16 @@ def attach(spec: mujoco.MjSpec, start: tuple[float, float], root: pathlib.Path,
       geom.group = scene.ROBOT_GROUP
       body = geom.parent.name
       if body.endswith('foot_link'):
-        geom.name = body + '_' + LEG_GEOMS[1]
+        geom.name = body + '_' + SUPPORT_GEOMS[1]
       elif body.startswith('Shank'):
-        geom.name = body + '_' + LEG_GEOMS[0]
+        geom.name = body + '_' + SUPPORT_GEOMS[0]
     else:
       geom.group = scene.MARKER_GROUP
   frame = spec.worldbody.add_frame(pos=[start[0], start[1], 0.0])
   frame.attach_body(trunk, PREFIX, '')
 
 
-class Walker:
+class Locomotion:
   """Runs the velocity policy (numpy) and the joint PD controller."""
 
   def __init__(self, model: mujoco.MjModel, data: mujoco.MjData,
@@ -219,13 +203,6 @@ class Walker:
     self._steps = 0
     self._phase = 0.0
 
-  def _policy(self, x: np.ndarray) -> np.ndarray:
-    for i, (w, b) in enumerate(self._layers):
-      x = w @ x + b
-      if i < len(self._layers) - 1:
-        x = np.where(x > 0, x, np.expm1(np.minimum(x, 0)))  # ELU
-    return x
-
   @property
   def walking(self) -> bool:
     """False while the command is zero: the gait clock stops, it stands."""
@@ -233,10 +210,7 @@ class Walker:
 
   def observation(self) -> np.ndarray:
     d = self.data
-    q = d.xquat[self._trunk]
-    gravity = np.empty(3)
-    mujoco.mju_rotVecQuat(gravity, np.array([0.0, 0.0, -1.0]),
-                          np.array([q[0], -q[1], -q[2], -q[3]]))
+    gravity = policy_lib.projected_gravity(d.xquat[self._trunk])
     omega = d.qvel[self._root_qvel + 3:self._root_qvel + 6]  # body frame
     on = float(self.walking)
     clock = [math.cos(2 * math.pi * self._phase) * on,
@@ -255,7 +229,8 @@ class Walker:
     """Call before every mj_step: policy every DECIMATION steps, PD always."""
     d = self.data
     if self._steps % DECIMATION == 0:
-      action = np.clip(self._policy(self.observation()), -1.0, 1.0)
+      action = np.clip(
+          policy_lib.mlp(self._layers, self.observation()), -1.0, 1.0)
       self._last = action.astype(np.float32)
       self._target = DEFAULT_POSE + self._last
     self._steps += 1
@@ -263,3 +238,28 @@ class Walker:
       self._phase = math.fmod(self._phase + self.model.opt.timestep * GAIT_FREQUENCY, 1.0)
     torque = KP * (self._target - d.qpos[self._qpos]) - KD * d.qvel[self._qvel]
     d.ctrl[:] = np.clip(torque, self._lo, self._hi)
+
+
+class T1(robots.GroundRobot):
+  name = 't1'
+  title = 'T1'
+  body = TRUNK
+  camera = CAMERA
+  timestep = TIMESTEP
+  stand_height = STAND_HEIGHT
+  start_height = START_HEIGHT
+  support_geoms = SUPPORT_GEOMS
+  lidar_mount = LIDAR_MOUNT
+  lidar_vfov = (-50.0, 30.0)  # from the head: the floor from 1 m ahead
+  # The Mid-360's lowest beam is 7 deg down: level on the head it passes
+  # over the furniture, and the T1 walks into a table.
+  lidar_pitch = {'mid360': 30.0}
+  follow_camera = (4.0, -50.0)
+  house_wall_height = HOUSE_WALL_HEIGHT
+  check_assets = staticmethod(check_assets)
+  fetch = staticmethod(fetch)
+  attach = staticmethod(attach)
+  locomotion = Locomotion
+
+
+ROBOT = T1()

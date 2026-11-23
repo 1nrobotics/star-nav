@@ -11,7 +11,9 @@ os.environ.setdefault('MUJOCO_GL', 'egl')
 import numpy as np
 import pytest
 
+from star_nav_mujoco import assets
 from star_nav_mujoco import lidar
+from star_nav_mujoco import lidar_models
 from star_nav_mujoco import protocol
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
@@ -192,8 +194,8 @@ def test_recorder_writes_video(tmp_path):
   assert path.stat().st_size > 1000
 
 
-def test_depth_ignores_setpoint_marker():
-  # The setpoint sphere is a visual marker; it must not appear as an obstacle.
+def test_depth_sees_nothing_at_the_setpoint():
+  # The setpoint is not drawn; it must not appear as an obstacle.
   s = sim.Simulator(obstacles=[])
   s.set_command(quadrotor.Command.hover((0.6, 0.0, 1.0)))
   mujoco.mj_forward(s.model, s.data)
@@ -278,7 +280,7 @@ def test_lidar_sees_all_obstacles_and_respects_range(lidar_scene):
 def test_lidar_ignores_own_body_and_markers():
   cfg = sim.SimConfig(lidar=lidar.LidarConfig())
   s = sim.Simulator(cfg, render_depth=False, obstacles=[])
-  scan = s.scan_lidar()  # setpoint marker sits on the quadrotor at start
+  scan = s.scan_lidar()
   r = np.linalg.norm(scan.points, axis=1)
   assert r.min() > 1.0  # nothing near the sensor; only ground returns
   world_z = scan.pos[2] + scan.points[:, 2]
@@ -296,6 +298,73 @@ def test_lidar_noise():
   err = world_z / (-scan.points[:, 2] / r)
   assert 0.02 < err.std() < 0.04
   s.close()
+
+
+def test_lidar_pitch_tilts_the_sensor():
+  cfg = sim.SimConfig(lidar=lidar.LidarConfig(beams=1, vfov=(0.0, 0.0), pitch=30.0))
+  s = sim.Simulator(cfg, render_depth=False, obstacles=[])
+  scan = s.scan_lidar()
+  world_pts = scan.pos + scan.points.astype(float) @ _quat_to_rot(scan.quat).T
+  np.testing.assert_allclose(_quat_to_rot(scan.quat), scan.rot, atol=1e-9)
+  # The horizontal beam now meets the ground ahead, at height / tan(30 deg).
+  assert np.abs(world_pts[:, 2]).max() < 2e-3
+  ahead = world_pts[np.argmax(world_pts[:, 0])]
+  assert ahead[0] == pytest.approx(scan.pos[2] / np.tan(np.deg2rad(30.0)), abs=0.01)
+  assert world_pts[:, 0].min() > 0  # nothing behind: those beams point up
+  s.close()
+
+
+def test_lidar_range_is_the_models_unless_given():
+  for name in lidar_models.names():
+    model = lidar_models.get(name)
+    cfg = lidar.LidarConfig(model=name).resolved()
+    assert (cfg.range_min, cfg.range_max) == (model.range_min, model.range_max)
+    assert cfg.pitch == 0.0
+  assert lidar.LidarConfig(model='mid360', range_max=12.0).resolved().range_max == 12.0
+  with pytest.raises(ValueError, match='unknown lidar model'):
+    lidar.LidarConfig(model='nope').resolved()
+
+
+def test_uniform_model():
+  cfg = lidar.LidarConfig(beams=4, columns=8, vfov=(-10.0, 20.0))
+  model = lidar_models.get('uniform')
+  table = model.table(cfg)
+  assert model.repetitive and model.lines(cfg) == 4
+  assert table.shape == (32, 3) and model.scan_size(cfg, table) == 32
+  np.testing.assert_allclose(np.linalg.norm(table, axis=1), 1.0)
+  elevation = np.rad2deg(np.arcsin(table[:, 2]))
+  assert elevation.min() == pytest.approx(-10.0) and elevation.max() == pytest.approx(20.0)
+
+
+def test_mid360_model():
+  model = lidar_models.get('mid360')
+  try:
+    table = model.table(lidar.LidarConfig(model='mid360'))
+  except assets.MissingAssets:
+    pytest.skip('Mid-360 beam table not downloaded (--fetch mid360)')
+  assert not model.repetitive
+  np.testing.assert_allclose(np.linalg.norm(table, axis=1), 1.0)
+  elevation = np.rad2deg(np.arcsin(table[:, 2]))
+  assert -7.3 < elevation.min() < -7.0 and 52.0 < elevation.max() < 52.3
+
+  cfg = sim.SimConfig(lidar=lidar.LidarConfig(model='mid360', pitch=45.0))
+  s = sim.Simulator(cfg, render_depth=False, obstacles=[])
+  assert s.cfg.lidar.range_max == model.range_max
+  first, second = s.scan_lidar(), s.scan_lidar()
+  assert len(s.lidar.directions) == 20000  # 200,000 points/s at 10 Hz
+  for scan in (first, second):
+    world_pts = scan.pos + scan.points.astype(float) @ scan.rot.T
+    assert len(world_pts) > 1000
+    assert np.abs(world_pts[:, 2]).max() < 2e-3  # all on the ground
+  # Non-repetitive: the next scan uses the next part of the table.
+  assert not np.array_equal(first.points[:100], second.points[:100])
+  s.close()
+
+
+def test_mid360_table_missing(tmp_path, monkeypatch):
+  monkeypatch.setenv('STAR_NAV_LIDAR_DIR', str(tmp_path))
+  with pytest.raises(assets.MissingAssets, match='--fetch mid360'):
+    lidar.Lidar(None, lidar.LidarConfig(model='mid360'), 0)
 
 
 def test_lidar_protocol_round_trip(lidar_scene):

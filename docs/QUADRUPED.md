@@ -11,8 +11,9 @@ run it: [SIMULATION.md](SIMULATION.md#mujoco-simulator) and
 |---|---|
 | Lite3 in MuJoCo, upstream walking policy | Working |
 | Planner (EGO) driving the robot | Working: the drone's stack at a fixed height |
-| Forest, lidar or depth camera | 12/12 waypoints, no contacts |
-| House: furniture, 12° ramp, 0.21 m platform, 7 cm steps | 12/12 waypoints, no contacts |
+| Forest, lidar (recommended) or depth camera | 12/12 waypoints, no contacts |
+| House with the lidar: furniture, 12° ramp, 0.21 m platform, 7 cm steps | 12/12 waypoints, no contacts |
+| House with the depth camera, or with `terrain:=false` | Not supported: see Limitations |
 | Terrain filter (ramps and low steps are walkable) | Working, static worlds only |
 | Localisation | Simulator ground truth |
 | Steps above 8 cm | Not supported (blind policy) |
@@ -26,21 +27,21 @@ mission waypoints (exploration_manager)
   -> EGO-Planner: B-spline at a fixed height (0.34 m, the torso)
   -> traj_server: position, velocity, yaw setpoints (the same as for the drone)
   ==== ZeroMQ bridge ==== MuJoCo
-  -> lite3.Tracker: setpoint -> body-frame (forward, sideways, turn)
+  -> tracking.Holonomic: setpoint -> body-frame (forward, sideways, turn)
   -> walking policy (ONNX, 83 Hz): command -> 12 joint targets
   -> PD (500 Hz): joint targets -> torques
 
 lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
 ```
 
-### Control (`mujoco_sim/star_nav_mujoco/lite3.py`)
+### Control (`mujoco_sim/star_nav_mujoco/robots/lite3.py`)
 
 - **Model and policy**: DeepRobotics' Lite3 MJCF
   ([deep_robotics_model](https://github.com/DeepRoboticsLab/deep_robotics_model))
   and the PPO velocity policy from
   [Lite3_rl_deploy](https://github.com/DeepRoboticsLab/Lite3_rl_deploy), both
   BSD-3-Clause. They are downloaded at pinned commits with a SHA-256 check
-  (`star-nav-mujoco --fetch-lite3`), not committed. We did not train anything.
+  (`star-nav-mujoco --fetch lite3`), not committed. We did not train anything.
 - **Policy**: 45 observations (body angular velocity, projected gravity,
   command, joint positions and velocities, last action). The command is limited
   to ±0.8. The policy outputs joint offsets from the standing pose. It runs
@@ -63,7 +64,8 @@ lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
 ### Planning
 
 - **Planner**: EGO-Planner, the same as for the drone, at a fixed altitude of
-  0.34 m. The parameters are in `star_nav_bringup/launch/exploration_legged.launch`:
+  0.34 m. The parameters are in `star_nav_bringup/launch/exploration_lite3.launch`
+  (the robot's sizes) and `exploration_ground.launch` (the rest):
 
   | Parameter | Value |
   |---|---|
@@ -133,6 +135,14 @@ The quadruped work also fixed two things that affect the drone:
 
 ## Limitations
 
+- **Use the lidar.** It is the default and the only sensor that works in
+  every world. The depth camera (`sensor:=depth`) bypasses the terrain
+  filter, so it is for flat ground (the forest) only: in the house the ramp
+  and the steps become obstacles, and one run fell once, timed out on 5
+  waypoints and logged about 1,200 contact steps. `terrain:=false` (lidar
+  without the terrain filter) is flat-ground only for the same reason: in the
+  house one run reached the waypoints with about 16,000 contact steps. Both
+  fail the same way before and after the robot interface refactoring.
 - **The planner does not know the gait's limits.** The filter's 9 cm threshold
   is above what the policy climbs reliably (7 cm). A step between 8 and 9 cm
   would be planned over and may stall the robot.

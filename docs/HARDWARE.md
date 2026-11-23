@@ -1,7 +1,7 @@
 # Hardware Guide
 
 `main` contains no sensor-specific hardware code. Real-flight integrations live
-on dedicated branches that track `main`:
+on dedicated branches:
 
 | Branch | Hardware | Contents |
 | --- | --- | --- |
@@ -25,11 +25,6 @@ odometry in place of the simulator's ground truth).
   can be integrated the same way the VK180 branch does.
 
 ## Working on a hardware branch
-
-```bash
-git checkout hardware/vk180
-git merge main            # pick up planner and simulation changes
-```
 
 Keep hardware-only changes on the hardware branch and send generic planner or
 simulation fixes to `main` first.

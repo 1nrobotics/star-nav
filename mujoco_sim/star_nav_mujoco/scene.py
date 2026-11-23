@@ -1,6 +1,6 @@
 """Builds the MuJoCo scene (MJCF) for the forest world and the quadrotor.
 
-Other robots (the Lite3 quadruped) are attached to it with MjSpec.
+Other robots (``robots/``) are attached to it with MjSpec.
 """
 
 from __future__ import annotations
@@ -21,30 +21,6 @@ CAM_OFFSET = 0.14  # metres ahead of the body centre
 MARKER_GROUP = 2
 # Geom group of an attached robot's own geoms (its legs); sensors ignore it.
 ROBOT_GROUP = 3
-# The robot's root body, by robot.
-ROBOT_BODIES = ('quad', 'lite3/TORSO', 't1/Trunk')
-
-
-def robot_body(model) -> int:
-  """Returns the id of the robot's root body."""
-  for name in ROBOT_BODIES:
-    try:
-      return model.body(name).id
-    except KeyError:
-      continue
-  raise KeyError(f'no robot body ({", ".join(ROBOT_BODIES)}) in the model')
-
-
-def follow_camera(model) -> tuple[float, float]:
-  """Distance (m) and elevation (deg) of a camera following the robot.
-
-  A walking robot is seen closer and from above, so walls do not hide it.
-  """
-  name = model.body(robot_body(model)).name
-  if name == 'quad':
-    return 5.0, -25.0
-  return (4.0 if name.startswith('t1/') else 3.2), -50.0
-
 RING_SEGMENTS = 24
 RING_TUBE = 0.04
 
@@ -146,7 +122,6 @@ def build_xml(
     <material name="ring" rgba="0.85 0.55 0.2 1"/>
     <material name="frame" rgba="0.15 0.15 0.18 1"/>
     <material name="prop" rgba="0.9 0.4 0.1 0.8"/>
-    <material name="target" rgba="0.1 0.6 1 0.6"/>
     <material name="lidar" rgba="0.2 0.25 0.3 1"/>
     <!-- The house (house.py) and the ground; textures.py textures them -->
     <material name="floor" rgba="0.78 0.6 0.42 1"/>
@@ -173,10 +148,8 @@ def build_xml(
     {_obstacles_xml(obstacles)}
     {extra}
     {robot}
-    <body name="setpoint" mocap="true" pos="{_f(*start)}">
-      <geom type="sphere" size="0.06" material="target" contype="0" conaffinity="0"
-            group="{MARKER_GROUP}"/>
-    </body>
+    <!-- The planner's position setpoint: not drawn -->
+    <body name="setpoint" mocap="true" pos="{_f(*start)}"/>
   </worldbody>
   <actuator>
     {actuators}

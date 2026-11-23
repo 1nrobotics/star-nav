@@ -40,13 +40,16 @@ Notes:
   (BSD-3-Clause), pyzmq (BSD-3-Clause) and libzmq (MPL-2.0).
 - The Lite3 quadruped model (MJCF, meshes) and walking policy are
   DeepRoboticsLab's (BSD-3-Clause). They are downloaded on request
-  (`--fetch-lite3`) at pinned commits and not redistributed here;
-  `star_nav_mujoco/lite3.py` reimplements their policy runner's interface.
+  (`--fetch lite3`) at pinned commits and not redistributed here;
+  `star_nav_mujoco/robots/lite3.py` reimplements their policy runner's interface.
 - The T1 humanoid model (MJCF, meshes) and walking policy (`T1.pt`) are
   Booster Robotics' booster_gym (Apache-2.0). They are downloaded on request
-  (`--fetch-t1`) at a pinned commit and not redistributed here;
-  `star_nav_mujoco/t1.py` reads the policy's weights and reimplements its
+  (`--fetch t1`) at a pinned commit and not redistributed here;
+  `star_nav_mujoco/robots/t1.py` reads the policy's weights and reimplements its
   observation and PD control from `play_mujoco.py`.
+- The Mid-360 lidar pattern (`--lidar-model mid360`) uses the beam table
+  `mid360.csv` of Livox's livox_laser_simulation (MIT). It is downloaded on
+  request (`--fetch mid360`) at a pinned commit and not redistributed here.
 - The scene textures (`star_nav_mujoco/textures.py`) are generated with
   NumPy at run time; no image files are used.
 - The MuJoCo quadrotor controller implements the published geometric

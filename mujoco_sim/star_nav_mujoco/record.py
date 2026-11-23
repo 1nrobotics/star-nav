@@ -8,6 +8,7 @@ import subprocess
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import robots
 from star_nav_mujoco import scene
 
 
@@ -35,8 +36,9 @@ class Recorder:
                                      max_geom=model.ngeom + _MAX_POINTS + 1000)
     self._camera = mujoco.MjvCamera()
     self._camera.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-    self._camera.trackbodyid = scene.robot_body(model)
-    self._camera.distance, self._camera.elevation = scene.follow_camera(model)
+    robot = robots.find(model)
+    self._camera.trackbodyid = model.body(robot.body).id
+    self._camera.distance, self._camera.elevation = robot.follow_camera
     self._camera.azimuth = -135.0
     self._ffmpeg = subprocess.Popen(
         [ffmpeg, '-loglevel', 'error', '-y', '-f', 'rawvideo',
@@ -63,7 +65,8 @@ class Recorder:
     pts = points[::step]
     # Colour by height: blue near the ground to red at 2.5 m.
     h = np.clip(pts[:, 2] / 2.5, 0.0, 1.0)
-    size = np.array([0.025, 0.0, 0.0])
+    # Smaller for a camera that is close (a small robot).
+    size = np.array([min(0.025, 0.007 * self._camera.distance), 0.0, 0.0])
     eye = np.eye(3).flatten()
     for p, k in zip(pts, h):
       if scene.ngeom >= scene.maxgeom:

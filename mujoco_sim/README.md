@@ -57,7 +57,7 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--robot` | quadrotor | `quadrotor`, `lite3` (quadruped) or `t1` (humanoid), see below |
-| `--fetch-lite3`, `--fetch-t1` | | Download the Lite3 or T1 model and policy, then exit |
+| `--fetch NAME` | | Download the model and policy of `lite3` or `t1`, or the beam table of the `mid360` lidar model, then exit |
 | `--world` | forest | `forest` or `house` (rooms, ramp, platform, stairs; `house.py`) |
 | `--seed` | 1 | Forest layout |
 | `--map-size X Y` | 50 50 | Forest extent (m) |
@@ -66,7 +66,11 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | `--bind` | 127.0.0.1 | ZeroMQ address (`0.0.0.0` for a bridge on another host) |
 | `--sensor` | depth | `depth`, `lidar` or `both` ([docs/SENSORS.md](../docs/SENSORS.md)) |
 | `--depth-rate` | 30 | Depth camera rate (Hz) |
-| `--lidar-*` | 32 x 1024, 10 Hz | Lidar beams, columns, vertical FOV, rate, range, noise |
+| `--lidar-model` | uniform | The lidar to imitate (`lidar_models.py`): `uniform` (ideal spinning lidar) or `mid360` (Livox Mid-360; fetch its beam table once with `--fetch mid360`) |
+| `--lidar-range` | the model's (uniform: 10, mid360: 40) | Maximum range (m) |
+| `--lidar-pitch` | the robot's for the model (T1 with `mid360`: 30, otherwise 0) | Tilt the lidar nose-down (deg) |
+| `--lidar-rate`, `--lidar-noise` | 10 Hz, 0 | Scans per second, range noise (m) |
+| `--lidar-beams`, `--lidar-columns`, `--lidar-vfov` | 32, 1024, the robot's | The `uniform` model only: beams, azimuth steps, lowest and highest elevation (deg) |
 | `--realtime-factor` | 1.0 | Simulated seconds per wall-clock second |
 | `--no-viewer`, `--viewer-port` | off, 8080 | Web viewer |
 | `--record FILE` | off | Write an MP4 from the viewer's follow camera, with lidar returns as dots (needs `ffmpeg`) |
@@ -83,11 +87,13 @@ DeepRobotics' Lite3 walks with DeepRobotics' own velocity policy:
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true
 rostest star_nav_bringup lite3_smoke.test                  # house, lidar
 rostest star_nav_bringup lite3_smoke.test world:=forest
-rostest star_nav_bringup lite3_smoke.test world:=forest sensor:=depth
 ```
 
-The default is the house (ramp, stairs, furniture) with the lidar. The depth
-camera bypasses the terrain filter, so use it in the forest (flat ground).
+Use the lidar: it is the default, in the house (ramp, stairs, furniture) and
+in the forest. The depth camera (`sensor:=depth`) bypasses the terrain
+filter, so it only works on flat ground (`world:=forest sensor:=depth`); in
+the house the robot collides and falls
+([docs/QUADRUPED.md](../docs/QUADRUPED.md), Limitations).
 
 - Model and policy are downloaded at pinned commits into
   `~/.cache/star_nav/lite3` (`STAR_NAV_LITE3_DIR` to change), not committed:
@@ -101,12 +107,12 @@ camera bypasses the terrain filter, so use it in the forest (flat ground).
   last action, as upstream's ONNX runner; joint PD (kp 30, kd 1, 30 N m) at
   every 2 ms physics step. Measured on flat ground: forward 0.5 → 0.49 m/s,
   sideways 0.3 → 0.24 m/s, turn 0.5 → 0.45 rad/s.
-- `lite3.Tracker` turns the planner's setpoint into a body-frame command
+- `tracking.Holonomic` turns the planner's setpoint into a body-frame command
   (setpoint velocity plus 1.5/s × position error, at most 0.8 m/s) and turns
   towards the planner's yaw; it stands on a resting setpoint.
 - Sensors: the depth camera at the front of the torso, the lidar 10 cm above
-  the torso centre (`exploration_legged.launch`: −30° … 52°, about what a
-  Mid-360 tilted forward sees ahead). Neither sees the robot's own legs
+  the torso centre, seeing −30° … 52° (about what a Mid-360 tilted forward
+  sees ahead). Neither sees the robot's own legs
   (geom group 3).
 - Terrain: on the lidar path, `star_nav_bringup/scripts/terrain_filter.py`
   keeps a 2.5D grid (lowest return per 0.1 m cell, highest within 0.55 m
@@ -148,7 +154,7 @@ above the walking height would stop that.
   [booster_gym](https://github.com/BoosterRobotics/booster_gym) (Apache-2.0)
   into `~/.cache/star_nav/t1` (`STAR_NAV_T1_DIR` to change), not committed:
   `T1_locomotion.xml` with its meshes, and the trained actor `T1.pt`
-  (checked by SHA-256). `T1.pt` is a TorchScript MLP; `t1.py` reads its
+  (checked by SHA-256). `T1.pt` is a TorchScript MLP; `robots/t1.py` reads its
   weights from the archive's raw tensor files (no unpickling, no PyTorch) and
   runs it in NumPy.
 - Walking: the policy runs at 50 Hz on gravity direction, body angular
@@ -157,7 +163,7 @@ above the walking height would stop that.
   action, as upstream's `play_mujoco.py`; joint PD (hips and knees kp 200,
   kd 5; ankles 50, 1) at every 2 ms physics step. Measured on flat ground:
   forward 0.5 → 0.42 m/s, sideways 0.3 → 0.26 m/s, turn 0.5 → 0.51 rad/s.
-- Steering: the Lite3's `Tracker`. Sensors: the depth camera in the face
+- Steering: the Lite3's `tracking.Holonomic`. Sensors: the depth camera in the face
   (1.07 m), the lidar on top of the head (1.2 m, −50° … 30°); neither sees
   the robot (its meshes are in group 2, its collision geoms in group 3).
 - The planner walks it at 0.5 m/s, waypoints at trunk height (0.67 m), with
@@ -185,8 +191,14 @@ above the walking height would stop that.
 - Lidar (`--sensor lidar`): 32 beams over −22.5° … +22.5°, 1024 columns,
   10 Hz, 0.3–10 m, mounted 6 cm above the body centre. Each revolution is
   cast at one instant with `mj_multiRay` in parallel threads; points are sent
-  in the sensor frame with the sensor pose. Sensors ignore visual-only
-  markers (geom group 2), such as the setpoint sphere.
+  in the sensor frame with the sensor pose. With `--lidar-model mid360` the
+  beams follow Livox's Mid-360 table instead (elevations −7.2° … 52.2°,
+  20,000 beams per 10 Hz scan, each scan the next part of the 4 s table, so
+  successive scans differ) and the range is 0.1–40 m; there is no motion
+  distortion. A lidar model is one class in `lidar_models.py` (beam
+  directions, beams per scan, range); where the sensor sits is the robot's
+  `lidar_mount` and `lidar_pitch`. Sensors ignore visual-only
+  markers (geom group 2), such as a robot's visual meshes.
 - Unlike the kinematic simulator, both sensors also see the ground, so the
   planner's occupancy map contains the floor (below 0.35 m with inflation,
   well under the 1 m flight altitude), as it would with a real sensor. RViz
@@ -195,7 +207,8 @@ above the walking height would stop that.
 - Textures (`textures.py`): wooden floor, plaster walls, wood, fabric,
   concrete, grass and bark, generated with NumPy when the model is built.
   They are for show: sensors measure geometry, and the house floor is a
-  visual-only geom.
+  visual-only geom. The Lite3's meshes, one flat grey upstream, get a dark
+  shell, bare motor housings and rubber feet (`lite3.APPEARANCE`).
 - Contacts: the number of physics steps in which the quadrotor touched
   anything, published by the bridge on `/mujoco/contacts`. The simulator log
   names the geoms and the position of each new contact.

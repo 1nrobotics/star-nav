@@ -1,7 +1,7 @@
 """DeepRobotics Lite3 quadruped walking with its upstream velocity policy.
 
 The robot model and the policy come from DeepRobotics and are downloaded on
-first use (``star-nav-mujoco --fetch-lite3``); they are not part of this
+first use (``star-nav-mujoco --fetch lite3``); they are not part of this
 repository. Both are BSD-3-Clause:
 
 * MJCF and meshes: github.com/DeepRoboticsLab/deep_robotics_model
@@ -11,23 +11,22 @@ repository. Both are BSD-3-Clause:
   ONNX runner (``run_policy/lite3_test_policy_runner_onnx.hpp``).
 
 The policy follows a body-frame velocity command (forward, sideways, turn
-rate), so ``Tracker`` steers the robot omnidirectionally towards the
-planner's setpoint and turns it to the planner's yaw.
+rate), so ``tracking.Holonomic`` steers the robot in any direction towards
+the planner's setpoint and turns it to the planner's yaw.
 """
 
 from __future__ import annotations
 
-import dataclasses
-import hashlib
-import math
-import os
 import pathlib
-import urllib.request
 
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import assets
+from star_nav_mujoco import policy as policy_lib
+from star_nav_mujoco import robots
 from star_nav_mujoco import scene
+from star_nav_mujoco.assets import MissingAssets
 
 # Pinned upstream revisions.
 MODEL_REPO = 'DeepRoboticsLab/deep_robotics_model'
@@ -68,19 +67,12 @@ CAMERA_POS = (0.29, 0.0, 0.02)
 LIDAR_MOUNT = (0.0, 0.0, 0.10)
 # Collision geoms of the legs: touching the ground, a ramp or a step with
 # these is walking, not a collision (see Simulator._touching).
-LEG_GEOMS = ('FOOT_collision', 'SHANK_collision')
+SUPPORT_GEOMS = ('FOOT_collision', 'SHANK_collision')
 HOUSE_WALL_HEIGHT = 1.0  # m; the robot sees and is seen over the walls
 
 
-class MissingAssets(RuntimeError):
-  pass
-
-
 def asset_dir() -> pathlib.Path:
-  env = os.environ.get('STAR_NAV_LITE3_DIR')
-  if env:
-    return pathlib.Path(env).expanduser()
-  return pathlib.Path('~/.cache/star_nav/lite3').expanduser()
+  return assets.directory('lite3')
 
 
 def check_assets(root: pathlib.Path | None = None) -> pathlib.Path:
@@ -89,7 +81,7 @@ def check_assets(root: pathlib.Path | None = None) -> pathlib.Path:
   if missing:
     raise MissingAssets(
         f'Lite3 files not found in {root}. Download them once with '
-        '"star-nav-mujoco --fetch-lite3" (see mujoco_sim/README.md).')
+        '"star-nav-mujoco --fetch lite3" (see mujoco_sim/README.md).')
   try:
     import onnxruntime  # noqa: F401  pylint: disable=g-import-not-at-top,unused-import
   except ImportError as e:
@@ -99,39 +91,37 @@ def check_assets(root: pathlib.Path | None = None) -> pathlib.Path:
   return root
 
 
-def _download(url: str, dest: pathlib.Path) -> None:
-  dest.parent.mkdir(parents=True, exist_ok=True)
-  tmp = dest.with_suffix(dest.suffix + '.part')
-  with urllib.request.urlopen(url, timeout=60) as r, open(tmp, 'wb') as f:
-    while chunk := r.read(1 << 20):
-      f.write(chunk)
-  tmp.replace(dest)
-
-
 def fetch(root: pathlib.Path | None = None, log=print) -> pathlib.Path:
   """Downloads the pinned model, meshes and policy into ``root``."""
   root = root or asset_dir()
-  raw = f'https://raw.githubusercontent.com/{MODEL_REPO}/{MODEL_COMMIT}/{MODEL_DIR}'
+  raw = f'{assets.github(MODEL_REPO, MODEL_COMMIT)}/{MODEL_DIR}'
   log(f'Downloading the Lite3 model ({MODEL_REPO}@{MODEL_COMMIT[:7]}) to {root}')
-  _download(f'{raw}/{MODEL_XML}', root / MODEL_XML)
+  assets.download(f'{raw}/{MODEL_XML}', root / MODEL_XML)
   for name in MESHES:
-    _download(f'{raw}/meshes/{name}', root / 'meshes' / name)
+    assets.download(f'{raw}/meshes/{name}', root / 'meshes' / name)
   log(f'Downloading {POLICY_PATH} ({POLICY_REPO}@{POLICY_COMMIT[:7]})')
-  policy = root / POLICY_FILE
-  _download(f'https://raw.githubusercontent.com/{POLICY_REPO}/{POLICY_COMMIT}/{POLICY_PATH}',
-            policy)
-  digest = hashlib.sha256(policy.read_bytes()).hexdigest()
-  if digest != POLICY_SHA256:
-    policy.unlink()
-    raise RuntimeError(f'{POLICY_FILE}: unexpected sha256 {digest}')
+  assets.download(
+      f'{assets.github(POLICY_REPO, POLICY_COMMIT)}/{POLICY_PATH}',
+      root / POLICY_FILE, POLICY_SHA256)
   (root / 'SOURCE.md').write_text(
-      'Downloaded by star_nav_mujoco.lite3.fetch; not redistributed.\n\n'
+      'Downloaded by star_nav_mujoco.robots.lite3.fetch; not redistributed.\n\n'
       f'- {MODEL_XML}, meshes/: https://github.com/{MODEL_REPO}/tree/'
       f'{MODEL_COMMIT}/{MODEL_DIR} (BSD-3-Clause, DeepRoboticsLab)\n'
       f'- {POLICY_FILE}: https://github.com/{POLICY_REPO}/blob/{POLICY_COMMIT}/'
       f'{POLICY_PATH} (BSD-3-Clause, DeepRoboticsLab)\n')
   log(f'Lite3: model, {len(MESHES)} meshes and the policy are in {root}')
   return root
+
+# The upstream meshes are one flat grey. Per part (the visual geoms'
+# <part>_visual names): rgba, specular, shininess. The STL meshes have no
+# texture coordinates, so these are plain materials.
+APPEARANCE = {
+    'lite3_torso': ([0.17, 0.18, 0.20, 1.0], 0.5, 0.6),  # dark shell
+    'lite3_hip': ([0.70, 0.72, 0.75, 1.0], 0.8, 0.8),  # bare motor housings
+    'lite3_thigh': ([0.22, 0.23, 0.26, 1.0], 0.5, 0.6),
+    'lite3_shank': ([0.60, 0.62, 0.65, 1.0], 0.7, 0.7),
+    'lite3_foot': ([0.06, 0.06, 0.06, 1.0], 0.1, 0.1),  # rubber
+}
 
 
 def attach(spec: mujoco.MjSpec, start: tuple[float, float], root: pathlib.Path,
@@ -154,14 +144,20 @@ def attach(spec: mujoco.MjSpec, start: tuple[float, float], root: pathlib.Path,
                    pos=LIDAR_MOUNT[:2] + (LIDAR_MOUNT[2] - 0.03,),
                    size=[0.035, 0.02, 0], rgba=[0.2, 0.25, 0.3, 1],
                    contype=0, conaffinity=0, group=scene.MARKER_GROUP)
+  for name, (rgba, specular, shininess) in APPEARANCE.items():
+    child.add_material(name=name, rgba=rgba, specular=specular,
+                       shininess=shininess)
   for geom in child.geoms:
     if geom.conaffinity or geom.contype:
       geom.group = scene.ROBOT_GROUP
+    elif geom.name.endswith('_visual'):
+      part = geom.name[:-len('_visual')].rsplit('_', 1)[-1]
+      geom.material = 'lite3_' + part.lower()
   frame = spec.worldbody.add_frame(pos=[start[0], start[1], 0.0])
   frame.attach_body(torso, PREFIX, '')
 
 
-class Walker:
+class Locomotion:
   """Runs the velocity policy and the joint PD controller."""
 
   def __init__(self, model: mujoco.MjModel, data: mujoco.MjData,
@@ -194,10 +190,7 @@ class Walker:
 
   def observation(self) -> np.ndarray:
     d = self.data
-    q = d.xquat[self._trunk]
-    gravity = np.empty(3)
-    mujoco.mju_rotVecQuat(gravity, np.array([0.0, 0.0, -1.0]),
-                          np.array([q[0], -q[1], -q[2], -q[3]]))
+    gravity = policy_lib.projected_gravity(d.xquat[self._trunk])
     omega = d.qvel[self._root_qvel + 3:self._root_qvel + 6]  # body frame
     return np.concatenate([
         omega * OMEGA_SCALE, gravity, np.clip(self.twist, -MAX_CMD, MAX_CMD),
@@ -221,34 +214,22 @@ class Walker:
     d.ctrl[:] = np.clip(torque, -TORQUE_LIMIT, TORQUE_LIMIT)
 
 
-@dataclasses.dataclass
-class Tracker:
-  """Turns a position setpoint (and yaw) into a body-frame velocity command.
+class Lite3(robots.GroundRobot):
+  name = 'lite3'
+  title = 'Lite3'
+  body = TRUNK
+  camera = CAMERA
+  timestep = TIMESTEP
+  stand_height = STAND_HEIGHT
+  start_height = START_HEIGHT
+  support_geoms = SUPPORT_GEOMS
+  lidar_mount = LIDAR_MOUNT
+  lidar_vfov = (-30.0, 52.0)  # the floor from 0.75 m ahead, and the walls
+  house_wall_height = HOUSE_WALL_HEIGHT
+  check_assets = staticmethod(check_assets)
+  fetch = staticmethod(fetch)
+  attach = staticmethod(attach)
+  locomotion = Locomotion
 
-  Measured on flat ground (policy at 83 Hz): forward 0.5 -> 0.49 m/s,
-  sideways 0.3 -> 0.24 m/s, turn 0.5 -> 0.45 rad/s, standing still on a zero
-  command. It walks in any direction, so it follows the setpoint's velocity
-  plus a position correction, and turns towards the planner's yaw.
-  """
-  k_pos: float = 1.5  # 1/s, position error to velocity
-  k_yaw: float = 1.5  # 1/s, yaw error to turn rate
-  max_speed: float = 0.8  # m/s, the policy's command limit
-  max_turn: float = 0.8  # rad/s
-  hold: float = 0.03  # m: stand within this of a resting setpoint
-  hold_yaw: float = math.radians(3)
 
-  def twist(self, sp_pos, sp_vel, sp_yaw, pos, yaw) -> np.ndarray:
-    err = np.asarray(sp_pos[:2], float) - pos[:2]
-    v = np.asarray(sp_vel[:2], float)
-    vel = v + self.k_pos * err
-    if float(np.hypot(*v)) < 0.02 and float(np.hypot(*err)) < self.hold:
-      vel = np.zeros(2)
-    speed = float(np.hypot(*vel))
-    if speed > self.max_speed:
-      vel *= self.max_speed / speed
-    c, s = math.cos(yaw), math.sin(yaw)
-    fwd, side = c * vel[0] + s * vel[1], -s * vel[0] + c * vel[1]
-    yaw_err = math.remainder(sp_yaw - yaw, 2.0 * math.pi)
-    turn = 0.0 if abs(yaw_err) < self.hold_yaw else float(
-        np.clip(self.k_yaw * yaw_err, -self.max_turn, self.max_turn))
-    return np.array([fwd, side, turn], np.float32)
+ROBOT = Lite3()

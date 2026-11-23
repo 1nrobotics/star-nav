@@ -15,7 +15,7 @@ from mujoco.studio import plugin
 from mujoco.studio import viewer_handle
 from mujoco.studio import viewer_protocol
 
-from star_nav_mujoco import scene
+from star_nav_mujoco import robots
 
 log = logging.getLogger('star_nav_mujoco')
 
@@ -27,8 +27,9 @@ class FollowQuadrotor(plugin.ViewerPlugin):
   def on_post_model(self, event: messages.PostModelEvent) -> None:
     cam = self.viewer.camera
     cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
-    cam.trackbodyid = scene.robot_body(event.model)
-    cam.distance, cam.elevation = scene.follow_camera(event.model)
+    robot = robots.find(event.model)
+    cam.trackbodyid = event.model.body(robot.body).id
+    cam.distance, cam.elevation = robot.follow_camera
     cam.azimuth = -135.0
 
 
