@@ -488,6 +488,42 @@ not a benchmark):
 
 Both robots cross the ramp, the platform and the steps with either planner.
 
+Lite3 in more scenes (same mission, same 0.6 m/s limit; one run per row on
+2026-11-23, the default house twice). Time, path, speed and standing time
+are from the odometry between the first waypoint and the last movement;
+clearance is the horizontal distance from the torso's centre to the nearest
+obstacle surface:
+
+| Scene | Planner | Result | Time (s) | Path (m) | Mean speed (m/s) | Standing | Min clearance (m) |
+|---|---|---|---|---|---|---|---|
+| House | `cmu` | pass | 152, 146 | 64.2, 61.8 | 0.42 | 13%, 11% | 0.32, 0.36 |
+| | `ego` | pass | 192, 186 | 65.8, 64.8 | 0.34, 0.35 | 2% | 0.41, 0.40 |
+| House, `lidar:=mid360` | `cmu` | pass | 153 | 64.1 | 0.42 | 11% | 0.37 |
+| | `ego` | pass | 193 | 64.1 | 0.33 | 3% | 0.39 |
+| House, 2 cm lidar range noise | `cmu` | pass | 139 | 61.5 | 0.44 | 10% | 0.31 |
+| | `ego` | fail: waypoint 8 timed out | 238 | 68.4 | 0.29 | 17% | 0.43 |
+| Forest, seed 1 | `cmu` | pass | 132 | 60.2 | 0.46 | 9% | 0.54 |
+| | `ego` | pass | 166 | 57.5 | 0.35 | 1% | 0.48 |
+| Forest, seed 2 | `cmu` | pass | 128 | 58.3 | 0.46 | 7% | 0.57 |
+| | `ego` | pass | 172 | 58.3 | 0.34 | 2% | 0.64 |
+| Forest, seed 3 | `cmu` | pass | 123 | 59.1 | 0.48 | 4% | 0.66 |
+| | `ego` | pass | 172 | 57.6 | 0.33 | 2% | 0.59 |
+| Forest, 400 pillars | `cmu` | pass | 171 | 68.2 | 0.40 | 14% | 0.32 |
+| | `ego` | fail: 15 contact steps | 184 | 61.1 | 0.33 | 3% | 0.28 |
+
+In these runs the CMU planner finished 7% to 42% sooner and passed all
+eight; it also stands still more (4% to 14% of the time, not investigated),
+passes closer to the furniture in the house, and detours more in the dense
+forest. EGO's two failures were each seen once: its 400-pillar run was
+repeated once for the video below and passed without a contact (196 s
+against 161 s for the CMU planner), and the noise run was not repeated. So
+the failures may be chance. No fall in any run.
+
+Side by side, at twice the speed, from one more run each at `344c2b8`:
+[house](https://github.com/1nrobotics/star-nav/releases/download/site-assets/lite3-house-cmu-vs-ego-344c2b8.mp4)
+(155 s against 181 s),
+[forest with 400 pillars](https://github.com/1nrobotics/star-nav/releases/download/site-assets/lite3-dense-forest-cmu-vs-ego-344c2b8.mp4).
+
 ## References
 
 - EGO-Planner: Zhou et al., RA-L 2021, [arXiv 2008.08835](https://arxiv.org/abs/2008.08835)
