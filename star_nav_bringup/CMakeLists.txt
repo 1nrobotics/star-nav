@@ -9,7 +9,7 @@ install(DIRECTORY launch config test
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
-catkin_install_python(PROGRAMS scripts/terrain_filter.py
+catkin_install_python(PROGRAMS scripts/terrain_filter.py scripts/cmu_waypoint_router.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

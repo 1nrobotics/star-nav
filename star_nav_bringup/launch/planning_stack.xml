@@ -3,6 +3,10 @@
          server, exploration manager and RViz. The simulator must provide
          odometry, a depth image and the camera pose (see the args below). -->
     <arg name="drone_id"/>
+    <!-- ego: EGO planner and trajectory server. cmu: neither (a ground robot
+         with the CMU local planner, started by exploration_ground.launch);
+         the exploration manager and RViz only. -->
+    <arg name="planner" default="ego"/>
     <arg name="obj_num"/>
     <arg name="use_rviz"/>
     <arg name="map_size_x"/>
@@ -50,7 +54,7 @@
     <!-- ============================== -->
     <!-- 2. EGO Planner                 -->
     <!-- ============================== -->
-    <include file="$(find ego_planner)/launch/advanced_param.xml">
+    <include file="$(find ego_planner)/launch/advanced_param.xml" if="$(eval planner == 'ego')">
         <arg name="drone_id" value="$(arg drone_id)"/>
         <arg name="map_size_x_" value="$(arg map_size_x)"/>
         <arg name="map_size_y_" value="$(arg map_size_y)"/>
@@ -110,7 +114,8 @@
     <!-- ============================== -->
     <!-- 3. Trajectory Server           -->
     <!-- ============================== -->
-    <node pkg="ego_planner" name="drone_$(arg drone_id)_traj_server" type="traj_server" output="screen">
+    <node pkg="ego_planner" name="drone_$(arg drone_id)_traj_server" type="traj_server" output="screen"
+          if="$(eval planner == 'ego')">
         <remap from="~planning/bspline" to="drone_$(arg drone_id)_planning/bspline"/>
         <remap from="/position_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
         <param name="traj_server/time_forward" value="1.0" type="double"/>

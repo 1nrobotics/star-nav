@@ -17,6 +17,8 @@
   <exec_depend>poscmd_2_odom</exec_depend>
   <exec_depend>odom_visualization</exec_depend>
   <exec_depend>mujoco_bridge</exec_depend>
+  <exec_depend>local_planner</exec_depend>
+  <exec_depend>terrain_analysis</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>rviz</exec_depend>
   <exec_depend>rviz_gcs_plugin</exec_depend>
@@ -25,6 +27,7 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
 
   <test_depend>rostest</test_depend>
