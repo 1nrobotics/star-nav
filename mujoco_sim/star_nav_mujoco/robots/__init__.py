@@ -8,7 +8,9 @@ a module here (see docs/SIM_ARCHITECTURE.md), not editing the simulator.
 Every robot follows the same command, the planner's position setpoint, with
 its own ``Controller``. A ground robot's is a chain: a tracker
 (``tracking.py``) turns the setpoint into a body-frame velocity, and the
-robot's locomotion policy turns that into joint torques.
+robot's locomotion policy turns that into joint torques. A ground robot also
+follows a body-frame velocity (``tracking.Velocity``) from a planner that
+steers it itself; that skips the tracker.
 
 Importing this package does not import MuJoCo: the command line lists the
 robots before it has chosen an OpenGL backend (``__main__._select_gl``).
@@ -35,7 +37,11 @@ class Controller(Protocol):
     """Puts the robot in its starting state (after mj_resetData)."""
 
   def step(self, cmd) -> None:
-    """Called before every mj_step with the command to follow."""
+    """Called before every mj_step with the command to follow.
+
+    A ``quadrotor.Command`` (position setpoint) or, for a ground robot, a
+    ``tracking.Velocity``.
+    """
 
 
 class Locomotion(Protocol):
@@ -152,7 +158,9 @@ class _GroundController:
 
   def step(self, cmd) -> None:
     loco, d = self.locomotion, self._data
-    if loco.policy_due:
+    if loco.policy_due and isinstance(cmd, tracking.Velocity):
+      loco.twist = self.tracker.limit(cmd.twist)
+    elif loco.policy_due:
       yaw = 2.0 * math.atan2(d.qpos[6], d.qpos[3])  # the body stays level
       loco.twist = self.tracker.twist(cmd.pos, cmd.vel, cmd.yaw, d.qpos[0:3],
                                       yaw)

@@ -4,6 +4,10 @@ A ground robot's locomotion policy follows a velocity (forward, sideways,
 turn rate). A tracker gives it that velocity from the position setpoint and
 yaw the planner sends, and the robot's pose. Each robot names its tracker
 (``Robot.tracker``): ``Holonomic`` for one that walks in any direction.
+
+A planner that steers the robot itself (the CMU local planner) sends a
+``Velocity`` instead: it goes to the policy as it is, within the tracker's
+limits.
 """
 
 from __future__ import annotations
@@ -12,6 +16,12 @@ import dataclasses
 import math
 
 import numpy as np
+
+
+@dataclasses.dataclass
+class Velocity:
+  """A body-frame velocity command, in place of a setpoint."""
+  twist: np.ndarray  # forward (m/s), sideways (m/s), turn rate (rad/s)
 
 
 @dataclasses.dataclass
@@ -46,3 +56,12 @@ class Holonomic:
         np.clip(self.k_yaw * yaw_err, -self.max_turn, self.max_turn))
     return np.array([fwd, side, turn], np.float32)
 
+
+  def limit(self, twist) -> np.ndarray:
+    """A velocity command within the policy's limits."""
+    fwd, side, turn = (float(x) for x in twist)
+    speed = math.hypot(fwd, side)
+    if speed > self.max_speed:
+      fwd, side = fwd * self.max_speed / speed, side * self.max_speed / speed
+    turn = min(max(turn, -self.max_turn), self.max_turn)
+    return np.array([fwd, side, turn], np.float32)

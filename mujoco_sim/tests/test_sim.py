@@ -48,6 +48,7 @@ def test_protocol_sizes_match_cpp_bridge():
   assert protocol.OBSTACLE.size == 28
   assert protocol.CMD.size == 104
   assert protocol.LIDAR.size == 72
+  assert protocol.VEL.size == 40
 
 
 def test_protocol_round_trip():
@@ -79,6 +80,10 @@ def test_protocol_round_trip():
   bad[0] = 99
   with pytest.raises(protocol.ProtocolError):
     protocol.unpack_cmd(bytes(bad))
+
+  t, twist = protocol.unpack_vel(protocol.pack_vel(2., 0.5, -0.1, 0.3))
+  assert t == 2.
+  np.testing.assert_array_equal(twist, [0.5, -0.1, 0.3])
 
 
 def test_hover_is_stable():
@@ -374,6 +379,15 @@ def test_lidar_protocol_round_trip(lidar_scene):
   np.testing.assert_array_equal(pts, scan.points)
   np.testing.assert_array_equal(quat, scan.quat)
   assert protocol.LIDAR.size == 72
+  assert protocol.VEL.size == 40
+
+
+def test_quadrotor_does_not_follow_a_velocity_command():
+  s = sim.Simulator(obstacles=[], render_depth=False)
+  assert not s.set_velocity([0.5, 0.0, 0.0])
+  s.step(500)
+  np.testing.assert_allclose(s.pos, s.cfg.start, atol=0.02)
+  s.close()
 
 
 def test_non_finite_command_fields_are_ignored():

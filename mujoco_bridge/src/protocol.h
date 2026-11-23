@@ -6,13 +6,14 @@
 
 namespace mujoco_bridge {
 
-constexpr uint16_t kProtocolVersion = 1;
+constexpr uint16_t kProtocolVersion = 2;
 
 constexpr char kTopicState[] = "state";
 constexpr char kTopicDepth[] = "depth";
 constexpr char kTopicLidar[] = "lidar";
 constexpr char kTopicWorld[] = "world";
 constexpr char kTopicCmd[] = "cmd";
+constexpr char kTopicVel[] = "vel";
 
 #pragma pack(push, 1)
 
@@ -79,6 +80,17 @@ struct CmdMsg {
   double yaw_rate;
 };
 
+// Body-frame velocity for a ground robot.
+struct VelMsg {
+  uint16_t version;
+  uint16_t pad0;
+  uint32_t pad1;
+  double t;
+  double forward;   // m/s
+  double sideways;  // m/s, to the left
+  double turn;      // rad/s, counter-clockwise
+};
+
 #pragma pack(pop)
 
 static_assert(sizeof(StateMsg) == 124, "StateMsg layout");
@@ -87,5 +99,6 @@ static_assert(sizeof(LidarHeader) == 72, "LidarHeader layout");
 static_assert(sizeof(WorldHeader) == 8, "WorldHeader layout");
 static_assert(sizeof(ObstacleMsg) == 28, "ObstacleMsg layout");
 static_assert(sizeof(CmdMsg) == 104, "CmdMsg layout");
+static_assert(sizeof(VelMsg) == 40, "VelMsg layout");
 
 }  // namespace mujoco_bridge

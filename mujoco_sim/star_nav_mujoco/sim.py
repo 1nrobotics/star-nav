@@ -22,6 +22,7 @@ from star_nav_mujoco import quadrotor
 from star_nav_mujoco import robots
 from star_nav_mujoco import scene
 from star_nav_mujoco import textures
+from star_nav_mujoco import tracking
 from star_nav_mujoco import world
 
 log = logging.getLogger('star_nav_mujoco')
@@ -122,6 +123,7 @@ class Simulator:
     mujoco.mj_resetData(self.model, self.data)
     self.contact_steps = 0
     self.fallen = False
+    self._twist = None  # set_velocity: follow a velocity, not the setpoint
     self.controller.reset()
     self.set_command(quadrotor.Command.hover(self.cfg.start), t=0.0)
     mujoco.mj_forward(self.model, self.data)
@@ -174,7 +176,28 @@ class Simulator:
     self.data.mocap_pos[self._mocap] = cmd.pos
     return bool(finite)
 
-  def _active_command(self) -> quadrotor.Command:
+  def set_velocity(self, twist, t: float | None = None) -> bool:
+    """Sets a body-frame velocity for a ground robot to follow.
+
+    Forward (m/s), sideways (m/s) and turn rate (rad/s), from a planner that
+    steers the robot itself. From the first one on the robot follows these
+    instead of the position setpoint, and stands when they stop. Returns
+    False (and changes nothing) for a robot that flies or a value that is
+    not finite.
+    """
+    twist = np.asarray(twist, float)
+    if (not self.robot.on_ground or twist.shape != (3,) or
+        not np.all(np.isfinite(twist))):
+      return False
+    self._twist = twist
+    self._twist_time = self.data.time if t is None else t
+    return True
+
+  def _active_command(self):
+    if self._twist is not None:
+      if self.data.time - self._twist_time > self.cfg.cmd_timeout:
+        return tracking.Velocity(np.zeros(3))  # commands stopped: stand
+      return tracking.Velocity(self._twist)
     if self.data.time - self._cmd_time > self.cfg.cmd_timeout:
       # Commands stopped: hold the last commanded position.
       return quadrotor.Command.hover(self._cmd.pos, self._cmd.yaw)
@@ -294,6 +317,7 @@ def run(sim: Simulator, rc: RunConfig) -> None:
   pub.bind(f'tcp://{rc.bind}:{rc.state_port}')
   sub = ctx.socket(zmq.SUB)
   sub.setsockopt(zmq.SUBSCRIBE, protocol.TOPIC_CMD)
+  sub.setsockopt(zmq.SUBSCRIBE, protocol.TOPIC_VEL)
   sub.bind(f'tcp://{rc.bind}:{rc.cmd_port}')
   log.info('ZeroMQ: state/depth/world on tcp://%s:%d, commands on tcp://%s:%d',
            rc.bind, rc.state_port, rc.bind, rc.cmd_port)
@@ -370,14 +394,19 @@ def run(sim: Simulator, rc: RunConfig) -> None:
 
       while sub.poll(0):
         topic, payload = sub.recv_multipart()
-        if topic != protocol.TOPIC_CMD:
-          continue
         try:
-          _, pos, vel, acc, yaw, yaw_rate = protocol.unpack_cmd(payload)
+          if topic == protocol.TOPIC_VEL:
+            _, twist = protocol.unpack_vel(payload)
+            ok = sim.set_velocity(twist)
+          elif topic == protocol.TOPIC_CMD:
+            _, pos, vel, acc, yaw, yaw_rate = protocol.unpack_cmd(payload)
+            ok = sim.set_command(quadrotor.Command(pos, vel, acc, yaw, yaw_rate))
+          else:
+            continue
         except (protocol.ProtocolError, struct.error) as e:
           log.warning('Dropping bad command: %s', e)
           continue
-        if not sim.set_command(quadrotor.Command(pos, vel, acc, yaw, yaw_rate)):
+        if not ok:
           stats['bad_cmds'] += 1
         stats['cmds'] += 1
 
@@ -403,7 +432,8 @@ def run(sim: Simulator, rc: RunConfig) -> None:
           sensors += ' lidar=%.1fHz (%.1fms)' % (
               stats['lidar'] / span, 1000 * stats['cast'] / max(stats['lidar'], 1))
         if stats['bad_cmds']:
-          log.warning('%d commands with non-finite fields in the last %.0fs',
+          log.warning('%d commands not followed as sent in the last %.0fs '
+                      '(non-finite fields, or a velocity for a robot that flies)',
                       stats['bad_cmds'], span)
         log.info('rt=%.2f physics=%.0fHz%s cmds=%.0fHz contacts=%d',
                  stats['steps'] * dt / span, stats['steps'] / span, sensors,
