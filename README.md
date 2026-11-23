@@ -8,7 +8,7 @@ simulators to develop and test them. One planning stack drives every robot:
 | --- | --- | --- | --- |
 | Simulation | kinematic, or MuJoCo 4 with flight dynamics | MuJoCo 4, walking with DeepRobotics' own policy | MuJoCo 4, walking with Booster Robotics' own policy |
 | World | random forest of pillars and rings | furnished house with a ramp and stairs (default), or the forest | the house (taller walls), or the forest |
-| Obstacle sensor | forward depth camera or 360° lidar | lidar on its back (depth camera in the forest) | lidar on its head |
+| Obstacle sensor | forward depth camera or 360° lidar | lidar on its back | lidar on its head |
 | Robot-specific parts | SE(3) flight controller; `px4ctrl` for PX4 | velocity tracker; terrain filter for ramps and steps | the same as the Lite3 |
 | Launch | `exploration_mujoco.launch` | `exploration_lite3.launch` | `exploration_t1.launch` |
 | End-to-end test | `sim_smoke.test`, `mujoco_smoke.test` (CI) | `lite3_smoke.test` (local: the robot is downloaded) | `t1_smoke.test` (local) |

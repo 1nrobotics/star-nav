@@ -87,11 +87,13 @@ DeepRobotics' Lite3 walks with DeepRobotics' own velocity policy:
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true
 rostest star_nav_bringup lite3_smoke.test                  # house, lidar
 rostest star_nav_bringup lite3_smoke.test world:=forest
-rostest star_nav_bringup lite3_smoke.test world:=forest sensor:=depth
 ```
 
-The default is the house (ramp, stairs, furniture) with the lidar. The depth
-camera bypasses the terrain filter, so use it in the forest (flat ground).
+Use the lidar: it is the default, in the house (ramp, stairs, furniture) and
+in the forest. The depth camera (`sensor:=depth`) bypasses the terrain
+filter, so it only works on flat ground (`world:=forest sensor:=depth`); in
+the house the robot collides and falls
+([docs/QUADRUPED.md](../docs/QUADRUPED.md), Limitations).
 
 - Model and policy are downloaded at pinned commits into
   `~/.cache/star_nav/lite3` (`STAR_NAV_LITE3_DIR` to change), not committed:

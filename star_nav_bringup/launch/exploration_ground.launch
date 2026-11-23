@@ -24,7 +24,10 @@
 
          start_sim:=false   simulator already running (e.g. in Docker)
          viewer:=false      no web viewer (headless runs, CI)
-         sensor:=depth      avoid obstacles with the depth camera instead -->
+         sensor:=depth      avoid obstacles with the depth camera instead. Not
+                            recommended: it bypasses the terrain filter, so
+                            flat ground only (world:=forest); see
+                            docs/QUADRUPED.md and docs/HUMANOID.md -->
 
     <!-- The robot: a module of mujoco_sim/star_nav_mujoco/robots/ -->
     <arg name="robot"/>

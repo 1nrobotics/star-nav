@@ -5,7 +5,9 @@
          default it walks the mission through the house, over a ramp, a
          platform and stairs (it must get onto the platform), with the lidar.
          world:=forest walks it through the pillar forest (and checks the map
-         against the world); sensor:=depth uses the depth camera. -->
+         against the world). Use the lidar: sensor:=depth (the depth camera)
+         only works with world:=forest, it fails in the house
+         (docs/QUADRUPED.md). -->
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>

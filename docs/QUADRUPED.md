@@ -11,8 +11,9 @@ run it: [SIMULATION.md](SIMULATION.md#mujoco-simulator) and
 |---|---|
 | Lite3 in MuJoCo, upstream walking policy | Working |
 | Planner (EGO) driving the robot | Working: the drone's stack at a fixed height |
-| Forest, lidar or depth camera | 12/12 waypoints, no contacts |
-| House: furniture, 12° ramp, 0.21 m platform, 7 cm steps | 12/12 waypoints, no contacts |
+| Forest, lidar (recommended) or depth camera | 12/12 waypoints, no contacts |
+| House with the lidar: furniture, 12° ramp, 0.21 m platform, 7 cm steps | 12/12 waypoints, no contacts |
+| House with the depth camera, or with `terrain:=false` | Not supported: see Limitations |
 | Terrain filter (ramps and low steps are walkable) | Working, static worlds only |
 | Localisation | Simulator ground truth |
 | Steps above 8 cm | Not supported (blind policy) |
@@ -134,6 +135,14 @@ The quadruped work also fixed two things that affect the drone:
 
 ## Limitations
 
+- **Use the lidar.** It is the default and the only sensor that works in
+  every world. The depth camera (`sensor:=depth`) bypasses the terrain
+  filter, so it is for flat ground (the forest) only: in the house the ramp
+  and the steps become obstacles, and one run fell once, timed out on 5
+  waypoints and logged about 1,200 contact steps. `terrain:=false` (lidar
+  without the terrain filter) is flat-ground only for the same reason: in the
+  house one run reached the waypoints with about 16,000 contact steps. Both
+  fail the same way before and after the robot interface refactoring.
 - **The planner does not know the gait's limits.** The filter's 9 cm threshold
   is above what the policy climbs reliably (7 cm). A step between 8 and 9 cm
   would be planned over and may stall the robot.
