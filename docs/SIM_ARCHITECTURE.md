@@ -150,7 +150,7 @@ and `setup_mujoco_env.sh --<name>` come from the registry.
   `--lidar-beams/columns/vfov/rate/range/noise`. The mount and the default
   beam elevations come from the robot (`lidar_mount`, `lidar_vfov`).
 - **The robot does not see itself:** rays and the depth render skip
-  `MARKER_GROUP` (2: setpoint, visual meshes) and `ROBOT_GROUP`
+  `MARKER_GROUP` (2: visual meshes) and `ROBOT_GROUP`
   (3: collision geoms).
 - **To ROS:** the bridge's topics are remapped to the names the planner
   expects (`/drone_0_pcl_render_node/cloud`, …). The grid map needs the lidar

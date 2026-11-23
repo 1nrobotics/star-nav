@@ -122,7 +122,6 @@ def build_xml(
     <material name="ring" rgba="0.85 0.55 0.2 1"/>
     <material name="frame" rgba="0.15 0.15 0.18 1"/>
     <material name="prop" rgba="0.9 0.4 0.1 0.8"/>
-    <material name="target" rgba="0.1 0.6 1 0.6"/>
     <material name="lidar" rgba="0.2 0.25 0.3 1"/>
     <!-- The house (house.py) and the ground; textures.py textures them -->
     <material name="floor" rgba="0.78 0.6 0.42 1"/>
@@ -149,10 +148,8 @@ def build_xml(
     {_obstacles_xml(obstacles)}
     {extra}
     {robot}
-    <body name="setpoint" mocap="true" pos="{_f(*start)}">
-      <geom type="sphere" size="0.06" material="target" contype="0" conaffinity="0"
-            group="{MARKER_GROUP}"/>
-    </body>
+    <!-- The planner's position setpoint: not drawn -->
+    <body name="setpoint" mocap="true" pos="{_f(*start)}"/>
   </worldbody>
   <actuator>
     {actuators}

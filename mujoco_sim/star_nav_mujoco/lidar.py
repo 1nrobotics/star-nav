@@ -83,8 +83,8 @@ class Lidar:
                            [0.0, 1.0, 0.0],
                            [-np.sin(pitch), 0.0, np.cos(pitch)]])
     self._tilt_quat = np.array([np.cos(pitch / 2), 0.0, np.sin(pitch / 2), 0.0])
-    # Only physical geoms reflect: skip visual markers (e.g. the setpoint)
-    # and the robot's own legs.
+    # Only physical geoms reflect: skip visual markers (e.g. a robot's visual
+    # meshes) and the robot's own legs.
     self._groups = np.ones(6, np.uint8)
     self._groups[scene.MARKER_GROUP] = 0
     self._groups[scene.ROBOT_GROUP] = 0

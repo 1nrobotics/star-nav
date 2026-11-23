@@ -198,7 +198,7 @@ above the walking height would stop that.
   distortion. A lidar model is one class in `lidar_models.py` (beam
   directions, beams per scan, range); where the sensor sits is the robot's
   `lidar_mount` and `lidar_pitch`. Sensors ignore visual-only
-  markers (geom group 2), such as the setpoint sphere.
+  markers (geom group 2), such as a robot's visual meshes.
 - Unlike the kinematic simulator, both sensors also see the ground, so the
   planner's occupancy map contains the floor (below 0.35 m with inflation,
   well under the 1 m flight altitude), as it would with a real sensor. RViz

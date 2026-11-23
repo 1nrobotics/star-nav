@@ -91,8 +91,8 @@ class Simulator:
     self._contact_pairs = set()
     self.reset()
 
-    # Sensors only see physical geoms, not visual markers (the setpoint) or
-    # the robot's own legs.
+    # Sensors only see physical geoms, not visual markers (a robot's visual
+    # meshes) or the robot's own legs.
     self._depth_option = mujoco.MjvOption()
     self._depth_option.geomgroup[scene.MARKER_GROUP] = 0
     self._depth_option.geomgroup[scene.ROBOT_GROUP] = 0

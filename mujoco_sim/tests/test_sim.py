@@ -194,8 +194,8 @@ def test_recorder_writes_video(tmp_path):
   assert path.stat().st_size > 1000
 
 
-def test_depth_ignores_setpoint_marker():
-  # The setpoint sphere is a visual marker; it must not appear as an obstacle.
+def test_depth_sees_nothing_at_the_setpoint():
+  # The setpoint is not drawn; it must not appear as an obstacle.
   s = sim.Simulator(obstacles=[])
   s.set_command(quadrotor.Command.hover((0.6, 0.0, 1.0)))
   mujoco.mj_forward(s.model, s.data)
@@ -280,7 +280,7 @@ def test_lidar_sees_all_obstacles_and_respects_range(lidar_scene):
 def test_lidar_ignores_own_body_and_markers():
   cfg = sim.SimConfig(lidar=lidar.LidarConfig())
   s = sim.Simulator(cfg, render_depth=False, obstacles=[])
-  scan = s.scan_lidar()  # setpoint marker sits on the quadrotor at start
+  scan = s.scan_lidar()
   r = np.linalg.norm(scan.points, axis=1)
   assert r.min() > 1.0  # nothing near the sensor; only ground returns
   world_z = scan.pos[2] + scan.points[:, 2]
