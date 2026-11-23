@@ -74,5 +74,6 @@ a public-facing codebase.
 
 - Hardware branches depend on proprietary vendor tooling and cannot be fully
   validated in a public environment.
-- The `sim-smoke` GitHub Actions workflow runs both smoke tests and the
-  MuJoCo unit tests on every pull request.
+- Tests run locally (`scripts/run_local_tests.sh`). The `sim-smoke` GitHub
+  Actions workflow (both quadrotor smoke tests and the MuJoCo unit tests, in
+  Docker) is started by hand only.
