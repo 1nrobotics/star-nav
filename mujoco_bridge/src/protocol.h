@@ -94,7 +94,12 @@ struct VelMsg {
 
 // A path of the planner's to show in the viewer. Followed by count * 3
 // float32 x, y, z in the world frame.
-enum DrawLayer : uint16_t { kDrawPlan = 0, kDrawRoute = 1, kDrawCandidates = 2 };
+enum DrawLayer : uint16_t {
+  kDrawPlan = 0,
+  kDrawRoute = 1,
+  kDrawCandidates = 2,
+  kDrawWaypoints = 3
+};
 
 struct DrawHeader {
   uint16_t version;

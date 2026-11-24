@@ -149,6 +149,7 @@
         <remap from="candidate_paths" to="/free_paths"/>
         <remap from="route_path" to="/cmu_route"/>
         <remap from="plan_marker" to="/drone_$(arg drone_id)_ego_planner_node/optimal_list"/>
+        <remap from="waypoint_markers" to="/exploration_node/exploration/waypoints"/>
     </node>
 
     <!-- ============================== -->

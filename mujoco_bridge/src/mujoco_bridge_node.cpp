@@ -20,6 +20,7 @@
 //             <--draw--- nav_msgs/Path              plan_path, route_path
 //                        visualization_msgs/Marker  plan_marker (line strip)
 //                        sensor_msgs/PointCloud2    candidate_paths
+//                        visualization_msgs/MarkerArray  waypoint_markers
 //                        (the planner's paths, shown in the simulator's
 //                        viewer and recording)
 //
@@ -94,6 +95,10 @@ class Bridge {
         "route_path", 2, boost::bind(&Bridge::onPath, this, _1, kDrawRoute));
     plan_marker_sub_ = nh.subscribe("plan_marker", 2, &Bridge::onPlanMarker, this);
     candidates_sub_ = nh.subscribe("candidate_paths", 1, &Bridge::onCandidates, this);
+    // The mission's waypoints (exploration_manager's markers, latched). Sent
+    // again every second: the simulator may start after they are published.
+    waypoints_sub_ = nh.subscribe("waypoint_markers", 1, &Bridge::onWaypoints, this);
+    waypoints_timer_ = nh.createWallTimer(ros::WallDuration(1.0), &Bridge::sendWaypoints, this);
 
     ctx_ = zmq_ctx_new();
     sub_ = zmq_socket(ctx_, ZMQ_SUB);
@@ -481,7 +486,9 @@ class Bridge {
   // Draws points of one frame on a layer of the simulator's overlay.
   class Drawing {
    public:
-    Drawing(Bridge* bridge, const std::string& frame) : bridge_(bridge) {
+    // on_ground: at draw_height from the robot, if that is set.
+    Drawing(Bridge* bridge, const std::string& frame, bool on_ground = true)
+        : bridge_(bridge), on_ground_(on_ground) {
       world_ = frame.empty() || frame == bridge->world_frame_;
       std::lock_guard<std::mutex> lock(bridge->pose_mutex_);
       std::copy(bridge->pos_, bridge->pos_ + 3, pos_);
@@ -496,7 +503,9 @@ class Bridge {
         y = pos_[1] + sin_ * bx + cos_ * by;
         z += pos_[2];
       }
-      if (std::isfinite(bridge_->draw_height_)) z = pos_[2] + bridge_->draw_height_;
+      if (on_ground_ && std::isfinite(bridge_->draw_height_)) {
+        z = pos_[2] + bridge_->draw_height_;
+      }
       for (double v : {x, y, z}) points_.push_back(float(v));
     }
 
@@ -515,6 +524,7 @@ class Bridge {
 
    private:
     Bridge* bridge_;
+    bool on_ground_;
     bool world_;
     double pos_[3], cos_, sin_;
     std::vector<float> points_;
@@ -551,6 +561,31 @@ class Bridge {
     drawing.send(kDrawCandidates);
   }
 
+  // The mission's waypoints: the spheres of the markers, where they are (a
+  // ground robot's are at its body's height).
+  void onWaypoints(const visualization_msgs::MarkerArray::ConstPtr& msg) {
+    {
+      std::lock_guard<std::mutex> lock(waypoints_mutex_);
+      waypoints_.clear();
+      for (const auto& m : msg->markers) {
+        if (m.type != visualization_msgs::Marker::SPHERE) continue;
+        if (m.action != visualization_msgs::Marker::ADD) continue;
+        waypoints_.push_back(m.pose.position);
+      }
+    }
+    sendWaypoints(ros::WallTimerEvent());
+  }
+
+  void sendWaypoints(const ros::WallTimerEvent&) {
+    Drawing drawing(this, world_frame_, false);
+    {
+      std::lock_guard<std::mutex> lock(waypoints_mutex_);
+      if (waypoints_.empty()) return;
+      for (const auto& p : waypoints_) drawing.add(p.x, p.y, p.z);
+    }
+    drawing.send(kDrawWaypoints);
+  }
+
   std::string state_address_, cmd_address_, world_frame_, camera_frame_;
   double cloud_resolution_ = 0.1;
 
@@ -560,6 +595,10 @@ class Bridge {
   double ring_tube_ = 0.04;
   ros::Subscriber cmd_sub_, vel_sub_;
   ros::Subscriber plan_path_sub_, route_path_sub_, plan_marker_sub_, candidates_sub_;
+  ros::Subscriber waypoints_sub_;
+  ros::WallTimer waypoints_timer_;
+  std::mutex waypoints_mutex_;
+  std::vector<geometry_msgs::Point> waypoints_;
   double draw_height_ = std::nan("");
   double candidate_resolution_ = 0.08;
   std::mutex pose_mutex_;  // the robot's last pose, for the drawings

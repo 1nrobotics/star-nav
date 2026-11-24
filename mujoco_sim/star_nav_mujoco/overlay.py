@@ -23,6 +23,7 @@ import numpy as np
 PLAN = 0  # the path the planner follows now
 ROUTE = 1  # a longer route the plan is taken from
 CANDIDATES = 2  # the paths the planner chose from
+WAYPOINTS = 3  # the mission's waypoints
 
 _PARK = (0.0, 0.0, -1.0)
 
@@ -40,6 +41,7 @@ LAYERS = {
     PLAN: Layer('plan', 60, 0.014, 0.15, (0.95, 0.15, 0.15, 1.0)),
     ROUTE: Layer('route', 60, 0.008, 0.25, (1.0, 0.8, 0.1, 1.0)),
     CANDIDATES: Layer('candidates', 400, 0.012, 0.0, (0.2, 0.9, 0.5, 0.7)),
+    WAYPOINTS: Layer('waypoints', 40, 0.09, 0.0, (1.0, 0.25, 0.85, 0.6)),
 }
 
 

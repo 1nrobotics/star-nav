@@ -443,6 +443,10 @@ def test_paths_are_drawn_with_markers():
   assert s.draw(overlay.CANDIDATES, dots)
   assert len(placed(overlay.CANDIDATES)) == overlay.LAYERS[overlay.CANDIDATES].count
 
+  wps = [[1., 1., 0.3], [2., 1., 0.3], [2., 2., 0.3]]
+  assert s.draw(overlay.WAYPOINTS, wps)
+  np.testing.assert_allclose(placed(overlay.WAYPOINTS), wps)
+
   # A new path replaces the old one; an empty one clears the layer.
   assert s.draw(overlay.PLAN, [[0., 0., 0.5], [0.15, 0., 0.5]])
   assert len(placed(overlay.PLAN)) == 1

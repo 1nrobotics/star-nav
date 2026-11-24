@@ -20,7 +20,7 @@ Bridge -> simulator (simulator binds a SUB socket, default tcp://*:5556):
   b"cmd"    CMD     time, position, velocity, acceleration, yaw, yaw rate
   b"vel"    VEL     time, body-frame velocity: forward, sideways, turn rate
                     (ground robots; a planner that steers the robot itself)
-  b"draw"   DRAW    layer (overlay.py: plan, route, candidates), point count,
+  b"draw"   DRAW    layer (overlay.py: plan, route, waypoints, ...), point count,
                     then float32 x, y, z per point in the world frame: a path
                     of the planner's to show in the viewer and the recording
 """

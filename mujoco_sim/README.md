@@ -83,11 +83,13 @@ forwards from ROS:
 | Red line | the path the robot follows now | CMU: `/path`; EGO: `optimal_list` (the trajectory's control points) |
 | Green dots | the paths the planner chose from | CMU only: `/free_paths`, one dot per 0.08 m cell |
 | Yellow line | the route the waypoints are taken from | CMU only: the waypoint router's `/cmu_route` |
+| Pink spheres | the mission's waypoints, where the robot's body has to get to | `exploration_manager`'s waypoint markers |
 
-For a ground robot they are drawn on the ground under it. The browser shows
+For a ground robot the paths are drawn on the ground under it. The browser shows
 only what is in the model, so they are drawn with a fixed set of marker
-bodies (60 pieces per line, 400 dots; a longer line is drawn dashed, more
-dots are thinned out). The markers are only in the model when the viewer or
+bodies (60 pieces per line, 400 dots, 40 waypoints; a longer line is drawn
+dashed, more dots are thinned out). The markers are only in the model when
+the viewer or
 `--record` is on: they add 0.1 to 0.2 ms to a physics step (i7-12700H).
 The lidar scans a copy of the scene without them.
 
@@ -247,7 +249,7 @@ Two-frame ZeroMQ messages (`topic`, little-endian payload); layouts are in
 | `world` | sim → bridge | 1 Hz | obstacle primitives (RViz cloud, exact markers for tests) |
 | `cmd` | bridge → sim | as published | position, velocity, acceleration, yaw, yaw rate |
 | `vel` | bridge → sim | as published | body-frame velocity: forward, sideways, turn rate (ground robots; replaces `cmd` once received) |
-| `draw` | bridge → sim | as published | a path of the planner's to show: layer (plan, route, candidates), float32 x y z per point (world frame) |
+| `draw` | bridge → sim | as published | a path of the planner's to show: layer (plan, route, candidates, waypoints), float32 x y z per point (world frame) |
 
 ## Performance
 
