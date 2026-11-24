@@ -43,7 +43,7 @@ class Quadrotor(robots.Robot):
     lidar_mount = cfg.lidar.mount if cfg.lidar else None
     return mujoco.MjSpec.from_string(scene.build_xml(
         obstacles, cfg.params, cfg.start, cfg.timestep,
-        lidar_mount=lidar_mount, extra=extra))
+        lidar_mount=lidar_mount, extra=extra, draw=cfg.draw))
 
   def controller(self, model, data, cfg) -> robots.Controller:
     return _Flight(model, data, cfg, model.body(self.body).id)

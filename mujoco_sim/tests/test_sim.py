@@ -1,5 +1,6 @@
 """Tests for the standalone simulator (no ROS required)."""
 
+import dataclasses
 import math
 import os
 import shutil
@@ -14,6 +15,7 @@ import pytest
 from star_nav_mujoco import assets
 from star_nav_mujoco import lidar
 from star_nav_mujoco import lidar_models
+from star_nav_mujoco import overlay
 from star_nav_mujoco import protocol
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
@@ -49,6 +51,7 @@ def test_protocol_sizes_match_cpp_bridge():
   assert protocol.CMD.size == 104
   assert protocol.LIDAR.size == 72
   assert protocol.VEL.size == 40
+  assert protocol.DRAW.size == 8
 
 
 def test_protocol_round_trip():
@@ -387,6 +390,100 @@ def test_quadrotor_does_not_follow_a_velocity_command():
   assert not s.set_velocity([0.5, 0.0, 0.0])
   s.step(500)
   np.testing.assert_allclose(s.pos, s.cfg.start, atol=0.02)
+  s.close()
+
+
+def test_draw_protocol_round_trip():
+  pts = np.array([[0., 0., 0.], [1., 2., 3.]])
+  layer, back = protocol.unpack_draw(protocol.pack_draw(overlay.ROUTE, pts))
+  assert layer == overlay.ROUTE
+  np.testing.assert_array_equal(back, pts)
+  layer, back = protocol.unpack_draw(protocol.pack_draw(overlay.PLAN, []))
+  assert layer == overlay.PLAN and back.shape == (0, 3)
+  with pytest.raises(protocol.ProtocolError):
+    protocol.unpack_draw(protocol.pack_draw(overlay.PLAN, pts)[:-4])
+
+
+def test_overlay_resample():
+  line = np.array([[0., 0., 0.], [1., 0., 0.], [1., 1., 0.]])
+  pts = overlay.resample(line, 0.1, 100)
+  assert len(pts) == 21
+  np.testing.assert_allclose(pts[10], [1., 0., 0.], atol=1e-9)
+  np.testing.assert_allclose(pts[-1], [1., 1., 0.], atol=1e-9)
+  # Too long for the pool: the same span with wider spacing.
+  pts = overlay.resample(line, 0.1, 10)
+  assert len(pts) == 11
+  np.testing.assert_allclose(pts[-1], [1., 1., 0.], atol=1e-9)
+  # Nothing to draw.
+  assert len(overlay.resample(line[:1], 0.1, 10)) == 0
+  assert len(overlay.resample(np.zeros((3, 3)), 0.1, 10)) == 0
+
+
+def test_paths_are_drawn_with_markers():
+  cfg = sim.SimConfig(draw=True, lidar=lidar.LidarConfig())
+  s = sim.Simulator(cfg, render_depth=False, obstacles=[])
+  m, d = s.model, s.data
+
+  def placed(name):
+    spec = overlay.LAYERS[name]
+    ids = [m.body_mocapid[m.body(f'draw/{spec.name}/{i}').id]
+           for i in range(spec.count)]
+    return d.mocap_pos[ids][d.mocap_pos[ids][:, 2] > 0]
+
+  assert not len(placed(overlay.PLAN))
+  assert s.draw(overlay.PLAN, [[0., 0., 0.5], [0.6, 0., 0.5]])
+  seg = placed(overlay.PLAN)
+  assert len(seg) == 4  # 0.6 m in 0.15 m pieces
+  np.testing.assert_allclose(seg[0], [0.075, 0., 0.5], atol=1e-9)
+  # A capsule's axis (z) lies along the path.
+  quat = d.mocap_quat[m.body_mocapid[m.body('draw/plan/0').id]]
+  np.testing.assert_allclose(_quat_to_rot(quat)[:, 2], [1., 0., 0.], atol=1e-9)
+
+  dots = np.random.default_rng(0).uniform(0.1, 1.0, (1000, 3))
+  assert s.draw(overlay.CANDIDATES, dots)
+  assert len(placed(overlay.CANDIDATES)) == overlay.LAYERS[overlay.CANDIDATES].count
+
+  # A new path replaces the old one; an empty one clears the layer.
+  assert s.draw(overlay.PLAN, [[0., 0., 0.5], [0.15, 0., 0.5]])
+  assert len(placed(overlay.PLAN)) == 1
+  assert s.draw(overlay.PLAN, [])
+  assert not len(placed(overlay.PLAN))
+  assert not s.draw(7, [[0., 0., 0.]])
+  assert not s.draw(overlay.PLAN, [[0., 0., math.nan], [1., 0., 0.]])
+
+  # The markers touch nothing, and the lidar does not see them.
+  s.draw(overlay.PLAN, [[-1., 0., 1.], [1., 0., 1.]])  # through the quadrotor
+  s.draw(overlay.ROUTE, [[-1., 0., 0.5], [1., 0., 0.5]])  # under it
+  s.step(50)
+  assert s.contact_steps == 0
+  scan = s.scan_lidar()
+  np.testing.assert_allclose(scan.pos[2] + scan.points[:, 2], 0.0, atol=2e-3)
+  # It scans a copy of the scene without them: the same scan as without.
+  plain = sim.Simulator(dataclasses.replace(cfg, draw=False),
+                        render_depth=False, obstacles=[world.Obstacle(
+                            world.PILLAR, 2.0, 0.5, 0.0, 0.3, 2.0, 0.0)])
+  both = sim.Simulator(cfg, render_depth=False, obstacles=plain.obstacles)
+  for sm in (plain, both):
+    sm.step(50)
+  a, b = plain.scan_lidar(), both.scan_lidar()
+  assert len(a.points) > 1000 and np.linalg.norm(a.points, axis=1).min() < 2.5
+  np.testing.assert_allclose(a.pos, b.pos, atol=1e-9)
+  np.testing.assert_allclose(a.points, b.points, atol=1e-6)
+  plain.close()
+  both.close()
+  groups = np.zeros(6, np.uint8)
+  groups[scene.MARKER_GROUP] = 1
+  geom = np.zeros(1, np.int32)
+  assert mujoco.mj_ray(m, d, [0., 0., 3.], [0., 0., -1.], groups, 0, -1, geom) > 0
+  assert m.geom_group[geom[0]] == scene.MARKER_GROUP
+  s.close()
+
+
+def test_no_markers_unless_asked():
+  s = sim.Simulator(obstacles=[], render_depth=False)
+  assert s.model.nmocap == 1  # the setpoint
+  assert s.draw(overlay.PLAN, [[0., 0., 0.5], [0.6, 0., 0.5]])
+  assert not s.draw(7, [])
   s.close()
 
 

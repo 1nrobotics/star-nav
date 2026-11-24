@@ -75,6 +75,22 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | `--no-viewer`, `--viewer-port` | off, 8080 | Web viewer |
 | `--record FILE` | off | Write an MP4 from the viewer's follow camera, with lidar returns as dots (needs `ffmpeg`) |
 
+The viewer and the recording also show the planner's paths, which the bridge
+forwards from ROS:
+
+| Colour | Path | Source |
+| --- | --- | --- |
+| Red line | the path the robot follows now | CMU: `/path`; EGO: `optimal_list` (the trajectory's control points) |
+| Green dots | the paths the planner chose from | CMU only: `/free_paths`, one dot per 0.08 m cell |
+| Yellow line | the route the waypoints are taken from | CMU only: the waypoint router's `/cmu_route` |
+
+For a ground robot they are drawn on the ground under it. The browser shows
+only what is in the model, so they are drawn with a fixed set of marker
+bodies (60 pieces per line, 400 dots; a longer line is drawn dashed, more
+dots are thinned out). The markers are only in the model when the viewer or
+`--record` is on: they add 0.1 to 0.2 ms to a physics step (i7-12700H).
+The lidar scans a copy of the scene without them.
+
 The web viewer listens on all network interfaces (a MuJoCo Studio default
 that cannot be changed yet); do not expose the port on untrusted networks.
 
@@ -231,6 +247,7 @@ Two-frame ZeroMQ messages (`topic`, little-endian payload); layouts are in
 | `world` | sim → bridge | 1 Hz | obstacle primitives (RViz cloud, exact markers for tests) |
 | `cmd` | bridge → sim | as published | position, velocity, acceleration, yaw, yaw rate |
 | `vel` | bridge → sim | as published | body-frame velocity: forward, sideways, turn rate (ground robots; replaces `cmd` once received) |
+| `draw` | bridge → sim | as published | a path of the planner's to show: layer (plan, route, candidates), float32 x y z per point (world frame) |
 
 ## Performance
 

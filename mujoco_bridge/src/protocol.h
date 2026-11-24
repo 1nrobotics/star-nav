@@ -6,7 +6,7 @@
 
 namespace mujoco_bridge {
 
-constexpr uint16_t kProtocolVersion = 2;
+constexpr uint16_t kProtocolVersion = 3;
 
 constexpr char kTopicState[] = "state";
 constexpr char kTopicDepth[] = "depth";
@@ -14,6 +14,7 @@ constexpr char kTopicLidar[] = "lidar";
 constexpr char kTopicWorld[] = "world";
 constexpr char kTopicCmd[] = "cmd";
 constexpr char kTopicVel[] = "vel";
+constexpr char kTopicDraw[] = "draw";
 
 #pragma pack(push, 1)
 
@@ -91,6 +92,16 @@ struct VelMsg {
   double turn;      // rad/s, counter-clockwise
 };
 
+// A path of the planner's to show in the viewer. Followed by count * 3
+// float32 x, y, z in the world frame.
+enum DrawLayer : uint16_t { kDrawPlan = 0, kDrawRoute = 1, kDrawCandidates = 2 };
+
+struct DrawHeader {
+  uint16_t version;
+  uint16_t layer;
+  uint32_t count;
+};
+
 #pragma pack(pop)
 
 static_assert(sizeof(StateMsg) == 124, "StateMsg layout");
@@ -100,5 +111,6 @@ static_assert(sizeof(WorldHeader) == 8, "WorldHeader layout");
 static_assert(sizeof(ObstacleMsg) == 28, "ObstacleMsg layout");
 static_assert(sizeof(CmdMsg) == 104, "CmdMsg layout");
 static_assert(sizeof(VelMsg) == 40, "VelMsg layout");
+static_assert(sizeof(DrawHeader) == 8, "DrawHeader layout");
 
 }  // namespace mujoco_bridge

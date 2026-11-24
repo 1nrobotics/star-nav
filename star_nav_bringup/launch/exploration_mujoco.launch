@@ -80,6 +80,8 @@
         <remap from="contacts" to="/mujoco/contacts"/>
         <remap from="obstacles" to="/mujoco/obstacles"/>
         <remap from="pos_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
+        <!-- The planned trajectory, drawn in the simulator's viewer -->
+        <remap from="plan_marker" to="/drone_$(arg drone_id)_ego_planner_node/optimal_list"/>
     </node>
 
     <!-- ============================== -->

@@ -130,7 +130,8 @@ def main(argv: list[str] | None = None) -> int:
       world=world.WorldConfig(size_x=args.map_size[0], size_y=args.map_size[1],
                               seed=args.seed, pillar_num=args.pillars,
                               ring_num=args.rings),
-      start=tuple(args.start), robot=args.robot, house=args.world == 'house')
+      start=tuple(args.start), robot=args.robot, house=args.world == 'house',
+      draw=not args.no_viewer or bool(args.record))
   if args.sensor != 'depth':
     cfg.lidar = lidar.LidarConfig(
         model=args.lidar_model, pitch=args.lidar_pitch,

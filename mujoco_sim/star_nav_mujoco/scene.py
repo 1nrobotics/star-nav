@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import math
 
+from star_nav_mujoco import overlay
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import world
 
@@ -95,11 +96,14 @@ def build_xml(
     lidar_mount: tuple[float, float, float] | None = None,
     quadrotor_body: bool = True,
     extra: str = '',
+    draw: bool = False,
 ) -> str:
   """Returns the scene; without ``quadrotor_body`` the robot is added later.
 
-  ``extra`` is more worldbody XML (e.g. ``house.xml()``).
+  ``extra`` is more worldbody XML (e.g. ``house.xml()``). ``draw`` adds the
+  markers the planner's paths are drawn with (overlay.py).
   """
+  markers = overlay.xml(MARKER_GROUP) if draw else ''
   robot = _quadrotor_xml(params, start, lidar_mount) if quadrotor_body else ''
   actuators = _actuators_xml(params) if quadrotor_body else ''
   return f'''<mujoco model="star_nav">
@@ -150,6 +154,7 @@ def build_xml(
     {robot}
     <!-- The planner's position setpoint: not drawn -->
     <body name="setpoint" mocap="true" pos="{_f(*start)}"/>
+    {markers}
   </worldbody>
   <actuator>
     {actuators}

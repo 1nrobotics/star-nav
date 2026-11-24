@@ -140,6 +140,15 @@
         <remap from="obstacles" to="/mujoco/obstacles"/>
         <remap from="pos_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
         <remap from="cmd_vel" to="/cmd_vel"/>
+        <!-- The planner's paths in the simulator's viewer, on the ground
+             under the robot: the path it follows (red), with planner:=cmu
+             also the paths it chose from (green) and the router's route
+             (yellow) -->
+        <param name="draw_height" value="$(eval 0.04 - arg('altitude'))"/>
+        <remap from="plan_path" to="/path"/>
+        <remap from="candidate_paths" to="/free_paths"/>
+        <remap from="route_path" to="/cmu_route"/>
+        <remap from="plan_marker" to="/drone_$(arg drone_id)_ego_planner_node/optimal_list"/>
     </node>
 
     <!-- ============================== -->

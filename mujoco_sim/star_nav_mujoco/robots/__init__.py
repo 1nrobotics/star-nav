@@ -135,7 +135,7 @@ class GroundRobot(Robot):
     root = self.check_assets()
     spec = mujoco.MjSpec.from_string(scene.build_xml(
         obstacles, cfg.params, cfg.start, self.timestep, quadrotor_body=False,
-        extra=extra))
+        extra=extra, draw=cfg.draw))
     self.attach(spec, cfg.start[:2], root, lidar=cfg.lidar is not None)
     return spec
 
