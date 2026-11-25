@@ -30,7 +30,8 @@
                             obstacles)
          explore:=frontier  no preset waypoints: the robot maps the place by
                             walking to what it has not seen yet
-                            (scripts/frontier_explorer.py; needs the lidar).
+                            (scripts/frontier_explorer.py; needs the lidar
+                            and planner:=cmu).
                             It stays inside the exploration area plus
                             frontier_margin
 
@@ -199,13 +200,10 @@
     <!-- ============================== -->
     <node if="$(eval explore == 'frontier')" pkg="star_nav_bringup" type="frontier_explorer.py"
           name="frontier_explorer" output="screen">
-        <remap from="cloud" to="/drone_$(arg drone_id)_lidar/cloud" if="$(arg raw_lidar)"/>
-        <remap from="cloud" to="/drone_$(arg drone_id)_pcl_render_node/cloud" unless="$(arg raw_lidar)"/>
+        <remap from="cloud" to="/drone_$(arg drone_id)_lidar/cloud"/>
         <remap from="lidar_pose" to="/drone_$(arg drone_id)_lidar/pose"/>
         <remap from="odom" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>
         <param name="altitude" value="$(arg altitude)"/>
-        <!-- The CMU planner's waypoint router finds the way itself -->
-        <param name="direct_goals" value="$(arg use_cmu)"/>
         <param name="robot_height" value="$(arg robot_height)"/>
         <param name="max_step" value="$(arg max_step)"/>
         <!-- Goals a little further from obstacles than the planner keeps -->

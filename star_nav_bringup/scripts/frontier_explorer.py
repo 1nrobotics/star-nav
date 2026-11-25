@@ -9,9 +9,9 @@ that borders on floor it has not seen. It looks again whenever that frontier
 has been seen, and is done when none is left; then it walks back to where it
 started.
 
-The goal it publishes is the frontier itself if the way there is straight,
-otherwise the furthest point of the way (through seen, free floor) that is,
-and at least ``min_goal_distance`` along it.
+The goal it publishes is the frontier itself: the planner has to find the way
+round the walls (the CMU planner's waypoint router does; exploration_ground.launch
+planner:=cmu).
 A frontier the robot does not get to in ``goal_timeout`` seconds, or stands
 still in front of, is given up.
 
@@ -51,12 +51,6 @@ class FrontierExplorer:
         self.max_time = rospy.get_param("~max_exploration_time", 900.0)
         self.return_home = rospy.get_param("~return_home", True)
         self.give_up_radius = rospy.get_param("~give_up_radius", 0.5)
-        self.min_goal_distance = rospy.get_param("~min_goal_distance", 1.0)
-        # Straight ahead: no obstacle within this distance of the line (m)
-        self.sight_clearance = rospy.get_param("~sight_clearance", 0.25)
-        # The planner finds its own way round the walls (the CMU planner's
-        # waypoint router): it gets the frontier itself, not a point on the way.
-        self.direct_goals = rospy.get_param("~direct_goals", False)
         clearance = rospy.get_param("~clearance", 0.4)
         bounds = None
         if rospy.has_param("~area_width"):
@@ -152,8 +146,6 @@ class FrontierExplorer:
         with self.lock:
             grid = self.map.grid()
             clusters, dist = self.map.plan(self.pos[:2], grid)
-            self.sight = ~frontier_map.dilate(grid == frontier_map.OBSTACLE,
-                                              self.sight_clearance / self.map.res)
         self.publish_map(grid, now)
         self.publish_frontiers(clusters, now)
 
@@ -260,23 +252,11 @@ class FrontierExplorer:
     # -- goals -----------------------------------------------------------
 
     def steer(self, target, dist, now):
-        """Publish the goal on the way to ``target``: the furthest point of
-        the way that lies straight ahead."""
+        """Publish ``target`` (the walkable cell nearest to it) as the goal."""
         with self.lock:
             cell = self.map._nearest(np.isfinite(dist), self.map.cell(target), 1.0)
             cells = self.map.path(dist, cell) if cell is not None else []
-        goal = np.array(target, float)
-        if cells and self.direct_goals:
-            goal = self.map.point(cells[-1])
-        elif cells:
-            here = self.map.cell(self.pos[:2])
-            k = len(cells) - 1
-            while k > 0 and not self.straight(self.sight, here, cells[k]):
-                k -= 1
-            # Not a goal at the robot's feet: the planner would stop there.
-            k = max(k, min(len(cells) - 1, int(self.min_goal_distance / self.map.res)))
-            if k < len(cells) - 1:
-                goal = self.map.point(cells[k])
+        goal = np.array(self.map.point(cells[-1]) if cells else target, float)
         self.publish_path(cells, now)
         # Again only if it moved, or if the robot stands still with the old one.
         waiting = self.speed < 0.05 and (now - self.sent_at).to_sec() > 3.0 if self.sent_at else False
@@ -290,14 +270,6 @@ class FrontierExplorer:
         msg.pose.position.x, msg.pose.position.y, msg.pose.position.z = goal[0], goal[1], self.altitude
         msg.pose.orientation.w = 1.0
         self.goal_pub.publish(msg)
-
-    @staticmethod
-    def straight(mask, a, b):
-        """All cells on the segment a-b are in ``mask``."""
-        n = int(max(abs(b[0] - a[0]), abs(b[1] - a[1]))) * 2 + 1
-        i = np.rint(np.linspace(a[0], b[0], n)).astype(int)
-        j = np.rint(np.linspace(a[1], b[1], n)).astype(int)
-        return bool(mask[i, j].all())
 
     # -- RViz ------------------------------------------------------------
 

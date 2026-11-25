@@ -134,9 +134,8 @@ roslaunch star_nav_bringup exploration_lite3.launch explore:=frontier use_rviz:=
 rostest star_nav_bringup frontier_smoke.test               # maps the whole house
 ```
 
-It stays inside the exploration area plus `frontier_margin` (1.5 m). Use it
-with `planner:=cmu` (the default): with the EGO planner the robot sometimes
-stops on the way, which is not understood yet.
+It stays inside the exploration area plus `frontier_margin` (1.5 m). It needs
+the CMU planner (`planner:=cmu`, the default).
 
 The walking robots are steered by CMU's local planner (`planner:=cmu`, the
 default): terrain analysis, a local planner that picks one of its
