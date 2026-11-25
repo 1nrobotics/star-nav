@@ -167,6 +167,7 @@ rostest star_nav_bringup sim_smoke.test                              # end-to-en
 rostest star_nav_bringup mujoco_smoke.test                           # end-to-end test, MuJoCo
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true   # Lite3 quadruped (setup_mujoco_env.sh --lite3)
 rostest star_nav_bringup lite3_smoke.test                            # end-to-end test, Lite3 in the house
+roslaunch star_nav_bringup exploration_lite3.launch explore:=frontier # no waypoints: the Lite3 maps the house itself
 roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true      # T1 humanoid (setup_mujoco_env.sh --t1)
 rostest star_nav_bringup t1_smoke.test                               # end-to-end test, T1 in the house
 ```
