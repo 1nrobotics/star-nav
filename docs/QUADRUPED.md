@@ -10,12 +10,10 @@ run it: [SIMULATION.md](SIMULATION.md#mujoco-simulator) and
 | Area | Status |
 |---|---|
 | Lite3 in MuJoCo, upstream walking policy | Working |
-| CMU local planner driving the robot (default) | Working: terrain analysis, local planner, path follower; velocity commands |
-| EGO planner driving the robot (`planner:=ego`) | Working: the drone's stack at a fixed height |
-| Forest, lidar (recommended) or depth camera | 12/12 waypoints, no contacts |
+| CMU local planner driving the robot | Working: terrain analysis, local planner, path follower; velocity commands |
 | House with the lidar: furniture, 12° ramp, 0.21 m platform, 7 cm steps | 12/12 waypoints, no contacts |
-| House with the depth camera, or with `terrain:=false` | Not supported: see Limitations |
-| Terrain filter (ramps and low steps are walkable) | Working, static worlds only |
+| Frontier exploration (`explore:=frontier`) | Working in the house |
+| Depth camera | Not supported: the planner takes the lidar's scans |
 | Localisation | Simulator ground truth |
 | Steps above 8 cm | Not supported (blind policy) |
 | Hardware | None |
@@ -23,7 +21,8 @@ run it: [SIMULATION.md](SIMULATION.md#mujoco-simulator) and
 
 ## Architecture
 
-With the CMU local planner (`planner:=cmu`, the default; lidar only):
+The Lite3 is a legged robot, so it walks with the CMU local planner
+([PLANNER_INTERFACE.md](PLANNER_INTERFACE.md)), on the lidar's scans:
 
 ```
 mission waypoints (exploration_manager)
@@ -39,19 +38,10 @@ mission waypoints (exploration_manager)
 lidar (world frame) -> terrainAnalysis: height above the ground -> localPlanner
 ```
 
-With the EGO planner (`planner:=ego`):
-
-```
-mission waypoints (exploration_manager)
-  -> EGO-Planner: B-spline at a fixed height (0.34 m, the torso)
-  -> traj_server: position, velocity, yaw setpoints (the same as for the drone)
-  ==== ZeroMQ bridge ==== MuJoCo
-  -> tracking.Holonomic: setpoint -> body-frame (forward, sideways, turn)
-  -> walking policy (ONNX, 83 Hz): command -> 12 joint targets
-  -> PD (500 Hz): joint targets -> torques
-
-lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
-```
+Until November 2026 the quadrotor's EGO planner could move the robot too
+(`planner:=ego`: position setpoints at a fixed height, on a terrain filter's
+map). That path was removed; what it did and how it compared is in
+[GROUND_PLANNING.md](GROUND_PLANNING.md).
 
 ### Control (`mujoco_sim/star_nav_mujoco/robots/lite3.py`)
 
@@ -67,14 +57,11 @@ lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
   every 6 physics steps (2 ms each, about 83 Hz).
 - **PD**: kp 30, kd 1, ±30 N·m, every physics step. These match the upstream
   deployment.
-- **Tracker**:
-  - velocity = setpoint velocity + 1.5 × position error, capped at 0.8 m/s,
-    rotated into the body frame;
-  - turn rate = 1.5 × yaw error, capped at 0.8 rad/s;
-  - stands still within 3 cm and 3° of a resting setpoint.
-
-  The robot walks in any direction, so it does not turn to face its path
-  before moving.
+- **Command**: the planner's velocity (forward, turn rate) goes to the
+  policy within 0.8 m/s and 0.8 rad/s (`tracking.Holonomic.limit`). The
+  simulator can also steer the robot to position setpoints
+  (`tracking.Holonomic.twist`, which the EGO path used); no planner sends
+  them now.
 - **Safety in the simulator**: a fall is logged when the torso drops below half
   the standing height. Contacts with the ground count as walking, not
   collisions; so do feet and lower legs on `walk/` geoms (ramp, platform,
@@ -82,45 +69,28 @@ lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
 
 ### Planning
 
-- **CMU local planner** (default): see
+- **Planner**: the CMU local planner; see
   [GROUND_PLANNING.md](GROUND_PLANNING.md#10-the-cmu-planner-in-star-nav)
-  for how it is wired and its parameters. The rest of this section is the
-  EGO path (`planner:=ego`).
-- **Planner**: EGO-Planner, the same as for the drone, at a fixed altitude of
-  0.34 m. The parameters are in `star_nav_bringup/launch/exploration_lite3.launch`
-  (the robot's sizes) and `exploration_ground.launch` (the rest):
+  for how it is wired and its parameters. The robot's sizes are in
+  `star_nav_bringup/launch/exploration_lite3.launch`, the rest in
+  `exploration_ground.launch`:
 
   | Parameter | Value |
   |---|---|
   | `max_vel` | 0.6 m/s |
-  | `max_acc` | 1.0 m/s² |
-  | Obstacle inflation | 0.3 m |
+  | `robot_height` (higher returns are overhead) | 0.55 m |
+  | Obstacle height (`cmu_obstacle_height`) | 0.15 m above the ground |
   | Waypoint tolerance | 0.3 m |
   | Waypoint timeout | 60 s |
 
 - **Mission**: the default 12-waypoint lawnmower from `exploration_manager`.
-- **Terrain filter** (`star_nav_bringup/scripts/terrain_filter.py`): the
-  drone's map treats everything above the floor as an obstacle, including ramps
-  and steps. The filter keeps a 2.5D grid of 0.1 m cells, each with its lowest
-  lidar return (the ground) and its highest return within 0.55 m above that.
-
-  | Cell | Result |
-  |---|---|
-  | Highest return more than 9 cm above the ground (wall, leg, box) | Obstacle |
-  | Ground 9 cm to 0.55 m above a neighbour's (box top, platform edge) | Obstacle |
-  | Ramp, step of 9 cm or less | Free |
-  | Only returns above the robot (table top) | Free |
-
-  Obstacle cells within 7 m are published as vertical columns. grid_map takes
-  them in replace mode (`enable_pointcloud_raycasting` false). The robot's
-  lidar looks −30° … 52° so that it sees the ground near the robot, roughly a
-  forward-tilted Mid-360.
+- **Lidar**: it looks −30° … 52° so that it sees the ground near the robot,
+  roughly a forward-tilted Mid-360.
 
 ### Frontier exploration (`explore:=frontier`)
 
 Without preset waypoints: `star_nav_bringup/scripts/frontier_explorer.py`
 takes the place of `exploration_manager` and sends the planner its goals.
-It needs the CMU planner (`planner:=cmu`, the default).
 
 - **Map** (`frontier_map.py`, no ROS): a 2D grid of 0.1 m cells over the
   whole run, built from the lidar scans in the world frame. Nothing is
@@ -135,7 +105,8 @@ It needs the CMU planner (`planner:=cmu`, the default).
 
   | Cell | State |
   |---|---|
-  | Obstacle by the terrain filter's rule (the table above) | Obstacle |
+  | Highest return more than 9 cm (`max_step`) above the ground (wall, leg, box) | Obstacle |
+  | Ground 9 cm to 0.55 m above a neighbour's (box top, platform edge) | Obstacle |
   | Seen, not an obstacle | Free |
   | Unknown, with three of its four neighbours known (a gap between two rays) | Free |
   | Anything else | Unknown |
@@ -149,8 +120,7 @@ It needs the CMU planner (`planner:=cmu`, the default).
   the robot walks home. The states are on `/exploration/state`
   (`PLAN_TO_FRONTIER`, `EXEC_FRONTIER`, `RETURN_HOME`, `FINISH`).
 - **Goals**: the frontier itself; the CMU planner's waypoint router finds
-  the way to it. The EGO planner is not supported: it needs goals it can
-  reach in a straight line.
+  the way to it.
 - **Done** means no reachable frontier is left. Coverage is not part of the
   rule; `frontier_smoke.test` measures it afterwards as the share of known
   cells (free or obstacle) of the floor inside the house's walls
@@ -175,15 +145,18 @@ Terrain (house corridor, both directions):
 | 8 cm steps | Sometimes stalls |
 | 10 cm steps | Falls |
 
-Verification at the last commit:
+Verification on 2026-11-26, with the CMU planner as the only one (one run
+each; times are simulated):
 
 | Check | Result |
 |---|---|
-| `lite3_smoke.test` (house, lidar; the default) | 12/12, 0 contacts, 0 timeouts, reached the platform (peak torso z 0.54 m) |
-| `lite3_smoke.test world:=forest` | 12/12, 0 contacts, 0 timeouts, all 107 pillars mapped |
-| `lite3_smoke.test world:=forest sensor:=depth` | 12/12, 0 contacts |
-| `frontier_smoke.test` (house, CMU planner; six runs) | 15 to 20 frontiers, 98.6 to 98.8 % of the floor known, 72 to 86 s, 33 to 37 m walked, home within 0.26 m, no frontier given up, 0 contacts |
-| `pytest` in `mujoco_sim/` | 30 passed; the walking tests need the assets |
+| `lite3_smoke.test` (house; the default) | 12/12, 0 contacts, 0 timeouts, reached the platform (peak torso z 0.54 m), 143 s |
+| `lite3_smoke.test world:=forest` | 12/12, 0 contacts, 0 timeouts, 136 s |
+| `frontier_smoke.test` (house) | 18 frontiers, 98.6 % of the floor known, 80 s, 36.2 m walked, home within 0.25 m, 0 contacts (six earlier runs: 15 to 20 frontiers, 98.6 to 98.8 %, 72 to 86 s) |
+| `pytest` in `mujoco_sim/` | 63 passed (with both robots downloaded) |
+
+The forest test no longer compares a map with the pillars: that check read
+EGO's map.
 
 ## Changes Outside the Robot
 
@@ -199,27 +172,16 @@ The quadruped work also fixed two things that affect the drone:
 
 ## Limitations
 
-- **Use the lidar.** It is the default and the only sensor that works in
-  every world. The depth camera (`sensor:=depth`) bypasses the terrain
-  filter, so it is for flat ground (the forest) only: in the house the ramp
-  and the steps become obstacles, and one run fell once, timed out on 5
-  waypoints and logged about 1,200 contact steps. `terrain:=false` (lidar
-  without the terrain filter) is flat-ground only for the same reason: in the
-  house one run reached the waypoints with about 16,000 contact steps. Both
-  fail the same way before and after the robot interface refactoring.
-- **The planner does not know the gait's limits.** The filter's 9 cm threshold
-  is above what the policy climbs reliably (7 cm). A step between 8 and 9 cm
-  would be planned over and may stall the robot.
-- **Static worlds only.** Terrain cells are never cleared, so a moved object
-  stays an obstacle and a removed one never frees its cells.
-- **Fixed-height planning.** EGO is a 3D trajectory optimiser for a drone, used
-  here in one horizontal layer. It does not plan up or down terrain, and
-  heading is only what the trajectory's yaw gives.
+- **Lidar only.** The CMU planner's terrain analysis takes lidar scans;
+  there is no depth-camera mode for the walking robots.
+- **The planner does not know the gait's limits.** A point 15 cm above the
+  ground is an obstacle (`cmu_obstacle_height`); the policy climbs 7 cm
+  steps reliably. A step between 8 and 15 cm is not an obstacle to the
+  planner and may stall the robot.
+- **Static worlds only.** The terrain analysis is set up for a world that
+  does not change (`clearDyObs` false).
 - **Ground-truth pose.** No odometry or SLAM is in the loop.
-- **Frontier exploration needs the CMU planner**, and has only been run
-  with the Lite3 in the house. An earlier version for the EGO planner (goals
-  on the way, in a straight free line from the robot) was dropped: in 3 of 5
-  runs the robot stopped on the way, and the cause was not found.
+- **Frontier exploration has only been run with the Lite3 in the house.**
 - **The frontier map is not checked or saved.** Coverage counts known cells;
   the map is not compared with the simulator's world, and it is not written
   to a file.
@@ -232,8 +194,9 @@ The quadruped work also fixed two things that affect the drone:
 
 1. **Odometry**: replace the ground-truth pose with lidar-inertial odometry
    (e.g. FAST-LIO) on simulated IMU and lidar.
-2. **Gait limits**: tie the filter's `max_step` to the gait's measured limit.
-3. **Dynamic worlds**: clear terrain cells as rays pass through them.
+2. **Gait limits**: tie the planner's obstacle height to the gait's
+   measured limit.
+3. **Dynamic worlds**: let the terrain analysis clear what has moved.
 4. **Terrain-aware gait**: a policy that sees the terrain (height scan) for
    higher steps.
 5. **Hardware**: a Lite3 hardware branch (`hardware/*`) once the above

@@ -66,7 +66,7 @@ a public-facing codebase.
       (docs/SENSORS.md).
 - [x] Point cloud ray casting clears obstacles that moved away: distant
       returns, sensor ray origin, exact voxel traversal
-      (planner/plan_env/POINTCLOUD_RAYCASTING_FIX.md).
+      (planner/ego/plan_env/POINTCLOUD_RAYCASTING_FIX.md).
 - [ ] Lidar beams with no return as free space (per-sensor option).
 - [ ] Moving obstacle in the MuJoCo world with a map clearing-time check.
 

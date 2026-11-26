@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Star Nav Quadruped</title>
-<meta name="description" content="DeepRobotics Lite3 quadruped on the Star Nav stack: EGO-Planner, a learned walking policy and a terrain filter, in a MuJoCo house with a ramp and stairs.">
+<meta name="description" content="DeepRobotics Lite3 quadruped on the Star Nav stack: CMU's local planner and a learned walking policy, in a MuJoCo house with a ramp and stairs.">
 <meta property="og:title" content="Star Nav Quadruped">
 <meta property="og:description" content="The Star Nav planning stack on a walking robot: Lite3 in MuJoCo, with a ramp, stairs and furniture.">
 <meta property="og:image" content="assets/lite3-house-rviz.jpg">
@@ -30,10 +30,11 @@
 <main>
   <div class="wrap hero">
     <p class="eyebrow">DeepRobotics Lite3 · MuJoCo</p>
-    <h1>The same navigation stack, on four legs</h1>
+    <h1>The same mission, on four legs</h1>
     <p class="lead">
-      The Lite3 explores a house and a forest with the planner the drone uses,
-      walking with DeepRobotics' own learned policy. It goes under the table,
+      The Lite3 explores a house and a forest on the mission the drone flies,
+      steered by CMU's local planner and walking with DeepRobotics' own learned
+      policy. It goes under the table,
       around the furniture, up a ramp and down a flight of steps.
     </p>
   </div>
@@ -50,7 +51,9 @@
         <div><b>Simulator.</b> The robot and its lidar returns.</div>
         <div><b>Planner's view.</b> Magenta: obstacles in the map; the ramp and steps are not. Blue: the path walked.</div>
       </div>
-      <figcaption>House, one full mission, 4&times; speed.</figcaption>
+      <figcaption>House, one full mission, 4&times; speed. The videos on this page
+      were recorded when the Lite3 still followed EGO-Planner; it now walks
+      these missions with CMU's local planner.</figcaption>
     </figure>
 
     <div class="videos">
@@ -96,7 +99,6 @@
             <tbody>
               <tr><td>House, lidar</td><td class="ok">12/12, 0 contacts, reached the platform</td></tr>
               <tr><td>Forest, lidar</td><td class="ok">12/12, 0 contacts</td></tr>
-              <tr><td>Forest, depth camera</td><td class="ok">12/12, 0 contacts</td></tr>
             </tbody>
           </table>
         </div>
@@ -117,7 +119,7 @@
         Not yet:
         <ul>
           <li>The pose comes from the simulator, not from odometry or SLAM.</li>
-          <li>The planner does not know the gait's limits; its 9&nbsp;cm step threshold is above the 7&nbsp;cm the policy climbs reliably.</li>
+          <li>The planner does not know the gait's limits; its 15&nbsp;cm obstacle threshold is above the 7&nbsp;cm steps the policy climbs reliably.</li>
           <li>Simulation only; no hardware branch yet.</li>
         </ul>
       </div>
@@ -128,9 +130,9 @@
     <div class="wrap">
       <h2>Key facts</h2>
       <p class="sub">
-        The planner is the drone's, unchanged except for its settings. New for
-        legs: a tracker that turns setpoints into a walking speed, and a terrain
-        filter that lets the planner take ramps and low steps.
+        The mission is the drone's. The planner is CMU's local planner for
+        ground robots: its terrain analysis takes ramps and low steps as
+        ground, and it sends the walking policy a velocity.
       </p>
       <div class="facts">
         <div class="card">
@@ -146,16 +148,16 @@
           <span class="tag ros">Sensing</span>
           <dl>
             <dt>Lidar</dt><dd>32 beams, −30° to 52°, 10&nbsp;Hz, on the back</dd>
-            <dt>Or</dt><dd>Depth camera at the front, 30&nbsp;Hz (flat ground only; the lidar is recommended)</dd>
-            <dt>Terrain filter</dt><dd>0.1&nbsp;m cells; steps under 9&nbsp;cm are walkable</dd>
+            <dt>Terrain analysis</dt><dd>Up to 0.15&nbsp;m above the ground is walkable</dd>
+            <dt>Overhead</dt><dd>Above 0.55&nbsp;m; it walks under the table</dd>
           </dl>
         </div>
         <div class="card">
           <span class="tag plan">Planning</span>
           <dl>
-            <dt>Planner</dt><dd>EGO-Planner at body height, 0.34&nbsp;m</dd>
+            <dt>Planner</dt><dd>CMU local planner: one of 343 pre-computed paths</dd>
             <dt>Speed</dt><dd>Up to 0.6&nbsp;m/s</dd>
-            <dt>Clearance</dt><dd>0.3&nbsp;m from obstacles</dd>
+            <dt>Clearance</dt><dd>0.45&nbsp;m; 0.23&nbsp;m where nothing else is free</dd>
           </dl>
         </div>
       </div>

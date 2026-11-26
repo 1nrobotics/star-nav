@@ -118,7 +118,6 @@ model and policy (BSD-3-Clause) are downloaded, not committed:
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true
 rostest star_nav_bringup lite3_smoke.test                  # house, lidar
 rostest star_nav_bringup lite3_smoke.test world:=forest    # pillar forest
-rostest star_nav_bringup lite3_smoke.test planner:=ego     # EGO planner
 ```
 
 Without preset waypoints (frontier exploration): the robot keeps a 2D map of
@@ -134,17 +133,16 @@ roslaunch star_nav_bringup exploration_lite3.launch explore:=frontier use_rviz:=
 rostest star_nav_bringup frontier_smoke.test               # maps the whole house
 ```
 
-It stays inside the exploration area plus `frontier_margin` (1.5 m). It needs
-the CMU planner (`planner:=cmu`, the default).
+It stays inside the exploration area plus `frontier_margin` (1.5 m).
 
-The walking robots are steered by CMU's local planner (`planner:=cmu`, the
-default): terrain analysis, a local planner that picks one of its
+The walking robots are steered by CMU's local planner: terrain analysis, a local planner that picks one of its
 pre-computed paths, and a path follower that sends the robot a velocity.
 Ramps and low steps are ground to it, not obstacles. Its path set (29 MB,
 BSD) is downloaded once by `fetch_cmu_paths.sh`, not committed. It needs the
-lidar. `planner:=ego` uses the quadrotor's EGO planner at a fixed height
-instead, with a terrain filter in front of its map; the quadrotor itself
-always flies with EGO. See [GROUND_PLANNING.md](GROUND_PLANNING.md).
+lidar. The quadrotor flies with the EGO planner. Each kind of robot has one
+planner, behind one interface:
+[PLANNER_INTERFACE.md](PLANNER_INTERFACE.md). For the planners themselves
+see [GROUND_PLANNING.md](GROUND_PLANNING.md).
 
 Development status, measurements and limitations: [QUADRUPED.md](QUADRUPED.md).
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Star Nav</title>
-<meta name="description" content="Autonomous exploration for drones and legged robots with EGO-Planner on ROS Noetic: a quadrotor, the Lite3 quadruped and the T1 humanoid, in a MuJoCo 4 simulator that also runs in the browser.">
+<meta name="description" content="Autonomous exploration for drones and legged robots on ROS Noetic: EGO-Planner flies a quadrotor, CMU's local planner walks the Lite3 quadruped and the T1 humanoid, in a MuJoCo 4 simulator that also runs in the browser.">
 <meta property="og:title" content="Star Nav">
 <meta property="og:description" content="One navigation stack for a quadrotor, a quadruped and a humanoid, simulation first, in MuJoCo 4.">
 <meta property="og:image" content="assets/exploration-demo.jpg">
@@ -40,10 +40,11 @@
     <p class="eyebrow">ROS Noetic · EGO-Planner · MuJoCo 4</p>
     <h1>One navigation stack for drones and legged robots</h1>
     <p class="lead">
-      Star Nav explores unknown spaces with a waypoint mission and the
-      EGO-Planner local planner, seeing through a depth camera or a lidar. The
-      same stack flies a quadrotor through a forest and walks a quadruped and a
-      humanoid through a house with a ramp and stairs, all in simulation first.
+      Star Nav explores unknown spaces with a waypoint mission and a local
+      planner for each kind of robot, seeing through a depth camera or a lidar.
+      EGO-Planner flies a quadrotor through a forest; CMU's local planner walks
+      a quadruped and a humanoid through a house with a ramp and stairs, all in
+      simulation first.
     </p>
     <div class="cta">
       <a class="btn primary" href="#quick-start">Run it in 5 minutes</a>
@@ -130,11 +131,11 @@
       <h2>Architecture</h2>
       <p class="sub">
         Three parts with one contract between them: the robot reports its pose and
-        what it sees, and follows the setpoints the planner sends back. Only the
+        what it sees, and follows the commands its planner sends back. Only the
         bottom of the simulator changes from robot to robot.
       </p>
 
-      <div class="diagram" role="img" aria-label="The MuJoCo simulator sends the robot's pose and sensor data through a bridge to the navigation stack, which builds an occupancy map, plans a trajectory with EGO-Planner and sends setpoints back through the bridge to the robot's controller.">
+      <div class="diagram" role="img" aria-label="The MuJoCo simulator sends the robot's pose and sensor data through a bridge to the navigation stack, which builds a map, plans with the robot's local planner (EGO-Planner for the drone, CMU's local planner for the legged robots) and sends commands back through the bridge to the robot's controller.">
         <svg viewBox="0 0 1000 440" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0 0L10 5L0 10z"/></marker>
@@ -169,20 +170,20 @@
           <!-- Navigation stack -->
           <rect class="box-plan" x="650" y="20" width="340" height="400" rx="12" stroke-width="1.5"/>
           <text x="668" y="50" font-size="17" font-weight="650" class="head-plan">Navigation stack</text>
-          <text x="668" y="70" font-size="12.5" class="t-muted">ROS · identical for every robot</text>
+          <text x="668" y="70" font-size="12.5" class="t-muted">ROS · one planner per kind of robot</text>
           <rect class="box-inner" x="668" y="86" width="304" height="58" rx="8"/>
           <text x="682" y="110" font-size="14" font-weight="600">Exploration mission</text>
           <text x="682" y="130" font-size="12.5" class="t-muted">waypoints over the area to cover</text>
           <rect class="box-inner" x="668" y="158" width="304" height="58" rx="8"/>
-          <text x="682" y="182" font-size="14" font-weight="600">Occupancy map</text>
-          <text x="682" y="202" font-size="12.5" class="t-muted">+ terrain filter for walking robots</text>
+          <text x="682" y="182" font-size="14" font-weight="600">Map</text>
+          <text x="682" y="202" font-size="12.5" class="t-muted">Drone: occupancy grid · Legs: terrain map</text>
           <rect class="box-inner" x="668" y="230" width="304" height="58" rx="8"/>
-          <text x="682" y="254" font-size="14" font-weight="600">EGO-Planner</text>
-          <text x="682" y="274" font-size="12.5" class="t-muted">collision-free trajectory</text>
+          <text x="682" y="254" font-size="14" font-weight="600">Local planner</text>
+          <text x="682" y="274" font-size="12.5" class="t-muted">Drone: EGO-Planner · Legs: CMU planner</text>
           <rect class="box-key" x="668" y="310" width="304" height="92" rx="8"/>
-          <text x="682" y="334" font-size="14" font-weight="600">Setpoints</text>
-          <text x="682" y="356" font-size="12.5" class="t-muted">position, velocity, heading</text>
-          <text x="682" y="376" font-size="12.5" class="t-muted">sampled at 100 Hz</text>
+          <text x="682" y="334" font-size="14" font-weight="600">Command</text>
+          <text x="682" y="356" font-size="12.5" class="t-muted">Drone: position setpoints, 100 Hz</text>
+          <text x="682" y="376" font-size="12.5" class="t-muted">Legs: walking velocity, 50 Hz</text>
 
           <!-- up: pose and sensor data -->
           <path class="flow" d="M312 115 H405" marker-end="url(#ah)"/>
@@ -201,9 +202,9 @@
 
           <!-- down: setpoints -->
           <path class="flow-cmd" d="M668 356 H575" marker-end="url(#ahc)"/>
-          <text x="590" y="348" font-size="12" class="lbl-cmd">setpoints</text>
+          <text x="590" y="348" font-size="12" class="lbl-cmd">command</text>
           <path class="flow-cmd" d="M405 356 H312" marker-end="url(#ahc)"/>
-          <text x="330" y="348" font-size="12" class="lbl-cmd">setpoints</text>
+          <text x="330" y="348" font-size="12" class="lbl-cmd">command</text>
         </svg>
       </div>
       <div class="legend">
@@ -214,11 +215,12 @@
 
       <div class="grid3">
         <div class="card">
-          <span class="tag plan">One planner</span>
-          <h3>Same stack for every robot</h3>
-          <p>The mission, map and planner never see ground truth. They get only
-          what a real robot would: odometry and a depth image or lidar scan. Per
-          robot, only a few numbers change, such as height, speed and clearance.</p>
+          <span class="tag plan">One interface</span>
+          <h3>A planner for each kind of robot</h3>
+          <p>The mission and the planners never see ground truth. They get only
+          what a real robot would: odometry and a depth image or lidar scan.
+          EGO-Planner flies the drone and CMU's local planner walks the legged
+          robots, behind one interface.</p>
         </div>
         <div class="card">
           <span class="tag sim">Simulator</span>
@@ -229,10 +231,10 @@
         </div>
         <div class="card">
           <span class="tag ros">Robot layer</span>
-          <h3>Setpoints in, motion out</h3>
-          <p>The drone tracks setpoints with a flight controller. The walking robots
-          turn them into a walking speed for the manufacturers' learned policies;
-          a terrain filter lets them take ramps and low steps.</p>
+          <h3>Commands in, motion out</h3>
+          <p>The drone tracks position setpoints with a flight controller. The
+          walking robots get a walking velocity for the manufacturers' learned
+          policies; to their planner, ramps and low steps are ground.</p>
         </div>
       </div>
     </div>
@@ -296,8 +298,8 @@ roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true</code></pre>
 <footer>
   <div class="wrap">
     <span>
-      Mixed license: the planning stack is GPLv3 (EGO-Planner), the simulator and
-      bridge are MIT. <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">Details</a>
+      Mixed license: EGO-Planner is GPLv3, CMU's local planner BSD, the
+      simulator and bridge MIT. <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">Details</a>
     </span>
     <span>
       <a href="https://github.com/1nrobotics/star-nav">GitHub</a> ·

@@ -21,10 +21,10 @@ packages with their own license file are marked.
 
 | Package | License | Origin |
 | --- | --- | --- |
-| `planner/bspline_opt`, `path_searching`, `plan_env`, `plan_manage`, `traj_utils` | GPLv3 | EGO-Planner / Fast-Planner |
-| `planner/rosmsg_tcp_bridge` | GPLv3 | EGO-Planner |
+| `planner/ego/bspline_opt`, `path_searching`, `plan_env`, `plan_manage`, `traj_utils` | GPLv3 | EGO-Planner / Fast-Planner |
+| `planner/ego/rosmsg_tcp_bridge` | GPLv3 | EGO-Planner |
 | `planner/exploration_manager` | MIT (`LICENSE`) | original |
-| `planner/local_planner`, `terrain_analysis` | BSD | CMU autonomous_exploration_development_environment |
+| `planner/cmu/local_planner`, `terrain_analysis` | BSD | CMU autonomous_exploration_development_environment |
 | `px4ctrl` | GPLv3 (`LICENSE`) | upstream px4ctrl |
 | `uav_simulator/local_sensing`, `map_generator`, `mockamap`, `fake_drone` | GPLv3 | EGO-Planner simulator |
 | `uav_simulator/odom_visualization`, `so3_control`, `so3_quadrotor_simulator` | BSD | upstream simulator |
@@ -51,7 +51,7 @@ Notes:
 - The Mid-360 lidar pattern (`--lidar-model mid360`) uses the beam table
   `mid360.csv` of Livox's livox_laser_simulation (MIT). It is downloaded on
   request (`--fetch mid360`) at a pinned commit and not redistributed here.
-- `planner/local_planner` and `planner/terrain_analysis` are unmodified
+- `planner/cmu/local_planner` and `planner/cmu/terrain_analysis` are unmodified
   sources of CMU's autonomous_exploration_development_environment (Ji Zhang;
   branch `noetic`, commit `bf0cba7`). Upstream declares BSD in each
   `package.xml` and ships no license file or copyright headers for them, so

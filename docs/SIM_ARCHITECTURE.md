@@ -38,20 +38,24 @@ Written November 2026.
 │   exploration_mujoco.launch    quadrotor                         │
 │   exploration_<robot>.launch   a ground robot's sizes, then:     │
 │     exploration_ground.launch  what ground robots share          │
-│     └ terrain_filter.py (lidar only; planner:=ego)               │
-│     └ cmu_planner.xml (planner:=cmu)                             │
-│   planning_stack.xml           EGO-Planner + exploration manager │
+│   planning_stack.xml           planner + exploration manager     │
+│     planner.xml                the robot type's planner:         │
+│     └ planners/ego.xml         aerial (the quadrotor)            │
+│     └ planners/cmu.xml         legged (Lite3, T1)                │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-Every robot has the same contract with the rest of the stack: it takes the
-planner's position setpoint (`pos_cmd`: position, velocity, acceleration,
-yaw) and returns odometry and sensor data. ROS and the planner do not know
-which robot is simulated. A ground robot also takes a body-frame velocity
-(`cmd_vel`: forward, sideways, turn rate), which goes to its walking policy
-within the tracker's limits and replaces the position setpoint once one has
-been received; without a new one for `cmd_timeout` the robot stands. The CMU
-local planner (`planner:=cmu`) steers it this way.
+Every simulated robot has the same contract with the rest of the stack: it
+takes a position setpoint (`pos_cmd`: position, velocity, acceleration,
+yaw) and returns odometry and sensor data. A ground robot also takes a
+body-frame velocity (`cmd_vel`: forward, sideways, turn rate), which goes to
+its walking policy within the tracker's limits and replaces the position
+setpoint once one has been received; without a new one for `cmd_timeout`
+the robot stands. The planners use one each: EGO sends the quadrotor
+setpoints, and the CMU local planner sends the walking robots a velocity
+(their setpoint tracker is still in the simulator, but no planner sends
+them setpoints now). Which planner a robot gets, and what a planner takes and gives, is in
+[PLANNER_INTERFACE.md](PLANNER_INTERFACE.md).
 
 ## Robots
 
@@ -116,7 +120,7 @@ same `twist()` method.
 | Where | What |
 |---|---|
 | `robots/<robot>.py` | Everything the simulator needs: model, policy, mounts, heights, lidar beam elevations, command-line defaults |
-| `exploration_<robot>.launch` | What the planner needs: planning height, lidar mount, terrain filter height and step limit, inflation, speed, RViz height |
+| `exploration_<robot>.launch` | What the planner needs: standing height, lidar mount, the height above which returns are overhead, speed; for frontier exploration the step limit and clearance |
 
 Two numbers are in both: the standing height (`altitude` in the launch
 file) and the lidar mount (`lidar_offset`). `tests/test_robots.py` reads
@@ -159,7 +163,8 @@ and `setup_mujoco_env.sh --<name>` come from the registry.
   `MARKER_GROUP` (2: visual meshes) and `ROBOT_GROUP`
   (3: collision geoms).
 - **To ROS:** the bridge's topics are remapped to the names the planner
-  expects (`/drone_0_pcl_render_node/cloud`, …). The grid map needs the lidar
+  expects (`/drone_0_pcl_render_node/cloud` for the quadrotor,
+  `/drone_0_lidar/cloud` for the ground robots). The grid map needs the lidar
   mount again (`lidar_offset` in the robot's launch file).
 - **Lidar timing:** a whole revolution is cast at one instant (no motion
   distortion, no per-point time). The wire format carries `beams` and the
@@ -217,7 +222,9 @@ From a read-through of the simulator, bridge, launch files, tests and CI.
    robots included; the workflow is started by hand only.
 2. **The terrain filter's step limit is too high for the T1.** `max_step`
    is now set per robot (Lite3 and T1 9 cm), but the T1 falls on
-   7 cm steps going up, yet the planner treats them as walkable.
+   7 cm steps going up, yet the planner treats them as walkable. (The
+   filter went with the walking robots' EGO path; the CMU planner's
+   obstacle height, 0.15 m, has the same gap.)
 3. **A fall is not reported.** `Simulator.fallen` is set and logged, but it
    is not in the state message, and contact with the ground plane is never
    counted. A fallen robot shows 0 contacts and the test fails on a later
@@ -225,7 +232,8 @@ From a read-through of the simulator, bridge, launch files, tests and CI.
 4. **The terrain filter assumes clean data.** Each cell keeps its lowest
    return for ever, so one noisy return below the floor makes a permanent
    false obstacle. Lidar noise is 0 by default, which hides this. The
-   filter has no unit tests.
+   filter has no unit tests. (The filter has been removed; the frontier
+   map keeps a cell's lowest return the same way.)
 5. **The house has no ground truth.** The world message carries pillars and
    rings only, so the house has no `global_cloud`, no obstacle markers and
    no map-accuracy check.
@@ -298,8 +306,7 @@ changing: more robots, better controllers, and measured results.
    each with the pose at its time, and add per-point time to the wire format.
    Star Nav uses the ground-truth pose, so nothing downstream needs this yet.
 
-Also open from the findings: unit tests for the terrain filter, a neutral name for
-`quadrotor.Command`.
+Also open from the findings: a neutral name for `quadrotor.Command`.
 
 ### What we take from the Antigravity Robotics plugin
 

@@ -102,16 +102,15 @@ DeepRobotics' Lite3 walks with DeepRobotics' own velocity policy:
 
 ```bash
 ./scripts/setup_mujoco_env.sh --lite3     # onnxruntime + model + policy
+./scripts/fetch_cmu_paths.sh              # the CMU planner's paths
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true
 rostest star_nav_bringup lite3_smoke.test                  # house, lidar
 rostest star_nav_bringup lite3_smoke.test world:=forest
 ```
 
-Use the lidar: it is the default, in the house (ramp, stairs, furniture) and
-in the forest. The depth camera (`sensor:=depth`) bypasses the terrain
-filter, so it only works on flat ground (`world:=forest sensor:=depth`); in
-the house the robot collides and falls
-([docs/QUADRUPED.md](../docs/QUADRUPED.md), Limitations).
+It walks with CMU's local planner on the lidar's scans, in the house (ramp,
+stairs, furniture) and in the forest; there is no depth-camera mode for the
+walking robots ([docs/QUADRUPED.md](../docs/QUADRUPED.md)).
 
 - Model and policy are downloaded at pinned commits into
   `~/.cache/star_nav/lite3` (`STAR_NAV_LITE3_DIR` to change), not committed:
@@ -125,26 +124,27 @@ the house the robot collides and falls
   last action, as upstream's ONNX runner; joint PD (kp 30, kd 1, 30 N m) at
   every 2 ms physics step. Measured on flat ground: forward 0.5 → 0.49 m/s,
   sideways 0.3 → 0.24 m/s, turn 0.5 → 0.45 rad/s.
-- `tracking.Holonomic` turns the planner's setpoint into a body-frame command
-  (setpoint velocity plus 1.5/s × position error, at most 0.8 m/s) and turns
-  towards the planner's yaw; it stands on a resting setpoint.
+- Steering: the planner's body-frame velocity (`vel` message) goes to the
+  policy within `tracking.Holonomic`'s limits (0.8 m/s, 0.8 rad/s); without
+  one for 0.5 s the robot stands. Given position setpoints instead,
+  `tracking.Holonomic` turns them into that command (setpoint velocity plus
+  1.5/s × position error, turning towards the setpoint's yaw); no planner
+  sends a walking robot setpoints now.
 - Sensors: the depth camera at the front of the torso, the lidar 10 cm above
   the torso centre, seeing −30° … 52° (about what a Mid-360 tilted forward
   sees ahead). Neither sees the robot's own legs
   (geom group 3).
-- Terrain: on the lidar path, `star_nav_bringup/scripts/terrain_filter.py`
-  keeps a 2.5D grid (lowest return per 0.1 m cell, highest within 0.55 m
-  above it) and gives the planner obstacle columns: walls, legs and boxes
-  higher than 9 cm are obstacles; ramps, steps and overhead table tops are
-  not (`terrain:=false` feeds the lidar straight into the 3D map instead).
+- Terrain: the CMU planner's terrain analysis measures each lidar return's
+  height above the ground near it. Returns more than 0.15 m up are
+  obstacles (walls, legs, boxes, the platform's edge); ramps and 7 cm steps
+  are ground, and returns more than 0.55 m up (table tops) are overhead.
 - What the policy can walk (measured, closed loop at 0.25–0.6 m/s): a 12°
   ramp, 7 cm steps up and down; 8 cm steps sometimes stall it, 10 cm steps
   make it fall. It is a blind flat-ground policy, so `house.py` uses 7 cm
   steps.
 - Contacts with the floor, and lower legs or feet on ramps and steps
   (`walk/...` geoms), do not count; anything else does.
-- The planner moves at 0.6 m/s with 0.3 m inflation, waypoints at torso
-  height.
+- The planner walks it at up to 0.6 m/s.
 
 The house (`--world house`, 11 x 11 m) fits the default 9 m lawnmower
 mission: a furnished room with a table to walk under, and a corridor on one
@@ -157,16 +157,11 @@ Robotics' own velocity policy, through the same house and planner:
 
 ```bash
 ./scripts/setup_mujoco_env.sh --t1        # model + policy (no extra Python packages)
+./scripts/fetch_cmu_paths.sh              # the CMU planner's paths
 roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true
 rostest star_nav_bringup t1_smoke.test                     # house, lidar
 rostest star_nav_bringup t1_smoke.test world:=forest
 ```
-
-Use the lidar. The depth camera (`sensor:=depth`) bypasses the terrain
-filter, and in the 3D map EGO may plan over an obstacle lower than about 1 m
-(the house's table, a short pillar), which a walking robot cannot follow: in
-the forest the T1 then brushes a stump with a foot. A virtual ceiling just
-above the walking height would stop that.
 
 - Model and policy are downloaded at a pinned commit of
   [booster_gym](https://github.com/BoosterRobotics/booster_gym) (Apache-2.0)
@@ -181,11 +176,10 @@ above the walking height would stop that.
   action, as upstream's `play_mujoco.py`; joint PD (hips and knees kp 200,
   kd 5; ankles 50, 1) at every 2 ms physics step. Measured on flat ground:
   forward 0.5 → 0.42 m/s, sideways 0.3 → 0.26 m/s, turn 0.5 → 0.51 rad/s.
-- Steering: the Lite3's `tracking.Holonomic`. Sensors: the depth camera in the face
+- Steering: as the Lite3. Sensors: the depth camera in the face
   (1.07 m), the lidar on top of the head (1.2 m, −50° … 30°); neither sees
   the robot (its meshes are in group 2, its collision geoms in group 3).
-- The planner walks it at 0.5 m/s, waypoints at trunk height (0.67 m), with
-  0.35 m inflation (the arms reach 0.27 m out). The terrain filter counts
+- The planner walks it at up to 0.5 m/s. The terrain analysis counts
   returns up to 1.25 m above the ground, so the table it cannot walk under
   is an obstacle.
 - What the policy can walk (measured): the 12° ramp and the 7 cm steps
