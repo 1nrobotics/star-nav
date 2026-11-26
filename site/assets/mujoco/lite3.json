@@ -1,0 +1,135 @@
+{
+ "robot": "lite3",
+ "source": "DeepRoboticsLab/deep_robotics_model, DeepRoboticsLab/Lite3_rl_deploy (BSD-3-Clause)",
+ "files": {
+  "lite3/mjcf/Lite3.xml": "https://cdn.jsdelivr.net/gh/DeepRoboticsLab/deep_robotics_model@b452a1f404d37155400242f18e454fed8bcc51b8/Lite3/Lite3_mjcf/mjcf/Lite3.xml",
+  "lite3/meshes/hip.STL": "https://cdn.jsdelivr.net/gh/DeepRoboticsLab/deep_robotics_model@b452a1f404d37155400242f18e454fed8bcc51b8/Lite3/Lite3_mjcf/meshes/hip.STL",
+  "lite3/meshes/shank.STL": "https://cdn.jsdelivr.net/gh/DeepRoboticsLab/deep_robotics_model@b452a1f404d37155400242f18e454fed8bcc51b8/Lite3/Lite3_mjcf/meshes/shank.STL",
+  "lite3/meshes/thigh.STL": "https://cdn.jsdelivr.net/gh/DeepRoboticsLab/deep_robotics_model@b452a1f404d37155400242f18e454fed8bcc51b8/Lite3/Lite3_mjcf/meshes/thigh.STL",
+  "lite3/meshes/torso.STL": "https://cdn.jsdelivr.net/gh/DeepRoboticsLab/deep_robotics_model@b452a1f404d37155400242f18e454fed8bcc51b8/Lite3/Lite3_mjcf/meshes/torso.STL"
+ },
+ "policy": {
+  "url": "https://cdn.jsdelivr.net/gh/DeepRoboticsLab/Lite3_rl_deploy@1c4a8f14c9c531903fa5a26783e3f9b99d1039d9/policy/ppo/policy.onnx",
+  "sha256": "efa6581d314d8c0442881453d39fc082c09b28bbaa3029d328fcd61fa25b57c7",
+  "format": "onnx",
+  "layers": 4
+ },
+ "trunk": "lite3/TORSO",
+ "actuators": [
+  "lite3/FL_HipX_joint_ctrl",
+  "lite3/FL_HipY_joint_ctrl",
+  "lite3/FL_Knee_joint_ctrl",
+  "lite3/FR_HipX_joint_ctrl",
+  "lite3/FR_HipY_joint_ctrl",
+  "lite3/FR_Knee_joint_ctrl",
+  "lite3/HL_HipX_joint_ctrl",
+  "lite3/HL_HipY_joint_ctrl",
+  "lite3/HL_Knee_joint_ctrl",
+  "lite3/HR_HipX_joint_ctrl",
+  "lite3/HR_HipY_joint_ctrl",
+  "lite3/HR_Knee_joint_ctrl"
+ ],
+ "stand_height": 0.34,
+ "start_height": 0.34,
+ "decimation": 6,
+ "default_pose": [
+  0.0,
+  -0.65,
+  1.3,
+  0.0,
+  -0.65,
+  1.3,
+  0.0,
+  -0.65,
+  1.3,
+  0.0,
+  -0.65,
+  1.3
+ ],
+ "action_scale": [
+  0.125,
+  0.25,
+  0.25,
+  0.125,
+  0.25,
+  0.25,
+  0.125,
+  0.25,
+  0.25,
+  0.125,
+  0.25,
+  0.25
+ ],
+ "kp": [
+  30.0,
+  30.0,
+  30.0,
+  30.0,
+  30.0,
+  30.0,
+  30.0,
+  30.0,
+  30.0,
+  30.0,
+  30.0,
+  30.0
+ ],
+ "kd": [
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0,
+  1.0
+ ],
+ "torque_limit": 30.0,
+ "max_cmd": 0.8,
+ "omega_scale": 0.25,
+ "joint_vel_scale": 0.05,
+ "appearance": {
+  "torso": [
+   0.17,
+   0.18,
+   0.2,
+   1.0
+  ],
+  "hip": [
+   0.7,
+   0.72,
+   0.75,
+   1.0
+  ],
+  "thigh": [
+   0.22,
+   0.23,
+   0.26,
+   1.0
+  ],
+  "shank": [
+   0.6,
+   0.62,
+   0.65,
+   1.0
+  ],
+  "foot": [
+   0.06,
+   0.06,
+   0.06,
+   1.0
+  ]
+ },
+ "tracker": {
+  "k_pos": 1.5,
+  "k_yaw": 1.5,
+  "max_speed": 0.8,
+  "max_turn": 0.8,
+  "hold": 0.03,
+  "hold_yaw": 0.05235987755982989
+ }
+}

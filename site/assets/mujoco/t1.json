@@ -1,0 +1,125 @@
+{
+ "robot": "t1",
+ "source": "BoosterRobotics/booster_gym (Apache-2.0)",
+ "files": {
+  "t1/resources/T1/T1_locomotion.xml": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/T1_locomotion.xml",
+  "t1/resources/T1/meshes/Trunk.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Trunk.STL",
+  "t1/resources/T1/meshes/H1.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/H1.STL",
+  "t1/resources/T1/meshes/H2.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/H2.STL",
+  "t1/resources/T1/meshes/AL1.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/AL1.STL",
+  "t1/resources/T1/meshes/AL2.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/AL2.STL",
+  "t1/resources/T1/meshes/AL3.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/AL3.STL",
+  "t1/resources/T1/meshes/left_hand_link.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/left_hand_link.STL",
+  "t1/resources/T1/meshes/AR1.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/AR1.STL",
+  "t1/resources/T1/meshes/AR2.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/AR2.STL",
+  "t1/resources/T1/meshes/AR3.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/AR3.STL",
+  "t1/resources/T1/meshes/right_hand_link.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/right_hand_link.STL",
+  "t1/resources/T1/meshes/Waist.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Waist.STL",
+  "t1/resources/T1/meshes/Hip_Pitch_Left.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Hip_Pitch_Left.STL",
+  "t1/resources/T1/meshes/Hip_Roll_Left.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Hip_Roll_Left.STL",
+  "t1/resources/T1/meshes/Hip_Yaw_Left.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Hip_Yaw_Left.STL",
+  "t1/resources/T1/meshes/Shank_Left.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Shank_Left.STL",
+  "t1/resources/T1/meshes/Ankle_Cross_Left.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Ankle_Cross_Left.STL",
+  "t1/resources/T1/meshes/left_foot_link.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/left_foot_link.STL",
+  "t1/resources/T1/meshes/Hip_Pitch_Right.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Hip_Pitch_Right.STL",
+  "t1/resources/T1/meshes/Hip_Roll_Right.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Hip_Roll_Right.STL",
+  "t1/resources/T1/meshes/Hip_Yaw_Right.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Hip_Yaw_Right.STL",
+  "t1/resources/T1/meshes/Shank_Right.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Shank_Right.STL",
+  "t1/resources/T1/meshes/Ankle_Cross_Right.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/Ankle_Cross_Right.STL",
+  "t1/resources/T1/meshes/right_foot_link.STL": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/resources/T1/meshes/right_foot_link.STL"
+ },
+ "policy": {
+  "url": "https://cdn.jsdelivr.net/gh/BoosterRobotics/booster_gym@da396a06d6eed99e2de72d7749c48ee8748950f9/deploy/models/T1.pt",
+  "sha256": "697cac61dbed2e76f25519c97ceb686f244d065dabf7d5d7ca386573143d215b",
+  "format": "torchscript",
+  "layers": [
+   [
+    256,
+    47
+   ],
+   [
+    128,
+    256
+   ],
+   [
+    128,
+    128
+   ],
+   [
+    12,
+    128
+   ]
+  ]
+ },
+ "trunk": "t1/Trunk",
+ "actuators": [
+  "t1/Left_Hip_Pitch",
+  "t1/Left_Hip_Roll",
+  "t1/Left_Hip_Yaw",
+  "t1/Left_Knee_Pitch",
+  "t1/Left_Ankle_Pitch",
+  "t1/Left_Ankle_Roll",
+  "t1/Right_Hip_Pitch",
+  "t1/Right_Hip_Roll",
+  "t1/Right_Hip_Yaw",
+  "t1/Right_Knee_Pitch",
+  "t1/Right_Ankle_Pitch",
+  "t1/Right_Ankle_Roll"
+ ],
+ "stand_height": 0.67,
+ "start_height": 0.72,
+ "decimation": 10,
+ "default_pose": [
+  -0.2,
+  0.0,
+  0.0,
+  0.4,
+  -0.25,
+  0.0,
+  -0.2,
+  0.0,
+  0.0,
+  0.4,
+  -0.25,
+  0.0
+ ],
+ "kp": [
+  200.0,
+  200.0,
+  200.0,
+  200.0,
+  50.0,
+  50.0,
+  200.0,
+  200.0,
+  200.0,
+  200.0,
+  50.0,
+  50.0
+ ],
+ "kd": [
+  5.0,
+  5.0,
+  5.0,
+  5.0,
+  1.0,
+  1.0,
+  5.0,
+  5.0,
+  5.0,
+  5.0,
+  1.0,
+  1.0
+ ],
+ "max_cmd": 1.0,
+ "joint_vel_scale": 0.1,
+ "gait_frequency": 1.5,
+ "tracker": {
+  "k_pos": 1.5,
+  "k_yaw": 1.5,
+  "max_speed": 0.8,
+  "max_turn": 0.8,
+  "hold": 0.03,
+  "hold_yaw": 0.05235987755982989
+ }
+}
