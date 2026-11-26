@@ -23,8 +23,9 @@ checked against a paper or the code are marked as such.
   plus a local planner (CMU), SE(2) optimization over terrain (ZJU FAST Lab),
   learned traversability plus a classic planner, and end-to-end learned
   planners (YOPO-Rally, iPlanner/ViPlanner).
-- **The CMU stack** perceives in 2.5D and plans in 2D, by picking one of 343
-  precomputed paths. It has no notion of time or dynamics, which a separate
+- **The CMU ground stack** perceives in 2.5D and plans in 2D, by picking one
+  of 343 precomputed paths. (CMU also publishes an aerial version of the
+  planner, with 3D paths; these notes and Star Nav use the ground one.) It has no notion of time or dynamics, which a separate
   path follower adds. It is simple, deterministic and cheap, which suits slow
   walking robots.
 - **MPPI** samples control sequences, rolls them out through a model and
@@ -85,7 +86,14 @@ its strength (depth only) is where Star Nav's walking robots are weakest.
 ## 3. The CMU ground autonomy stack
 
 From the code of `autonomous_exploration_development_environment` (noetic
-branch).
+branch), CMU's stack for ground vehicles. CMU's stack for aerial vehicles is
+a separate repository,
+[aerial_navigation_development_environment](https://github.com/caochao39/aerial_navigation_development_environment): its local planner works
+the same way with 4,375 paths in 3D (25 groups), takes a range sensor's
+point cloud without a terrain analysis, and its path follower outputs an
+attitude command (roll, pitch, yaw rate, vertical speed). Its README names Falco as the reference. It is under
+CMU's non-commercial license, and Star Nav does not use it; everything
+below is about the ground version.
 
 ### Terrain analysis (`terrainAnalysis.cpp`): 2.5D
 
@@ -154,7 +162,9 @@ No search or optimization: a hand-designed, three-level tree of curves.
 
 ## 4. CMU local planner vs EGO-Planner
 
-| | CMU local planner | EGO-Planner |
+The CMU column is the ground version (section 3).
+
+| | CMU local planner (ground) | EGO-Planner |
 |---|---|---|
 | Method | Selection from a precomputed path library | Gradient-based optimization (L-BFGS) of B-spline control points |
 | Space | 2D (vehicle frame) | 3D |
@@ -426,9 +436,11 @@ bring EGO back for ground robots first.
 ## 10. The CMU planner in Star Nav
 
 The CMU planner is the planner of a legged robot, the Lite3 and the T1:
-`star_nav_bringup/launch/planners/cmu.xml`. The quadrotor keeps EGO: the CMU
-planner is 2D and outputs a ground vehicle's velocity. Both sit behind one
-interface: [PLANNER_INTERFACE.md](PLANNER_INTERFACE.md).
+`star_nav_bringup/launch/planners/cmu.xml`. It is the ground version: 2D,
+with a ground vehicle's velocity as its output. The quadrotor keeps EGO.
+That is the project's choice; CMU's aerial version (section 3) could fly a
+quadrotor, and is not in Star Nav. Both planners sit behind one interface:
+[PLANNER_INTERFACE.md](PLANNER_INTERFACE.md#cmus-two-planners).
 
 Until November 2026 the walking robots could run EGO as well
 (`planner:=ego`): EGO planned at the height of the robot's body, a terrain
@@ -556,5 +568,6 @@ Side by side, at twice the speed, from one more run each at `344c2b8`:
 - Wild Visual Navigation, [arXiv 2305.08510](https://arxiv.org/abs/2305.08510); Trailblazer, [arXiv 2505.09739](https://arxiv.org/abs/2505.09739); Verti-Bench, [arXiv 2502.11426](https://arxiv.org/abs/2502.11426)
 - CMU code: [localPlanner.cpp](https://github.com/HongbiaoZ/autonomous_exploration_development_environment/blob/noetic/src/local_planner/src/localPlanner.cpp), [terrainAnalysis.cpp](https://github.com/HongbiaoZ/autonomous_exploration_development_environment/blob/noetic/src/terrain_analysis/src/terrainAnalysis.cpp), [path_generator.m](https://github.com/HongbiaoZ/autonomous_exploration_development_environment/blob/noetic/src/local_planner/paths/path_generator.m); [autonomy_stack_go2](https://github.com/jizhang-cmu/autonomy_stack_go2); [open-source list](https://frc.ri.cmu.edu/~zhangji/others.html)
 - MPPI: Williams et al., Information-Theoretic MPC, T-RO 2018, [arXiv 1707.02342](https://arxiv.org/abs/1707.02342); Log-MPPI, [arXiv 2203.16599](https://arxiv.org/abs/2203.16599); Smooth-MPPI, [arXiv 2112.09988](https://arxiv.org/abs/2112.09988); Biased-MPPI, [arXiv 2401.09241](https://arxiv.org/abs/2401.09241); [nav2_mppi_controller](https://github.com/ros-navigation/navigation2/tree/main/nav2_mppi_controller)
+- CMU aerial version: [aerial_navigation_development_environment](https://github.com/caochao39/aerial_navigation_development_environment) (`src/local_planner`)
 - FAR Planner, [arXiv 2110.09460](https://arxiv.org/abs/2110.09460); Falco, [CMU RI](https://ri.cmu.edu/?p=125590)
 - FFI, [Development of off-road autonomy for UGVs](https://www.ffi.no/en/publications-archive/development-of-off-road-autonomy-for-unmanned-ground-vehicles)

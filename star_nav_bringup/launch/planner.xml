@@ -31,8 +31,9 @@
     <!-- auto (the robot type's planner), or its name -->
     <arg name="planner" default="auto"/>
     <!-- robot type:planner asked for -> backend. A pair that is not here
-         stops the launch with a KeyError naming it: aerial:cmu (the CMU
-         planner plans on the ground), legged:ego (the EGO planner plans a
+         stops the launch with a KeyError naming it: aerial:cmu (the cmu
+         backend is the ground version of CMU's planner; its aerial version
+         is not in this repository), legged:ego (the EGO planner plans a
          quadrotor's flight). -->
     <arg name="backend" value="$(eval {'aerial:auto': 'ego', 'aerial:ego': 'ego', 'legged:auto': 'cmu', 'legged:cmu': 'cmu'}[arg('robot_type') + ':' + arg('planner')])"/>
 

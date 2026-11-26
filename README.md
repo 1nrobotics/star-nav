@@ -2,8 +2,8 @@
 
 Star Nav is a ROS Noetic navigation stack for **drones and legged robots**:
 a waypoint exploration manager and a local planner for each kind of robot
-(EGO-Planner flies the quadrotor, CMU's local planner walks the legged
-robots), with simulators to develop and test them. One mission and one
+(EGO-Planner flies the quadrotor, the ground version of CMU's local planner
+walks the legged robots), with simulators to develop and test them. One mission and one
 planner interface drive every robot:
 
 | | Quadrotor | Quadruped (DeepRobotics Lite3) | Humanoid (Booster T1) |
@@ -11,7 +11,7 @@ planner interface drive every robot:
 | Simulation | kinematic, or MuJoCo 4 with flight dynamics | MuJoCo 4, walking with DeepRobotics' own policy | MuJoCo 4, walking with Booster Robotics' own policy |
 | World | random forest of pillars and rings | furnished house with a ramp and stairs (default), or the forest | the house (taller walls), or the forest |
 | Obstacle sensor | forward depth camera or 360° lidar | lidar on its back | lidar on its head |
-| Local planner | EGO-Planner | CMU local planner | CMU local planner |
+| Local planner | EGO-Planner | CMU local planner (ground version) | CMU local planner (ground version) |
 | Robot-specific parts | SE(3) flight controller; `px4ctrl` for PX4 | velocity command to the walking policy; CMU terrain analysis for ramps and steps | the same as the Lite3 |
 | Launch | `exploration_mujoco.launch` | `exploration_lite3.launch` | `exploration_t1.launch` |
 | End-to-end test | `sim_smoke.test`, `mujoco_smoke.test` | `lite3_smoke.test` (the robot is downloaded) | `t1_smoke.test` (the robot is downloaded) |
@@ -155,7 +155,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 - `star_nav_bringup/`: launch files, RViz config and the simulation smoke tests
 - `mujoco_sim/`: standalone MuJoCo simulator for the quadrotor, the Lite3 quadruped and the T1 humanoid (Python, no ROS)
 - `mujoco_bridge/`: ROS bridge between `mujoco_sim` and the planning stack
-- `planner/`: the planners, one folder each (`ego/`: EGO-Planner for the quadrotor, GPLv3; `cmu/`: CMU's local planner for the walking robots, BSD), and the exploration manager. They sit behind one interface: [docs/PLANNER_INTERFACE.md](docs/PLANNER_INTERFACE.md)
+- `planner/`: the planners, one folder each (`ego/`: EGO-Planner for the quadrotor, GPLv3; `cmu/`: the ground version of CMU's local planner, for the walking robots, BSD), and the exploration manager. They sit behind one interface: [docs/PLANNER_INTERFACE.md](docs/PLANNER_INTERFACE.md)
 - `uav_simulator/`: simulation, mapping, and local sensing components
 - `px4ctrl/`: PX4 controller integration
 - `rviz_gcs_plugin/`: RViz panel to trigger and monitor exploration

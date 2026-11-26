@@ -58,6 +58,9 @@ Notes:
   there is no license text to copy; each package's `README.md` records the
   origin. The local planner's pre-computed paths are downloaded
   (`scripts/fetch_cmu_paths.sh`) at that commit and not redistributed here.
+  This is CMU's planner for ground vehicles. CMU's planner for aerial
+  vehicles (aerial_navigation_development_environment) is under a CMU
+  non-commercial license and is not in this repository.
 - The scene textures (`star_nav_mujoco/textures.py`) are generated with
   NumPy at run time; no image files are used.
 - The MuJoCo quadrotor controller implements the published geometric

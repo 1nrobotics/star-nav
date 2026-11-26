@@ -19,6 +19,12 @@ The local planner and path follower of Carnegie Mellon University's
   `scripts/fetch_cmu_paths.sh` downloads it from the commit above into
   `~/.cache/star_nav/cmu_paths` and checks it.
 
+This is CMU's planner for ground vehicles. CMU's planner for aerial vehicles
+is a different repository
+([aerial_navigation_development_environment](https://github.com/caochao39/aerial_navigation_development_environment),
+CMU non-commercial license) and is not used here: the quadrotor flies with
+EGO-Planner ([docs/PLANNER_INTERFACE.md](../../../docs/PLANNER_INTERFACE.md#cmus-two-planners)).
+
 `localPlanner` picks, from the pre-computed paths, the group that is clear of
 obstacles and best aligned with the waypoint (`/way_point`), and publishes it
 in the vehicle frame (`/path`). `pathFollower` follows it and publishes a

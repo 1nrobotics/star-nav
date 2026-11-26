@@ -1,5 +1,6 @@
 <launch>
-    <!-- Planner backend "cmu": CMU's local planner for a ground robot.
+    <!-- Planner backend "cmu": the ground version of CMU's local planner
+         (CMU's aerial version is a different repository, not used here).
          Included by planner.xml with all of its arguments; the ones this
          backend uses are declared below (docs/PLANNER_INTERFACE.md).
 

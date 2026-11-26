@@ -1,8 +1,8 @@
 # Planner Interface
 
 Star Nav moves three robots with two planners: the quadrotor flies with
-EGO-Planner; the Lite3 quadruped and the T1 humanoid walk with CMU's local
-planner. This page describes the one interface both planners sit behind:
+EGO-Planner; the Lite3 quadruped and the T1 humanoid walk with the ground
+version of CMU's local planner. This page describes the one interface both planners sit behind:
 what a planner takes and gives, how a robot gets its planner, where each
 planner's files are, and how to add a planner or a kind of robot. For what
 each planner does inside, see [GROUND_PLANNING.md](GROUND_PLANNING.md).
@@ -26,12 +26,17 @@ Now there is one place, `star_nav_bringup/launch/planner.xml`, and one rule:
 | `legged` | Lite3 quadruped, T1 humanoid | `cmu` |
 
 So a drone flies with EGO and a legged robot walks with the CMU planner.
+This is a choice, not a limit of either planner's family: CMU publishes its
+local planner in a ground version and an aerial version (see
+[CMU's two planners](#cmus-two-planners)). Star Nav has the ground version,
+as the `cmu` backend, and flies the quadrotor with EGO.
 `planner:=auto` (the default) takes the type's planner; `planner:=<name>`
 asks for one by name, and works where the table has the pair. A pair that is
 not in the table stops the launch with an error naming it:
 
-- `aerial:cmu`: the CMU planner plans on the ground and sends a ground
-  vehicle's velocity.
+- `aerial:cmu`: the `cmu` backend is the ground version of CMU's planner.
+  It plans in 2D and sends a ground vehicle's velocity. CMU's aerial version
+  is not in this repository.
 - `legged:ego`: EGO plans a quadrotor's flight. It moved the walking robots
   before the CMU planner was added, at a fixed height and through a filter
   that turned the lidar's scans into obstacle columns
@@ -146,7 +151,7 @@ path folder, EGO's flight type).
 
 ## The two backends
 
-| | `ego` | `cmu` |
+| | `ego` | `cmu` (CMU's ground version) |
 |---|---|---|
 | Plans in | 3D (B-spline optimization on a voxel map) | 2D (one of 343 pre-computed paths on a terrain map) |
 | Command | position setpoints | velocity |
@@ -166,6 +171,28 @@ the launch files before):
 | Map's input | the depth image and camera pose, or `cloud_topic` with `sensor:=lidar` |
 | Ray casting of the cloud | `sensor:=lidar` and `lidar_raycasting:=true` |
 | Hits per map update | `lidar_max_hits` with the lidar, 1 with the depth camera |
+
+### CMU's two planners
+
+CMU publishes its local planner twice. Both pick a path from a pre-computed
+set and follow it; they differ in what the paths are and what is commanded:
+
+| | Ground version | Aerial version |
+|---|---|---|
+| Repository | [autonomous_exploration_development_environment](https://github.com/HongbiaoZ/autonomous_exploration_development_environment) | [aerial_navigation_development_environment](https://github.com/caochao39/aerial_navigation_development_environment) |
+| Paths | 343 in 7 groups, in the plane | 4,375 in 25 groups, in 3D |
+| Obstacles | lidar points after terrain analysis (height above the ground) | a range sensor's point cloud |
+| Command | velocity (forward, turn rate) | attitude (roll, pitch, yaw rate, vertical speed) |
+| License | BSD (each `package.xml`) | CMU non-commercial |
+| In Star Nav | yes: `planner/cmu/`, backend `cmu` | no |
+
+The aerial version's numbers are read from its code (branch
+`melodic-noetic`, commit `0dcc4b1`); it was not built or run here. For the
+quadrotor Star Nav chose EGO-Planner, which the project started with, and
+did not compare the two. The aerial version would be one more backend for
+`aerial` (see below). Its command is a third kind, an attitude command, and
+its license does not allow commercial use, which would have to be recorded
+in [LICENSES.md](LICENSES.md).
 
 ## Adding a planner
 

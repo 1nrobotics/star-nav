@@ -68,7 +68,8 @@ class PlannerInterfaceTest(unittest.TestCase):
                 Launch(robot, "planner:=ego")
         with self.assertRaisesRegex(Exception, "legged:rrt"):
             Launch("lite3", "planner:=rrt")
-        # The CMU planner plans on the ground: not for the quadrotor.
+        # The cmu backend is the ground version of CMU's planner: not for
+        # the quadrotor.
         with self.assertRaisesRegex(Exception, "aerial:cmu"):
             load(PLANNER_XML, PLANNER_ARGS + ["robot_type:=aerial", "planner:=cmu"])
         with self.assertRaisesRegex(Exception, "wheeled:auto"):
