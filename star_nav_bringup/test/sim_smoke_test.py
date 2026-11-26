@@ -2,11 +2,13 @@
 """End-to-end smoke test for the waypoint exploration simulation.
 
 Triggers exploration and checks that the mission reaches FINISH, visits the
-expected number of waypoints without timeouts, and that the flown path covers
-the exploration area. With ~contacts_topic set (MuJoCo simulator), it also
-checks that the quadrotor never touched an obstacle. With ~obstacles_topic set,
-it also checks the sensor cloud and the planner's map against the true world
-(map_accuracy.py).
+expected number of waypoints without timeouts, and that the path covers the
+exploration area. It is the test of every robot (docs/TESTING.md lists what
+each one must show). With ~contacts_topic set (MuJoCo simulator), it also
+checks that the robot never touched an obstacle; with ~min_peak_height, that
+a walking robot got onto the platform. With ~obstacles_topic set (the
+quadrotor in MuJoCo), it also checks the sensor cloud and EGO's map against
+the true world (map_accuracy.py).
 """
 
 import threading
@@ -144,7 +146,7 @@ class SimSmokeTest(unittest.TestCase):
         self.assertGreaterEqual(span_y, self.coverage_ratio * self.height, "y coverage too small")
         if self.contacts_topic:
             self.assertIsNotNone(contacts, "no message on %s" % self.contacts_topic)
-            self.assertEqual(contacts, 0, "the quadrotor collided with an obstacle")
+            self.assertEqual(contacts, 0, "the robot collided with an obstacle")
         if self.accuracy:
             self.check_accuracy(self.accuracy.stop())
 

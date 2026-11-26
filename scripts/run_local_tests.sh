@@ -5,26 +5,37 @@
 # plus the walking robots, which need downloaded files and never ran there.
 # Run it before pushing; it exits non-zero when a step fails.
 #
-#   ./scripts/run_local_tests.sh                 # everything
-#   ./scripts/run_local_tests.sh lint pytest     # only these steps
+#   ./scripts/run_local_tests.sh                     # everything
+#   ./scripts/run_local_tests.sh common aerial       # groups
+#   ./scripts/run_local_tests.sh lint pytest         # only these steps
+#   ./scripts/run_local_tests.sh --repeat 10 t1      # how often a mission fails
 #
-# Steps:
+# The steps are grouped by the kind of robot they test (docs/TESTING.md has
+# the procedure and what each step must show to pass):
+#
+# common: every robot
 #   lint     bash -n on every shell script
 #   build    catkin_make
-#   unit     planner unit tests (plan_env)
 #   launch   planner interface: the planner each robot's launch file starts
 #   pytest   simulator unit tests (mujoco_sim/tests)
-#   sim      sim_smoke.test: quadrotor, lightweight simulator
-#   mujoco   mujoco_smoke.test: quadrotor in MuJoCo, depth camera, then lidar
-#   lite3    lite3_smoke.test: Lite3 in the house (the CMU planner)
-#   t1       t1_smoke.test: T1 in the house (the CMU planner)
+# aerial: the quadrotor, flying with EGO-Planner
+#   unit     EGO's map unit tests (plan_env)
+#   sim      sim_smoke.test: lightweight simulator
+#   mujoco   mujoco_smoke.test in MuJoCo: depth camera (mujoco-depth), then
+#            lidar (mujoco-lidar); either name runs that one alone
+# legged: the Lite3 and the T1, walking with the CMU planner
+#   lite3    lite3_smoke.test: Lite3 in the house
+#   t1       t1_smoke.test: T1 in the house
 #   frontier frontier map unit tests, then frontier_smoke.test: the Lite3
 #            maps the house without waypoints
 #
+# --repeat N runs each mission test N times and counts the passes, to measure
+# a failure that does not happen in every run. The other steps run once.
+#
 # Needs: the catkin workspace this repository is the src/ of, and
-# ./scripts/setup_mujoco_env.sh (pytest, mujoco, lite3, t1). lite3 and t1 are
-# skipped when the robot is not downloaded (setup_mujoco_env.sh --lite3 --t1)
-# or the CMU planner's paths are not (fetch_cmu_paths.sh). Logs:
+# ./scripts/setup_mujoco_env.sh (pytest, mujoco, legged). The legged missions
+# are skipped when the robot is not downloaded (setup_mujoco_env.sh --lite3
+# --t1) or the CMU planner's paths are not (fetch_cmu_paths.sh). Logs:
 # ${STAR_NAV_TEST_LOG_DIR:-/tmp/star_nav_tests}.
 
 set -uo pipefail
@@ -36,17 +47,55 @@ cache="${HOME}/.cache/star_nav"
 python="${MUJOCO_SIM_PYTHON:-${repo}/mujoco_sim/.venv/bin/python}"
 mkdir -p "${logs}"
 
-steps=("$@")
+common=(lint build launch pytest)
+aerial=(unit sim mujoco)
+legged=(lite3 t1 frontier)
+
+repeat=1
+steps=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --repeat)
+      repeat="${2:-}"
+      if [[ ! "${repeat}" =~ ^[1-9][0-9]*$ ]]; then
+        echo "--repeat needs a number of runs." >&2
+        exit 2
+      fi
+      shift
+      ;;
+    -h|--help)
+      sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    common) steps+=("${common[@]}") ;;
+    aerial) steps+=("${aerial[@]}") ;;
+    legged) steps+=("${legged[@]}") ;;
+    *) steps+=("$1") ;;
+  esac
+  shift
+done
 if [[ ${#steps[@]} -eq 0 ]]; then
-  steps=(lint build unit launch pytest sim mujoco lite3 t1 frontier)
+  steps=("${common[@]}" "${aerial[@]}" "${legged[@]}")
 fi
 
+# group_of <step>: the kind of robot it tests
+group_of() {
+  case "$1" in
+    unit|sim|mujoco|mujoco-depth|mujoco-lidar) echo aerial ;;
+    lite3|t1|frontier) echo legged ;;
+    *) echo common ;;
+  esac
+}
+
+group=common
 results=()
+result_groups=()
 failed=0
 
 # record <name> <status> [note]
 record() {
   results+=("$(printf '%-22s %s %s' "$1" "$2" "${3:-}")")
+  result_groups+=("${group}")
   if [[ "$2" == FAIL ]]; then failed=1; fi
 }
 
@@ -94,27 +143,62 @@ ros_setup() {
   ros_ready=1
 }
 
-# smoke <name> <test file> [args...]
-smoke() {
-  local name="$1"
-  shift
-  ros_setup || { record "${name}" FAIL "(ROS environment)"; return; }
-  ROS_LOG_DIR="${logs}/${name}.ros" run "${name}" rostest star_nav_bringup "$@"
+# fall_in <log>: the simulator's line about a walking robot's fall, if any
+fall_in() {
+  grep -m1 -o '[a-z0-9]* fell at t=[0-9.]*' "$1" 2>/dev/null
 }
 
-# ground <robot>: its smoke test (it walks with the CMU planner)
-ground() {
-  local robot="$1"
-  if [[ ! -d "${cache}/${robot}" ]]; then
-    record "${robot}" SKIP "(not downloaded: ./scripts/setup_mujoco_env.sh --${robot})"
-  elif [[ ! -f "${STAR_NAV_CMU_PATHS_DIR:-${cache}/cmu_paths}/correspondences.txt" ]]; then
-    record "${robot}" SKIP "(no paths: ./scripts/fetch_cmu_paths.sh)"
+# smoke <name> <test file> [args...]: a mission test, ${repeat} times
+smoke() {
+  local name="$1" i log passed=0 falls=0 fall note
+  shift
+  ros_setup || { record "${name}" FAIL "(ROS environment)"; return; }
+  for ((i = 1; i <= repeat; i++)); do
+    log="${logs}/${name}.log"
+    if [[ ${repeat} -gt 1 ]]; then
+      log="${logs}/${name}.${i}.log"
+      echo "== ${name}, run ${i} of ${repeat}: rostest star_nav_bringup $*"
+    else
+      echo "== ${name}: rostest star_nav_bringup $*"
+    fi
+    if ROS_LOG_DIR="${logs}/${name}.ros" rostest star_nav_bringup "$@" >"${log}" 2>&1; then
+      passed=$((passed + 1))
+    else
+      tail -n 30 "${log}"
+      fall="$(fall_in "${log}")"
+      if [[ -n "${fall}" ]]; then falls=$((falls + 1)); fi
+    fi
+  done
+  if [[ ${repeat} -gt 1 ]]; then
+    note="${passed}/${repeat} passed"
+    if [[ ${falls} -gt 0 ]]; then note+=", ${falls} with a fall"; fi
+    if [[ ${passed} -eq ${repeat} ]]; then
+      record "${name}" PASS "(${note})"
+    else
+      record "${name}" FAIL "(${note}; ${logs}/${name}.*.log)"
+    fi
+  elif [[ ${passed} -eq 1 ]]; then
+    record "${name}" PASS
   else
-    smoke "${robot}" "${robot}_smoke.test"
+    record "${name}" FAIL "(${fall:+${fall}; }${log})"
+  fi
+}
+
+# downloaded <name> <robot>: whether a legged mission can run; if not, it is
+# recorded as skipped
+downloaded() {
+  if [[ ! -d "${cache}/$2" ]]; then
+    record "$1" SKIP "(not downloaded: ./scripts/setup_mujoco_env.sh --$2)"
+    return 1
+  fi
+  if [[ ! -f "${STAR_NAV_CMU_PATHS_DIR:-${cache}/cmu_paths}/correspondences.txt" ]]; then
+    record "$1" SKIP "(no paths: ./scripts/fetch_cmu_paths.sh)"
+    return 1
   fi
 }
 
 for step in "${steps[@]}"; do
+  group="$(group_of "${step}")"
   case "${step}" in
     lint)
       run lint lint
@@ -155,19 +239,20 @@ for step in "${steps[@]}"; do
       smoke mujoco-depth mujoco_smoke.test
       smoke mujoco-lidar mujoco_smoke.test sensor:=lidar
       ;;
-    lite3)
-      ground lite3
+    mujoco-depth)
+      smoke mujoco-depth mujoco_smoke.test
       ;;
-    t1)
-      ground t1
+    mujoco-lidar)
+      smoke mujoco-lidar mujoco_smoke.test sensor:=lidar
+      ;;
+    lite3|t1)
+      if downloaded "${step}" "${step}"; then
+        smoke "${step}" "${step}_smoke.test"
+      fi
       ;;
     frontier)
       run frontier-unit python3 -B "${repo}/star_nav_bringup/test/test_frontier_map.py"
-      if [[ ! -d "${cache}/lite3" ]]; then
-        record frontier SKIP "(not downloaded: ./scripts/setup_mujoco_env.sh --lite3)"
-      elif [[ ! -f "${STAR_NAV_CMU_PATHS_DIR:-${cache}/cmu_paths}/correspondences.txt" ]]; then
-        record frontier SKIP "(no paths: ./scripts/fetch_cmu_paths.sh)"
-      else
+      if downloaded frontier lite3; then
         smoke frontier frontier_smoke.test
       fi
       ;;
@@ -180,5 +265,12 @@ done
 
 echo
 echo "== Summary"
-printf '%s\n' "${results[@]}"
+for group in common aerial legged; do
+  shown=0
+  for i in "${!results[@]}"; do
+    if [[ "${result_groups[$i]}" != "${group}" ]]; then continue; fi
+    if [[ ${shown} -eq 0 ]]; then echo "${group}"; shown=1; fi
+    echo "  ${results[$i]}"
+  done
+done
 exit ${failed}
