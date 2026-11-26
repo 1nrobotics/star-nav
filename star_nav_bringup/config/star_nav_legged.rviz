@@ -75,46 +75,54 @@ Visualization Manager:
       Displays:
         - Class: rviz/Group
           Displays:
-            - Class: rviz/Marker
+            - Alpha: 1
+              Buffer Length: 1
+              Class: rviz/Path
+              Color: 255; 170; 0
               Enabled: true
-              Marker Topic: /drone_0_ego_planner_node/goal_point
-              Name: goal_point
-              Namespaces:
-                {}
-              Queue Size: 100
+              Head Diameter: 0.30000001192092896
+              Head Length: 0.20000000298023224
+              Length: 0.30000001192092896
+              Line Style: Billboards
+              Line Width: 0.05
+              Name: route
+              Offset:
+                X: 0
+                Y: 0
+                Z: 0
+              Pose Color: 255; 85; 255
+              Pose Style: None
+              Queue Size: 10
+              Radius: 0.029999999329447746
+              Shaft Diameter: 0.10000000149011612
+              Shaft Length: 0.10000000149011612
+              Topic: /cmu_route
+              Unreliable: false
               Value: true
-            - Class: rviz/Marker
+            - Alpha: 1
+              Buffer Length: 1
+              Class: rviz/Path
+              Color: 0; 200; 80
               Enabled: true
-              Marker Topic: /ego_planner_node/global_list
-              Name: global_path
-              Namespaces:
-                {}
-              Queue Size: 100
+              Head Diameter: 0.30000001192092896
+              Head Length: 0.20000000298023224
+              Length: 0.30000001192092896
+              Line Style: Billboards
+              Line Width: 0.05
+              Name: local_path
+              Offset:
+                X: 0
+                Y: 0
+                Z: 0
+              Pose Color: 255; 85; 255
+              Pose Style: None
+              Queue Size: 10
+              Radius: 0.029999999329447746
+              Shaft Diameter: 0.10000000149011612
+              Shaft Length: 0.10000000149011612
+              Topic: /path
+              Unreliable: false
               Value: true
-            - Class: rviz/Marker
-              Enabled: true
-              Marker Topic: /drone_0_ego_planner_node/optimal_list
-              Name: optimal_traj
-              Namespaces:
-                "": true
-              Queue Size: 100
-              Value: true
-            - Class: rviz/Marker
-              Enabled: false
-              Marker Topic: /ego_planner_node/a_star_list
-              Name: AStar
-              Namespaces:
-                {}
-              Queue Size: 100
-              Value: false
-            - Class: rviz/Marker
-              Enabled: false
-              Marker Topic: /drone_0_ego_planner_node/init_list
-              Name: InitTraj
-              Namespaces:
-                {}
-              Queue Size: 100
-              Value: false
             - Alpha: 1
               Buffer Length: 1
               Class: rviz/Path
@@ -153,20 +161,20 @@ Visualization Manager:
               Channel Name: intensity
               Class: rviz/PointCloud2
               Color: 29; 108; 212
-              Color Transformer: AxisColor
+              Color Transformer: Intensity
               Decay Time: 0
               Enabled: true
               Invert Rainbow: false
               Max Color: 255; 255; 255
               Min Color: 0; 0; 0
-              Name: map inflate
+              Name: terrain map
               Position Transformer: XYZ
               Queue Size: 10
               Selectable: true
               Size (Pixels): 3
-              Size (m): 0.15000000596046448
+              Size (m): 0.05000000074505806
               Style: Boxes
-              Topic: /drone_0_ego_planner_node/grid_map/occupancy_inflate
+              Topic: /terrain_map
               Unreliable: false
               Use Fixed Frame: true
               Use rainbow: true
@@ -183,18 +191,6 @@ Visualization Manager:
                 {}
               Queue Size: 100
               Value: true
-            - Class: rviz/Image
-              Enabled: false
-              Image Topic: /drone_0_pcl_render_node/depth
-              Max Value: 1
-              Median window: 5
-              Min Value: 0
-              Name: depth
-              Normalize Range: true
-              Queue Size: 2
-              Transport Hint: raw
-              Unreliable: false
-              Value: false
           Enabled: false
           Name: Simulation
       Enabled: true

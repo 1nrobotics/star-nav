@@ -37,7 +37,16 @@ from visualization_msgs.msg import Marker, MarkerArray
 # Next to this file (catkin's wrapper in devel/ does not add its directory).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import frontier_map  # noqa: E402
-from terrain_filter import cloud_xyz  # noqa: E402
+
+
+def cloud_xyz(msg):
+    """x, y, z of a PointCloud2 with float32 fields, as an (n, 3) array."""
+    off = {f.name: f.offset for f in msg.fields}
+    dt = np.dtype({"names": ["x", "y", "z"], "formats": ["<f4"] * 3,
+                   "offsets": [off["x"], off["y"], off["z"]], "itemsize": msg.point_step})
+    a = np.frombuffer(msg.data, dt, count=msg.width * msg.height)
+    pts = np.stack([a["x"], a["y"], a["z"]], 1)
+    return pts[np.isfinite(pts).all(1)]
 
 
 class FrontierExplorer:

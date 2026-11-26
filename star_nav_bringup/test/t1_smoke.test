@@ -1,14 +1,12 @@
 <launch>
     <!-- Headless end-to-end check with the T1 humanoid in MuJoCo:
          rostest star_nav_bringup t1_smoke.test
-         Needs the robot: the t1 option of scripts/setup_mujoco_env.sh. By
-         default it walks the mission through the house, over a ramp, a
+         Needs the robot (the t1 option of scripts/setup_mujoco_env.sh) and
+         the CMU planner's paths (scripts/fetch_cmu_paths.sh): the T1 walks
+         with the CMU planner only (docs/PLANNER_INTERFACE.md).
+         By default it walks the mission through the house, over a ramp, a
          platform and stairs (it must get onto the platform), with the lidar.
-         planner:=cmu (default) needs scripts/fetch_cmu_paths.sh;
-         planner:=ego uses the EGO planner.
-         world:=forest walks it through the pillar forest (and, with
-         planner:=ego, checks the planner's map against the world). sensor:=depth (the depth camera) is not reliable:
-         see docs/HUMANOID.md. -->
+         world:=forest walks it through the pillar forest. -->
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
@@ -16,15 +14,8 @@
     <arg name="start_sim" default="true"/>
     <arg name="sim_host" default="127.0.0.1"/>
     <arg name="sim_args" default=""/>
-    <arg name="sensor" default="lidar"/>
     <arg name="lidar" default="uniform"/>
     <arg name="world" default="house"/>
-    <arg name="planner" default="cmu"/>
-    <arg name="terrain" default="true"/>
-    <arg name="lidar_raycasting" default="true"/>
-    <arg name="lidar_max_hits" default="6"/>
-    <arg name="sliding_map" default="true"/>
-    <arg name="show_occ_time" default="false"/>
 
     <include file="$(find star_nav_bringup)/launch/exploration_t1.launch">
         <arg name="use_rviz" value="false"/>
@@ -32,15 +23,8 @@
         <arg name="start_sim" value="$(arg start_sim)"/>
         <arg name="sim_host" value="$(arg sim_host)"/>
         <arg name="sim_args" value="$(arg sim_args)"/>
-        <arg name="sensor" value="$(arg sensor)"/>
         <arg name="lidar" value="$(arg lidar)"/>
         <arg name="world" value="$(arg world)"/>
-        <arg name="planner" value="$(arg planner)"/>
-        <arg name="terrain" value="$(arg terrain)"/>
-        <arg name="lidar_raycasting" value="$(arg lidar_raycasting)"/>
-        <arg name="lidar_max_hits" value="$(arg lidar_max_hits)"/>
-        <arg name="sliding_map" value="$(arg sliding_map)"/>
-        <arg name="show_occ_time" value="$(arg show_occ_time)"/>
         <arg name="exploration_width" value="$(arg exploration_width)"/>
         <arg name="exploration_height" value="$(arg exploration_height)"/>
         <arg name="line_spacing" value="$(arg line_spacing)"/>
@@ -51,18 +35,8 @@
         <param name="exploration_width" value="$(arg exploration_width)"/>
         <param name="exploration_height" value="$(arg exploration_height)"/>
         <param name="contacts_topic" value="/mujoco/contacts"/>
-        <!-- Check the sensor data and the planner's map against the world -->
-        <param name="obstacles_topic" value="/mujoco/obstacles" if="$(eval world == 'forest' and planner == 'ego')"/>
         <!-- House: the trunk (0.67 m above the feet) on the 0.21 m platform -->
         <param name="min_peak_height" value="0.8" if="$(eval world == 'house')"/>
-        <!-- The raw lidar (the terrain filter's output is obstacle columns) -->
-        <param name="sensor_cloud_topic" value="$(eval '/drone_0_lidar/cloud' if terrain else '/drone_0_pcl_render_node/cloud')" if="$(eval sensor == 'lidar')"/>
-        <param name="min_map_recall" value="0.95" if="$(eval sensor == 'lidar')"/>
         <param name="mission_timeout" value="420.0"/>
-        <!-- 0.35 m inflation (four voxels): inflated voxels reach ~0.6 m -->
-        <param name="phantom_tol" value="0.75"/>
-        <!-- The terrain filter extrudes each obstacle cell to the map top, so
-             voxels above a short pillar are expected: no phantom check -->
-        <param name="max_phantom_ratio" value="1.0" if="$(eval sensor == 'lidar' and terrain)"/>
     </test>
 </launch>

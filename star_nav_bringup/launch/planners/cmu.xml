@@ -1,45 +1,59 @@
 <launch>
-    <!-- CMU local planner for a ground robot, in place of the EGO planner
-         (exploration_ground.launch planner:=cmu):
+    <!-- Planner backend "cmu": CMU's local planner for a ground robot.
+         Included by planner.xml with all of its arguments; the ones this
+         backend uses are declared below (docs/PLANNER_INTERFACE.md).
 
            lidar scans (world frame) -> terrainAnalysis -> /terrain_map
            /terrain_map, waypoint    -> localPlanner    -> /path
            /path                     -> pathFollower    -> /cmd_vel
 
-         The local planner looks 3 m ahead; scripts/cmu_waypoint_router.py
+         The local planner looks 3 m ahead; scripts/planners/cmu/cmu_waypoint_router.py
          gives it waypoints along a route around the walls.
 
-         planner/terrain_analysis and planner/local_planner are CMU's code
+         planner/cmu/ (terrain_analysis, local_planner) is CMU's code
          (autonomous_exploration_development_environment), unmodified. It
          plans in 2D and steers the robot with a body-frame velocity (forward
          and turn rate), which the simulator's bridge passes to the robot's
          walking policy. The pre-computed paths are downloaded once:
          scripts/fetch_cmu_paths.sh. See docs/GROUND_PLANNING.md. -->
+    <arg name="drone_id"/>
+    <!-- Topics, without their /drone_<id>_ prefix -->
     <arg name="odom_topic"/>
     <arg name="cloud_topic"/>
-    <arg name="goal_topic" default="/move_base_simple/goal"/>
-    <arg name="path_folder" default="$(eval optenv('STAR_NAV_CMU_PATHS_DIR', env('HOME') + '/.cache/star_nav/cmu_paths'))"/>
-    <!-- Forward speed (m/s) and turn rate (deg/s) the robot is sent -->
-    <arg name="max_speed"/>
-    <arg name="max_yaw_rate" default="40.0"/>
+    <!-- Lidar only: the terrain analysis takes scans, not depth images.
+         sensor:=depth stops the launch with a KeyError naming cmu:depth. -->
+    <arg name="sensor"/>
+    <arg name="sensor_checked" value="$(eval {'cmu:lidar': True}['cmu:' + arg('sensor')])"/>
+    <!-- Forward speed (m/s) the robot is sent -->
+    <arg name="max_vel"/>
     <!-- Lidar points higher than this above the ground are overhead -->
     <arg name="robot_height"/>
     <!-- Points higher than this above the ground are obstacles -->
-    <arg name="obstacle_height"/>
+    <arg name="cmu_obstacle_height"/>
     <!-- The pre-computed paths keep 0.45 m clear of obstacles on each side
          and are about 3 m long; both scale with this. The planner starts at
-         path_scale and goes down to min_path_scale where nothing is free. -->
-    <arg name="path_scale"/>
-    <arg name="min_path_scale"/>
-    <!-- The waypoint router's grid, and how close to an obstacle its route
-         may pass -->
-    <arg name="map_size_x" default="50.0"/>
-    <arg name="map_size_y" default="50.0"/>
-    <arg name="robot_radius" default="0.25"/>
+         cmu_path_scale and goes down to cmu_min_path_scale where nothing is
+         free. -->
+    <arg name="cmu_path_scale"/>
+    <arg name="cmu_min_path_scale"/>
+    <!-- The waypoint router's grid -->
+    <arg name="map_size_x"/>
+    <arg name="map_size_y"/>
+
+    <!-- This backend's own settings: the turn rate (deg/s) the robot is
+         sent, and how close to an obstacle the router's route may pass -->
+    <arg name="goal_topic" value="/move_base_simple/goal"/>
+    <arg name="path_folder" value="$(eval optenv('STAR_NAV_CMU_PATHS_DIR', env('HOME') + '/.cache/star_nav/cmu_paths'))"/>
+    <arg name="max_yaw_rate" value="40.0"/>
+    <arg name="robot_radius" value="0.25"/>
+    <arg name="odom" value="/drone_$(arg drone_id)_$(arg odom_topic)"/>
+    <arg name="cloud" value="/drone_$(arg drone_id)_$(arg cloud_topic)"/>
+
+    <param name="/planner/command" value="velocity"/>
 
     <node pkg="terrain_analysis" type="terrainAnalysis" name="terrainAnalysis" output="screen" required="true">
-        <remap from="/state_estimation" to="$(arg odom_topic)"/>
-        <remap from="/registered_scan" to="$(arg cloud_topic)"/>
+        <remap from="/state_estimation" to="$(arg odom)"/>
+        <remap from="/registered_scan" to="$(arg cloud)"/>
         <!-- The scans have no intensity field: PCL warns on every one -->
         <env name="PCL_VERBOSITY_LEVEL" value="ERROR"/>
         <param name="scanVoxelSize" type="double" value="0.05"/>
@@ -67,8 +81,8 @@
     </node>
 
     <node pkg="local_planner" type="localPlanner" name="localPlanner" output="screen" required="true">
-        <remap from="/state_estimation" to="$(arg odom_topic)"/>
-        <remap from="/registered_scan" to="$(arg cloud_topic)"/>
+        <remap from="/state_estimation" to="$(arg odom)"/>
+        <remap from="/registered_scan" to="$(arg cloud)"/>
         <param name="pathFolder" type="string" value="$(arg path_folder)"/>
         <param name="vehicleLength" type="double" value="0.6"/>
         <param name="vehicleWidth" type="double" value="0.6"/>
@@ -82,7 +96,7 @@
         <param name="checkObstacle" type="bool" value="true"/>
         <param name="checkRotObstacle" type="bool" value="false"/>
         <param name="adjacentRange" type="double" value="4.25"/>
-        <param name="obstacleHeightThre" type="double" value="$(arg obstacle_height)"/>
+        <param name="obstacleHeightThre" type="double" value="$(arg cmu_obstacle_height)"/>
         <param name="groundHeightThre" type="double" value="0.1"/>
         <param name="costHeightThre" type="double" value="0.1"/>
         <param name="costScore" type="double" value="0.02"/>
@@ -90,21 +104,21 @@
         <param name="pointPerPathThre" type="int" value="2"/>
         <param name="minRelZ" type="double" value="-0.5"/>
         <param name="maxRelZ" type="double" value="0.25"/>
-        <param name="maxSpeed" type="double" value="$(arg max_speed)"/>
+        <param name="maxSpeed" type="double" value="$(arg max_vel)"/>
         <param name="dirWeight" type="double" value="0.02"/>
         <param name="dirThre" type="double" value="90.0"/>
         <param name="dirToVehicle" type="bool" value="false"/>
-        <param name="pathScale" type="double" value="$(arg path_scale)"/>
-        <param name="minPathScale" type="double" value="$(arg min_path_scale)"/>
+        <param name="pathScale" type="double" value="$(arg cmu_path_scale)"/>
+        <param name="minPathScale" type="double" value="$(arg cmu_min_path_scale)"/>
         <param name="pathScaleStep" type="double" value="0.25"/>
         <param name="pathScaleBySpeed" type="bool" value="true"/>
         <param name="minPathRange" type="double" value="1.0"/>
         <param name="pathRangeStep" type="double" value="0.5"/>
         <param name="pathRangeBySpeed" type="bool" value="true"/>
         <param name="pathCropByGoal" type="bool" value="true"/>
-        <!-- No joystick: follow the waypoints at max_speed -->
+        <!-- No joystick: follow the waypoints at max_vel -->
         <param name="autonomyMode" type="bool" value="true"/>
-        <param name="autonomySpeed" type="double" value="$(arg max_speed)"/>
+        <param name="autonomySpeed" type="double" value="$(arg max_vel)"/>
         <param name="joyToSpeedDelay" type="double" value="2.0"/>
         <param name="joyToCheckObstacleDelay" type="double" value="5.0"/>
         <param name="goalClearRange" type="double" value="0.5"/>
@@ -113,7 +127,7 @@
     </node>
 
     <node pkg="local_planner" type="pathFollower" name="pathFollower" output="screen" required="true">
-        <remap from="/state_estimation" to="$(arg odom_topic)"/>
+        <remap from="/state_estimation" to="$(arg odom)"/>
         <param name="sensorOffsetX" type="double" value="0.0"/>
         <param name="sensorOffsetY" type="double" value="0.0"/>
         <param name="pubSkipNum" type="int" value="1"/>
@@ -122,7 +136,7 @@
         <param name="yawRateGain" type="double" value="2.0"/>
         <param name="stopYawRateGain" type="double" value="2.0"/>
         <param name="maxYawRate" type="double" value="$(arg max_yaw_rate)"/>
-        <param name="maxSpeed" type="double" value="$(arg max_speed)"/>
+        <param name="maxSpeed" type="double" value="$(arg max_vel)"/>
         <param name="maxAccel" type="double" value="1.0"/>
         <param name="switchTimeThre" type="double" value="1.0"/>
         <!-- Walks only while within this of the path's direction (rad) -->
@@ -141,7 +155,7 @@
         <param name="noRotAtStop" type="bool" value="false"/>
         <param name="noRotAtGoal" type="bool" value="true"/>
         <param name="autonomyMode" type="bool" value="true"/>
-        <param name="autonomySpeed" type="double" value="$(arg max_speed)"/>
+        <param name="autonomySpeed" type="double" value="$(arg max_vel)"/>
         <param name="joyToSpeedDelay" type="double" value="2.0"/>
     </node>
 
@@ -150,14 +164,14 @@
          /free_paths are in it) for RViz -->
     <node pkg="star_nav_bringup" type="cmu_waypoint_router.py" name="cmu_waypoint_router" output="screen" required="true">
         <remap from="goal" to="$(arg goal_topic)"/>
-        <remap from="odom" to="$(arg odom_topic)"/>
+        <remap from="odom" to="$(arg odom)"/>
         <remap from="terrain_map" to="/terrain_map"/>
         <remap from="way_point" to="/way_point"/>
         <remap from="route" to="/cmu_route"/>
         <param name="map_size_x" value="$(arg map_size_x)"/>
         <param name="map_size_y" value="$(arg map_size_y)"/>
-        <param name="obstacle_height" value="$(arg obstacle_height)"/>
+        <param name="obstacle_height" value="$(arg cmu_obstacle_height)"/>
         <param name="robot_radius" value="$(arg robot_radius)"/>
-        <param name="clearance" value="$(eval 0.45 * arg('path_scale') + 0.1)"/>
+        <param name="clearance" value="$(eval 0.45 * arg('cmu_path_scale') + 0.1)"/>
     </node>
 </launch>

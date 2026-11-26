@@ -3,8 +3,9 @@ look next. No ROS in here (test/test_frontier_map.py runs it on its own).
 
 A 2D grid of the floor. Every cell is one of
 
-* obstacle: by the terrain filter's rule (terrain_filter.py): the returns in
-  the cell span more than ``max_step``, or its ground is a ledge;
+* obstacle: the returns in the cell (up to ``robot_height`` above its ground;
+  higher ones are overhead) span more than ``max_step``, or its ground is a
+  ledge: more than ``max_step`` above a neighbour's;
 * free: a lidar ray at or below the sensor's height passed over it or ended
   in it, and it is not an obstacle;
 * unknown: neither.
@@ -123,7 +124,8 @@ class FrontierMap:
         pts = np.asarray(pts, float)
         if not len(pts):
             return
-        # Heights, as in the terrain filter.
+        # Each cell's ground (lowest return) and top (highest return within
+        # robot_height of it).
         ij, ok = self._cells(pts[:, :2])
         flat = ij[ok, 0] * self.shape[1] + ij[ok, 1]
         z = pts[ok, 2].astype(np.float32)

@@ -5,13 +5,13 @@
          scripts/setup_mujoco_env.sh (docs/SIMULATION.md)
          The lidar is on top of the head (1.2 m), seeing -50 to 30 deg. -->
     <arg name="robot" value="t1"/>
+    <arg name="robot_type" value="legged"/>
     <!-- The T1: trunk at 0.67 m; its arms reach 0.27 m out -->
     <arg name="altitude" value="0.67"/>
     <arg name="lidar_offset" value="[0.07, 0.0, 0.53]"/>
     <arg name="robot_height" value="1.25"/>
     <arg name="max_step" default="0.09"/>
     <arg name="obstacles_inflation" default="0.35"/>
-    <arg name="visualization_max_height" value="1.2"/>
     <arg name="max_vel" value="0.5"/>
 
     <!-- The rest is in exploration_ground.launch, which takes more options
@@ -23,16 +23,9 @@
     <arg name="sim_host" default="127.0.0.1"/>
     <arg name="sim_args" default=""/>
     <arg name="seed" default="1"/>
-    <!-- lidar or depth; house or forest; terrain filter (lidar) -->
-    <arg name="sensor" default="lidar"/>
+    <!-- Lidar model (uniform or mid360); house or forest -->
     <arg name="lidar" default="uniform"/>
     <arg name="world" default="house"/>
-    <arg name="planner" default="cmu"/>
-    <arg name="terrain" default="true"/>
-    <arg name="lidar_raycasting" default="true"/>
-    <arg name="lidar_max_hits" default="6"/>
-    <arg name="sliding_map" default="true"/>
-    <arg name="show_occ_time" default="false"/>
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>

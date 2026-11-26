@@ -12,18 +12,19 @@
 #   lint     bash -n on every shell script
 #   build    catkin_make
 #   unit     planner unit tests (plan_env)
+#   launch   planner interface: the planner each robot's launch file starts
 #   pytest   simulator unit tests (mujoco_sim/tests)
 #   sim      sim_smoke.test: quadrotor, lightweight simulator
 #   mujoco   mujoco_smoke.test: quadrotor in MuJoCo, depth camera, then lidar
-#   lite3    lite3_smoke.test: Lite3 in the house, planner:=ego, then cmu
-#   t1       t1_smoke.test: T1 in the house, planner:=ego, then cmu
+#   lite3    lite3_smoke.test: Lite3 in the house (the CMU planner)
+#   t1       t1_smoke.test: T1 in the house (the CMU planner)
 #   frontier frontier map unit tests, then frontier_smoke.test: the Lite3
-#            maps the house without waypoints (planner:=cmu)
+#            maps the house without waypoints
 #
 # Needs: the catkin workspace this repository is the src/ of, and
 # ./scripts/setup_mujoco_env.sh (pytest, mujoco, lite3, t1). lite3 and t1 are
-# skipped when the robot is not downloaded (setup_mujoco_env.sh --lite3 --t1),
-# their cmu runs when the paths are not (fetch_cmu_paths.sh). Logs:
+# skipped when the robot is not downloaded (setup_mujoco_env.sh --lite3 --t1)
+# or the CMU planner's paths are not (fetch_cmu_paths.sh). Logs:
 # ${STAR_NAV_TEST_LOG_DIR:-/tmp/star_nav_tests}.
 
 set -uo pipefail
@@ -37,7 +38,7 @@ mkdir -p "${logs}"
 
 steps=("$@")
 if [[ ${#steps[@]} -eq 0 ]]; then
-  steps=(lint build unit pytest sim mujoco lite3 t1 frontier)
+  steps=(lint build unit launch pytest sim mujoco lite3 t1 frontier)
 fi
 
 results=()
@@ -101,18 +102,15 @@ smoke() {
   ROS_LOG_DIR="${logs}/${name}.ros" run "${name}" rostest star_nav_bringup "$@"
 }
 
-# ground <robot>: its smoke test with each local planner
+# ground <robot>: its smoke test (it walks with the CMU planner)
 ground() {
   local robot="$1"
   if [[ ! -d "${cache}/${robot}" ]]; then
     record "${robot}" SKIP "(not downloaded: ./scripts/setup_mujoco_env.sh --${robot})"
-    return
-  fi
-  smoke "${robot}-ego" "${robot}_smoke.test" planner:=ego
-  if [[ -f "${STAR_NAV_CMU_PATHS_DIR:-${cache}/cmu_paths}/correspondences.txt" ]]; then
-    smoke "${robot}-cmu" "${robot}_smoke.test" planner:=cmu
+  elif [[ ! -f "${STAR_NAV_CMU_PATHS_DIR:-${cache}/cmu_paths}/correspondences.txt" ]]; then
+    record "${robot}" SKIP "(no paths: ./scripts/fetch_cmu_paths.sh)"
   else
-    record "${robot}-cmu" SKIP "(no paths: ./scripts/fetch_cmu_paths.sh)"
+    smoke "${robot}" "${robot}_smoke.test"
   fi
 }
 
@@ -136,6 +134,13 @@ for step in "${steps[@]}"; do
         record unit FAIL "(ROS environment)"
       fi
       ;;
+    launch)
+      if ros_setup; then
+        run launch python3 -B "${repo}/star_nav_bringup/test/test_planner_interface.py"
+      else
+        record launch FAIL "(ROS environment)"
+      fi
+      ;;
     pytest)
       if [[ -x "${python}" ]]; then
         run pytest "${python}" -m pytest "${repo}/mujoco_sim/tests" -q
@@ -150,8 +155,11 @@ for step in "${steps[@]}"; do
       smoke mujoco-depth mujoco_smoke.test
       smoke mujoco-lidar mujoco_smoke.test sensor:=lidar
       ;;
-    lite3 | t1)
-      ground "${step}"
+    lite3)
+      ground lite3
+      ;;
+    t1)
+      ground t1
       ;;
     frontier)
       run frontier-unit python3 -B "${repo}/star_nav_bringup/test/test_frontier_map.py"

@@ -1,0 +1,94 @@
+<launch>
+    <!-- The planner interface: what takes a goal and moves the robot there.
+
+         Each kind of robot has its planner (the backend, launch/planners/):
+
+           robot_type   planner
+           aerial       ego   (the quadrotor)
+           legged       cmu   (the Lite3 quadruped, the T1 humanoid)
+
+         Whatever the backend, it takes and gives the same things, so the
+         simulator, the exploration manager, frontier exploration and the
+         tests do not depend on which one runs:
+
+           in   /move_base_simple/goal (geometry_msgs/PoseStamped, world)
+                odometry, and the obstacle sensor: a point cloud in the world
+                frame (lidar) or a depth image with the camera's pose
+           out  a command for the robot: position setpoints on
+                /drone_<id>_planning/pos_cmd or a body-frame velocity on
+                /cmd_vel; the backend says which in /planner/command
+                (position or velocity)
+                /planner/backend and /planner/robot_type on the parameter
+                server
+
+         A backend is one file, launch/planners/<name>.xml. It is included
+         with every argument of this file, declares the ones it uses, and
+         sets /planner/command. A new planner is such a file and a row in
+         the table of "backend" below. See docs/PLANNER_INTERFACE.md. -->
+    <arg name="drone_id"/>
+    <!-- aerial or legged -->
+    <arg name="robot_type"/>
+    <!-- auto (the robot type's planner), or its name -->
+    <arg name="planner" default="auto"/>
+    <!-- robot type:planner asked for -> backend. A pair that is not here
+         stops the launch with a KeyError naming it: aerial:cmu (the CMU
+         planner plans on the ground), legged:ego (the EGO planner plans a
+         quadrotor's flight). -->
+    <arg name="backend" value="$(eval {'aerial:auto': 'ego', 'aerial:ego': 'ego', 'legged:auto': 'cmu', 'legged:cmu': 'cmu'}[arg('robot_type') + ':' + arg('planner')])"/>
+
+    <!-- Topics, without their /drone_<id>_ prefix -->
+    <arg name="odom_topic"/>
+    <arg name="cloud_topic" default="pcl_render_node/cloud"/>
+    <arg name="depth_topic" default="pcl_render_node/depth"/>
+    <arg name="camera_pose_topic" default="pcl_render_node/camera_pose"/>
+
+    <!-- The world -->
+    <arg name="map_size_x"/>
+    <arg name="map_size_y"/>
+    <arg name="map_size_z"/>
+
+    <!-- The robot: speed and acceleration limits, the clearance to keep
+         from obstacles (at least its radius), and for a ground robot its
+         height (higher things are overhead, not obstacles) -->
+    <arg name="max_vel"/>
+    <arg name="max_acc"/>
+    <arg name="obstacles_inflation"/>
+    <arg name="robot_height" default="0.0"/>
+
+    <!-- The obstacle sensor: depth (camera, its intrinsics below) or lidar
+         (at lidar_offset in the body frame) -->
+    <arg name="sensor" default="depth"/>
+    <arg name="lidar_offset" default="[0.0, 0.0, 0.0]"/>
+    <arg name="cx"/>
+    <arg name="cy"/>
+    <arg name="fx"/>
+    <arg name="fy"/>
+
+    <!-- Options of the ego backend (planners/ego.xml).
+         lidar_raycasting: ray-cast scans into the probabilistic map (true)
+         or let each scan replace the local map (false)
+         lidar_max_hits, sliding_map, sliding_size, show_occ_time: map update
+         (planner/ego/plan_manage/launch/advanced_param.xml)
+         visualization_*_height: the part of the map shown in RViz -->
+    <arg name="obj_num" default="10"/>
+    <arg name="planning_horizon" default="7.5"/>
+    <arg name="lidar_raycasting" default="true"/>
+    <arg name="lidar_max_hits" default="6"/>
+    <arg name="sliding_map" default="false"/>
+    <arg name="sliding_size" default="20.0"/>
+    <arg name="show_occ_time" default="false"/>
+    <arg name="visualization_min_height" default="-1000.0"/>
+    <arg name="visualization_max_height" default="1.8"/>
+
+    <!-- Options of the cmu backend (planners/cmu.xml): height above the
+         ground from which a point is an obstacle, and the scale of its paths
+         (clearance 0.45 m and length 3 m, times it) -->
+    <arg name="cmu_obstacle_height" default="0.15"/>
+    <arg name="cmu_path_scale" default="1.0"/>
+    <arg name="cmu_min_path_scale" default="0.5"/>
+
+    <param name="/planner/backend" value="$(arg backend)"/>
+    <param name="/planner/robot_type" value="$(arg robot_type)"/>
+
+    <include file="$(find star_nav_bringup)/launch/planners/$(arg backend).xml" pass_all_args="true"/>
+</launch>

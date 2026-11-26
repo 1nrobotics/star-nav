@@ -7,6 +7,7 @@
          to 52 deg (a Mid-360, -7 to 52, tilted forward sees about this far
          down ahead). -->
     <arg name="robot" value="lite3"/>
+    <arg name="robot_type" value="legged"/>
     <!-- The Lite3: torso at 0.34 m; it walks under a table (0.75 m) and
          climbs 7 cm steps -->
     <arg name="altitude" value="0.34"/>
@@ -14,7 +15,6 @@
     <arg name="robot_height" value="0.55"/>
     <arg name="max_step" default="0.09"/>
     <arg name="obstacles_inflation" default="0.3"/>
-    <arg name="visualization_max_height" value="0.6"/>
     <arg name="max_vel" value="0.6"/>
 
     <!-- The rest is in exploration_ground.launch, which takes more options
@@ -26,16 +26,9 @@
     <arg name="sim_host" default="127.0.0.1"/>
     <arg name="sim_args" default=""/>
     <arg name="seed" default="1"/>
-    <!-- lidar or depth; house or forest; terrain filter (lidar) -->
-    <arg name="sensor" default="lidar"/>
+    <!-- Lidar model (uniform or mid360); house or forest -->
     <arg name="lidar" default="uniform"/>
     <arg name="world" default="house"/>
-    <arg name="planner" default="cmu"/>
-    <arg name="terrain" default="true"/>
-    <arg name="lidar_raycasting" default="true"/>
-    <arg name="lidar_max_hits" default="6"/>
-    <arg name="sliding_map" default="true"/>
-    <arg name="show_occ_time" default="false"/>
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
