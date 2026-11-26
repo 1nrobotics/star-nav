@@ -45,5 +45,8 @@ working here should optimize for a clean public contributor experience.
   `./scripts/run_mujoco_smoke_test.sh`) must pass. Keep
   `mujoco_sim/star_nav_mujoco/protocol.py` and `mujoco_bridge/src/protocol.h`
   in sync.
+- Tests run locally, not on GitHub: `./scripts/run_local_tests.sh` runs all
+  of the above and the walking robots (`lite3_smoke.test`, `t1_smoke.test`,
+  each with `planner:=ego` and `planner:=cmu`). Push only when it passes.
 - Keep `mujoco_sim/` free of ROS imports; ROS-specific code belongs in
   `mujoco_bridge/`.

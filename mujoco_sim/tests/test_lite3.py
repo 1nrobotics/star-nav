@@ -53,6 +53,15 @@ def test_tracker_stands_at_a_resting_setpoint():
   np.testing.assert_array_equal(twist, 0.0)
 
 
+def test_velocity_command_is_kept_within_the_limits():
+  t = tracking.Holonomic(max_speed=0.8, max_turn=0.8)
+  np.testing.assert_allclose(t.limit([0.3, -0.1, 0.2]), [0.3, -0.1, 0.2])
+  fwd, side, turn = t.limit([3.0, 4.0, -2.0])
+  assert math.hypot(fwd, side) == pytest.approx(0.8)
+  assert side / fwd == pytest.approx(4.0 / 3.0)
+  assert turn == pytest.approx(-0.8)
+
+
 # -- simulation (needs the downloaded robot) ------------------------------------
 
 
@@ -100,6 +109,25 @@ def test_walks_to_a_setpoint_and_turns_to_its_yaw():
   yaw = 2.0 * math.atan2(s.data.qpos[6], s.data.qpos[3])
   assert np.hypot(s.pos[0] - 2.0, s.pos[1] - 1.0) < 0.1
   assert abs(math.remainder(yaw - math.pi / 2, 2 * math.pi)) < math.radians(8)
+  assert not s.fallen and s.contact_steps == 0
+  s.close()
+
+
+@needs_lite3
+def test_follows_a_velocity_command_and_stands_when_it_stops():
+  s = _robot([])
+  assert not s.set_velocity([float('nan'), 0.0, 0.0])
+  for _ in range(40):
+    assert s.set_velocity([0.4, 0.0, 0.3])  # keep it fresh (cmd_timeout)
+    s.step(int(0.1 / lite3.TIMESTEP))
+  yaw = 2.0 * math.atan2(s.data.qpos[6], s.data.qpos[3])
+  assert 0.9 < yaw < 1.6  # 0.3 rad/s for 4 s (measured: 1.43)
+  assert 1.0 < np.hypot(*s.pos[:2]) < 1.7  # 0.4 m/s along an arc
+  # No more commands: it stands where it is, not back at the setpoint.
+  s.step(int(1.5 / lite3.TIMESTEP))
+  rest = s.pos
+  s.step(int(2.0 / lite3.TIMESTEP))
+  assert np.hypot(*(s.pos - rest)[:2]) < 0.05
   assert not s.fallen and s.contact_steps == 0
   s.close()
 

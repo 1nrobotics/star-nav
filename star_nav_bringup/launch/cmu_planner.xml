@@ -1,0 +1,163 @@
+<launch>
+    <!-- CMU local planner for a ground robot, in place of the EGO planner
+         (exploration_ground.launch planner:=cmu):
+
+           lidar scans (world frame) -> terrainAnalysis -> /terrain_map
+           /terrain_map, waypoint    -> localPlanner    -> /path
+           /path                     -> pathFollower    -> /cmd_vel
+
+         The local planner looks 3 m ahead; scripts/cmu_waypoint_router.py
+         gives it waypoints along a route around the walls.
+
+         planner/terrain_analysis and planner/local_planner are CMU's code
+         (autonomous_exploration_development_environment), unmodified. It
+         plans in 2D and steers the robot with a body-frame velocity (forward
+         and turn rate), which the simulator's bridge passes to the robot's
+         walking policy. The pre-computed paths are downloaded once:
+         scripts/fetch_cmu_paths.sh. See docs/GROUND_PLANNING.md. -->
+    <arg name="odom_topic"/>
+    <arg name="cloud_topic"/>
+    <arg name="goal_topic" default="/move_base_simple/goal"/>
+    <arg name="path_folder" default="$(eval optenv('STAR_NAV_CMU_PATHS_DIR', env('HOME') + '/.cache/star_nav/cmu_paths'))"/>
+    <!-- Forward speed (m/s) and turn rate (deg/s) the robot is sent -->
+    <arg name="max_speed"/>
+    <arg name="max_yaw_rate" default="40.0"/>
+    <!-- Lidar points higher than this above the ground are overhead -->
+    <arg name="robot_height"/>
+    <!-- Points higher than this above the ground are obstacles -->
+    <arg name="obstacle_height"/>
+    <!-- The pre-computed paths keep 0.45 m clear of obstacles on each side
+         and are about 3 m long; both scale with this. The planner starts at
+         path_scale and goes down to min_path_scale where nothing is free. -->
+    <arg name="path_scale"/>
+    <arg name="min_path_scale"/>
+    <!-- The waypoint router's grid, and how close to an obstacle its route
+         may pass -->
+    <arg name="map_size_x" default="50.0"/>
+    <arg name="map_size_y" default="50.0"/>
+    <arg name="robot_radius" default="0.25"/>
+
+    <node pkg="terrain_analysis" type="terrainAnalysis" name="terrainAnalysis" output="screen" required="true">
+        <remap from="/state_estimation" to="$(arg odom_topic)"/>
+        <remap from="/registered_scan" to="$(arg cloud_topic)"/>
+        <!-- The scans have no intensity field: PCL warns on every one -->
+        <env name="PCL_VERBOSITY_LEVEL" value="ERROR"/>
+        <param name="scanVoxelSize" type="double" value="0.05"/>
+        <param name="decayTime" type="double" value="2.0"/>
+        <param name="noDecayDis" type="double" value="4.0"/>
+        <param name="clearingDis" type="double" value="8.0"/>
+        <param name="useSorting" type="bool" value="false"/>
+        <param name="quantileZ" type="double" value="0.25"/>
+        <!-- A drop (the edge of the platform) is an obstacle too -->
+        <param name="considerDrop" type="bool" value="true"/>
+        <param name="limitGroundLift" type="bool" value="false"/>
+        <param name="maxGroundLift" type="double" value="0.15"/>
+        <!-- The world is static -->
+        <param name="clearDyObs" type="bool" value="false"/>
+        <param name="noDataObstacle" type="bool" value="false"/>
+        <param name="noDataBlockSkipNum" type="int" value="0"/>
+        <param name="minBlockPointNum" type="int" value="10"/>
+        <param name="vehicleHeight" type="double" value="$(arg robot_height)"/>
+        <param name="voxelPointUpdateThre" type="int" value="100"/>
+        <param name="voxelTimeUpdateThre" type="double" value="2.0"/>
+        <!-- Relative to the robot's body (the odometry) -->
+        <param name="minRelZ" type="double" value="-2.5"/>
+        <param name="maxRelZ" type="double" value="1.0"/>
+        <param name="disRatioZ" type="double" value="0.2"/>
+    </node>
+
+    <node pkg="local_planner" type="localPlanner" name="localPlanner" output="screen" required="true">
+        <remap from="/state_estimation" to="$(arg odom_topic)"/>
+        <remap from="/registered_scan" to="$(arg cloud_topic)"/>
+        <param name="pathFolder" type="string" value="$(arg path_folder)"/>
+        <param name="vehicleLength" type="double" value="0.6"/>
+        <param name="vehicleWidth" type="double" value="0.6"/>
+        <param name="sensorOffsetX" type="double" value="0.0"/>
+        <param name="sensorOffsetY" type="double" value="0.0"/>
+        <!-- Walk forwards only: the lidar and the policies are best that way -->
+        <param name="twoWayDrive" type="bool" value="false"/>
+        <param name="laserVoxelSize" type="double" value="0.05"/>
+        <param name="terrainVoxelSize" type="double" value="0.2"/>
+        <param name="useTerrainAnalysis" type="bool" value="true"/>
+        <param name="checkObstacle" type="bool" value="true"/>
+        <param name="checkRotObstacle" type="bool" value="false"/>
+        <param name="adjacentRange" type="double" value="4.25"/>
+        <param name="obstacleHeightThre" type="double" value="$(arg obstacle_height)"/>
+        <param name="groundHeightThre" type="double" value="0.1"/>
+        <param name="costHeightThre" type="double" value="0.1"/>
+        <param name="costScore" type="double" value="0.02"/>
+        <param name="useCost" type="bool" value="false"/>
+        <param name="pointPerPathThre" type="int" value="2"/>
+        <param name="minRelZ" type="double" value="-0.5"/>
+        <param name="maxRelZ" type="double" value="0.25"/>
+        <param name="maxSpeed" type="double" value="$(arg max_speed)"/>
+        <param name="dirWeight" type="double" value="0.02"/>
+        <param name="dirThre" type="double" value="90.0"/>
+        <param name="dirToVehicle" type="bool" value="false"/>
+        <param name="pathScale" type="double" value="$(arg path_scale)"/>
+        <param name="minPathScale" type="double" value="$(arg min_path_scale)"/>
+        <param name="pathScaleStep" type="double" value="0.25"/>
+        <param name="pathScaleBySpeed" type="bool" value="true"/>
+        <param name="minPathRange" type="double" value="1.0"/>
+        <param name="pathRangeStep" type="double" value="0.5"/>
+        <param name="pathRangeBySpeed" type="bool" value="true"/>
+        <param name="pathCropByGoal" type="bool" value="true"/>
+        <!-- No joystick: follow the waypoints at max_speed -->
+        <param name="autonomyMode" type="bool" value="true"/>
+        <param name="autonomySpeed" type="double" value="$(arg max_speed)"/>
+        <param name="joyToSpeedDelay" type="double" value="2.0"/>
+        <param name="joyToCheckObstacleDelay" type="double" value="5.0"/>
+        <param name="goalClearRange" type="double" value="0.5"/>
+        <param name="goalX" type="double" value="0.0"/>
+        <param name="goalY" type="double" value="0.0"/>
+    </node>
+
+    <node pkg="local_planner" type="pathFollower" name="pathFollower" output="screen" required="true">
+        <remap from="/state_estimation" to="$(arg odom_topic)"/>
+        <param name="sensorOffsetX" type="double" value="0.0"/>
+        <param name="sensorOffsetY" type="double" value="0.0"/>
+        <param name="pubSkipNum" type="int" value="1"/>
+        <param name="twoWayDrive" type="bool" value="false"/>
+        <param name="lookAheadDis" type="double" value="0.5"/>
+        <param name="yawRateGain" type="double" value="2.0"/>
+        <param name="stopYawRateGain" type="double" value="2.0"/>
+        <param name="maxYawRate" type="double" value="$(arg max_yaw_rate)"/>
+        <param name="maxSpeed" type="double" value="$(arg max_speed)"/>
+        <param name="maxAccel" type="double" value="1.0"/>
+        <param name="switchTimeThre" type="double" value="1.0"/>
+        <!-- Walks only while within this of the path's direction (rad) -->
+        <param name="dirDiffThre" type="double" value="0.2"/>
+        <param name="stopDisThre" type="double" value="0.2"/>
+        <param name="slowDwnDisThre" type="double" value="0.85"/>
+        <param name="useInclRateToSlow" type="bool" value="false"/>
+        <param name="inclRateThre" type="double" value="120.0"/>
+        <param name="slowRate1" type="double" value="0.25"/>
+        <param name="slowRate2" type="double" value="0.5"/>
+        <param name="slowTime1" type="double" value="2.0"/>
+        <param name="slowTime2" type="double" value="2.0"/>
+        <param name="useInclToStop" type="bool" value="false"/>
+        <param name="inclThre" type="double" value="45.0"/>
+        <param name="stopTime" type="double" value="5.0"/>
+        <param name="noRotAtStop" type="bool" value="false"/>
+        <param name="noRotAtGoal" type="bool" value="true"/>
+        <param name="autonomyMode" type="bool" value="true"/>
+        <param name="autonomySpeed" type="double" value="$(arg max_speed)"/>
+        <param name="joyToSpeedDelay" type="double" value="2.0"/>
+    </node>
+
+    <!-- The exploration manager's goals as waypoints the local planner can
+         reach (a route around the walls), and the vehicle frame (/path and
+         /free_paths are in it) for RViz -->
+    <node pkg="star_nav_bringup" type="cmu_waypoint_router.py" name="cmu_waypoint_router" output="screen" required="true">
+        <remap from="goal" to="$(arg goal_topic)"/>
+        <remap from="odom" to="$(arg odom_topic)"/>
+        <remap from="terrain_map" to="/terrain_map"/>
+        <remap from="way_point" to="/way_point"/>
+        <remap from="route" to="/cmu_route"/>
+        <param name="map_size_x" value="$(arg map_size_x)"/>
+        <param name="map_size_y" value="$(arg map_size_y)"/>
+        <param name="obstacle_height" value="$(arg obstacle_height)"/>
+        <param name="robot_radius" value="$(arg robot_radius)"/>
+        <param name="clearance" value="$(eval 0.45 * arg('path_scale') + 0.1)"/>
+    </node>
+</launch>

@@ -14,6 +14,9 @@
 //                        exact geometry for RViz and accuracy tests)
 //                        std_msgs/UInt32            contacts
 //   simulator <--cmd---- quadrotor_msgs/PositionCommand  pos_cmd
+//             <--vel---- geometry_msgs/TwistStamped      cmd_vel (ground
+//                        robots: body-frame velocity from a planner that
+//                        steers the robot itself)
 //
 // With /use_sim_time the bridge also publishes /clock from the simulator, so
 // the planning stack runs on simulated time and stays consistent with the
@@ -30,6 +33,7 @@
 #include <zmq.h>
 
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <quadrotor_msgs/PositionCommand.h>
 #include <ros/ros.h>
@@ -67,6 +71,8 @@ class Bridge {
     sim_time_ = ros::Time::isSimTime();
     if (sim_time_) clock_pub_ = nh.advertise<rosgraph_msgs::Clock>("/clock", 10);
     cmd_sub_ = nh.subscribe("pos_cmd", 10, &Bridge::onCommand, this,
+                            ros::TransportHints().tcpNoDelay());
+    vel_sub_ = nh.subscribe("cmd_vel", 10, &Bridge::onVelocity, this,
                             ros::TransportHints().tcpNoDelay());
 
     ctx_ = zmq_ctx_new();
@@ -434,6 +440,18 @@ class Bridge {
     zmq_send(pub_, &c, sizeof(c), 0);
   }
 
+  void onVelocity(const geometry_msgs::TwistStamped::ConstPtr& msg) {
+    VelMsg v{};
+    v.version = kProtocolVersion;
+    v.t = msg->header.stamp.toSec();
+    v.forward = msg->twist.linear.x;
+    v.sideways = msg->twist.linear.y;
+    v.turn = msg->twist.angular.z;
+    std::lock_guard<std::mutex> lock(pub_mutex_);
+    zmq_send(pub_, kTopicVel, std::strlen(kTopicVel), ZMQ_SNDMORE);
+    zmq_send(pub_, &v, sizeof(v), 0);
+  }
+
   std::string state_address_, cmd_address_, world_frame_, camera_frame_;
   double cloud_resolution_ = 0.1;
 
@@ -441,7 +459,7 @@ class Bridge {
   ros::Publisher lidar_pub_, lidar_pose_pub_, obstacles_pub_;
   int ring_segments_ = 24;
   double ring_tube_ = 0.04;
-  ros::Subscriber cmd_sub_;
+  ros::Subscriber cmd_sub_, vel_sub_;
 
   void* ctx_ = nullptr;
   void* sub_ = nullptr;

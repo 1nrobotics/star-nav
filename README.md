@@ -9,9 +9,10 @@ simulators to develop and test them. One planning stack drives every robot:
 | Simulation | kinematic, or MuJoCo 4 with flight dynamics | MuJoCo 4, walking with DeepRobotics' own policy | MuJoCo 4, walking with Booster Robotics' own policy |
 | World | random forest of pillars and rings | furnished house with a ramp and stairs (default), or the forest | the house (taller walls), or the forest |
 | Obstacle sensor | forward depth camera or 360° lidar | lidar on its back | lidar on its head |
-| Robot-specific parts | SE(3) flight controller; `px4ctrl` for PX4 | velocity tracker; terrain filter for ramps and steps | the same as the Lite3 |
+| Local planner | EGO-Planner | CMU local planner (default) or EGO-Planner | the same as the Lite3 |
+| Robot-specific parts | SE(3) flight controller; `px4ctrl` for PX4 | velocity command to the walking policy; CMU terrain analysis (or a terrain filter for EGO) for ramps and steps | the same as the Lite3 |
 | Launch | `exploration_mujoco.launch` | `exploration_lite3.launch` | `exploration_t1.launch` |
-| End-to-end test | `sim_smoke.test`, `mujoco_smoke.test` (CI) | `lite3_smoke.test` (local: the robot is downloaded) | `t1_smoke.test` (local) |
+| End-to-end test | `sim_smoke.test`, `mujoco_smoke.test` | `lite3_smoke.test` (the robot is downloaded) | `t1_smoke.test` (the robot is downloaded) |
 | Page | [project page](https://1nrobotics.github.io/star-nav/) | [quadruped page](https://1nrobotics.github.io/star-nav/quadruped.html) | [humanoid page](https://1nrobotics.github.io/star-nav/humanoid.html) |
 | Hardware | `hardware/vk180` branch ([Hardware Guide](docs/HARDWARE.md)) | simulation only so far ([status](docs/QUADRUPED.md)) | simulation only |
 
@@ -33,9 +34,9 @@ walkable) and the path walked.* Full videos and the architecture are on the
 
 ## Status
 
-- Simulation is the recommended entrypoint. The quadrotor missions are
-  covered by automated end-to-end tests in CI; the walking robots' by
-  `lite3_smoke.test` and `t1_smoke.test`, run locally.
+- Simulation is the recommended entrypoint. The quadrotor and walking-robot
+  missions are covered by end-to-end tests, run locally before pushing:
+  `./scripts/run_local_tests.sh` ([CONTRIBUTING.md](CONTRIBUTING.md)).
 - The repository contains mixed licensing inherited from upstream components.
   Start with [docs/LICENSES.md](docs/LICENSES.md).
 

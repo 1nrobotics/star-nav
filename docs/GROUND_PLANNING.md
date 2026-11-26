@@ -1,7 +1,8 @@
 # Planning for Ground Robots: Survey Notes
 
-Star Nav plans with EGO-Planner, a quadrotor planner, and uses it for the
-Lite3 quadruped and the T1 humanoid too. These notes collect what others have
+Star Nav flies the quadrotor with EGO-Planner and first used it for the
+Lite3 quadruped and the T1 humanoid too; they now walk with the CMU local
+planner by default (section 10). These notes collect what others have
 done with EGO-Planner on the ground, how off-road wheeled robots are planned
 for, and how the CMU ground autonomy stack differs from EGO. They end with
 what this means for Star Nav. Written November 2026; claims that were not
@@ -30,10 +31,9 @@ checked against a paper or the code are marked as such.
   averages them weighted by cost. It takes any cost and model and outputs
   commands directly; it needs a reference path to choose a side around an
   obstacle, and more compute than a path library.
-- **Next steps for Star Nav:** a 2D mode for EGO (with a height-band
-  projection for the depth camera), then the CMU planner as a second backend
-  for the walking robots, and an MPPI tracker in place of the proportional
-  `Tracker`.
+- **In Star Nav:** the CMU planner steers the walking robots (section 10).
+  Open: a 2D mode for EGO (with a height-band projection for the depth
+  camera) and an MPPI tracker in place of the proportional `Tracker`.
 
 ## 1. EGO-Planner on ground robots
 
@@ -396,12 +396,13 @@ For the T1 in this simulator:
 - **Path follower:** turn-then-walk suits a humanoid (sideways only
   0.26 m/s); limit speed, yaw rate and acceleration.
 - **Simulator:** a velocity-command mode that bypasses `Tracker`
-  (`protocol.py` and `protocol.h` in sync).
+  (`protocol.py` and `protocol.h` in sync). Done: section 10.
 - **Humanoid-specific:** the head lidar sways with the gait, so the cloud
   needs the full 6-DoF pose; filter the arms from the scan on hardware; one
   obstacle threshold cannot express "down 7 cm yes, up no".
 - **Licensing:** the CMU repositories are believed to be BSD; check each
-  before importing and update [LICENSES.md](LICENSES.md).
+  before importing and update [LICENSES.md](LICENSES.md). Checked for the
+  two imported packages: BSD in `package.xml`, no license file.
 
 ## 9. What this means for Star Nav
 
@@ -410,13 +411,118 @@ For the T1 in this simulator:
    virtual ceiling for drones.
 2. **CMU local planner as a second backend** for walking robots
    (`exploration_ground.launch planner:=ego|cmu`), compared on the same
-   missions.
+   missions. Done: section 10.
 3. **MPPI tracking** in place of the proportional `Tracker`, with a lagged
    velocity model of the walking policy (section 6; not started).
 4. **A rover** (differential drive) in MuJoCo with outdoor terrain; EGO +
    terrain filter for gentle ground, an SE(2) planner for rough ground.
 5. The simulator (procedural forests, depth, lidar, ground truth) could
    generate training data for a YOPO- or iPlanner-style planner.
+
+## 10. The CMU planner in Star Nav
+
+`exploration_ground.launch planner:=cmu` (the default for the Lite3 and the
+T1) replaces the EGO planner, its trajectory server and the terrain filter
+with `star_nav_bringup/launch/cmu_planner.xml`. The quadrotor keeps EGO: the
+CMU planner is 2D and outputs a ground vehicle's velocity.
+
+```
+lidar cloud (world frame) ─► terrainAnalysis ─► /terrain_map ─► localPlanner ─► /path
+exploration_manager goal ─► cmu_waypoint_router.py ─► /way_point ─┘               │
+                                 ▲ /terrain_map                              pathFollower
+                                                                                  │ /cmd_vel
+                              mujoco_bridge ─► simulator ─► walking policy ◄──────┘
+```
+
+- **CMU code, unmodified:** `planner/terrain_analysis` and
+  `planner/local_planner` (`localPlanner`, `pathFollower`) from
+  autonomous_exploration_development_environment, branch `noetic`, commit
+  `bf0cba7` (BSD). Its topics (`/state_estimation`, `/registered_scan`) are
+  remapped to the bridge's odometry and lidar cloud. The path set is
+  upstream's (343 paths, 0.45 m clearance, about 3 m long), downloaded by
+  `scripts/fetch_cmu_paths.sh`; it was not regenerated for these robots.
+- **Velocity commands:** the bridge forwards `/cmd_vel` to the simulator
+  (protocol version 2, topic `vel`); a ground robot's walking policy gets it
+  within `tracking.Holonomic`'s limits, in place of the tracker's output.
+  Without a command for 0.5 s the robot stands.
+- **Waypoint router** (`star_nav_bringup/scripts/cmu_waypoint_router.py`,
+  Star Nav's own): the local planner looks 3 m ahead and heads straight for
+  its waypoint, so the mission's goals, up to 9 m away and behind walls,
+  leave it facing a wall. Measured in the house: without the router the
+  Lite3 reached 11 of 12 waypoints and timed out on the last one, 1.4 m away
+  on the other side of the wall between the rooms. The router stands in for
+  CMU's global planners (FAR planner, TARE): it keeps a 0.1 m grid of the
+  terrain map's obstacles (remembered beyond 3.5 m from the robot: static
+  worlds only), searches it with A* and gives the local planner the farthest
+  point of the route, up to 3 m along it, that is in a straight free line.
+- **Parameters** (`cmu_planner.xml`; the rest are upstream's defaults):
+
+  | Parameter | Value | Why |
+  |---|---|---|
+  | `maxSpeed`, `autonomySpeed` | the robot's `max_vel` (0.6, 0.5 m/s) | |
+  | `maxYawRate` | 40°/s | upstream 80; a cautious choice, not tuned |
+  | `autonomyMode` | true | no joystick |
+  | `twoWayDrive` | false | walk forwards |
+  | `vehicleHeight` | the robot's `robot_height` (0.55, 1.25 m) | higher returns are overhead |
+  | `obstacleHeightThre` | 0.15 m | the 7 cm steps and the 12° ramp are ground, the 0.21 m platform edge is not |
+  | `clearDyObs` | false | static world; upstream's setting assumes a VLP-16's field of view |
+  | `pathScale` / `minPathScale` | 1.0 / 0.5 | clearance 0.45 m, down to 0.23 m where nothing else is free |
+  | `dirDiffThre` | 0.2 rad | upstream 0.1; walks while within this of the path's direction |
+
+- **Limits.** The lidar only (`sensor:=depth` needs `planner:=ego`). Static
+  worlds only. The forest test's map check reads EGO's map, so with
+  `planner:=cmu` it is skipped. One obstacle threshold for both robots: the
+  T1 is allowed onto 7 cm steps going up, which it does not always manage
+  ([HUMANOID.md](HUMANOID.md)). The router has no unit tests yet.
+
+Measured (house, lidar, default mission, `lite3_smoke.test` and
+`t1_smoke.test`; one run per row on 2026-11-23, so the times are indications,
+not a benchmark):
+
+| Robot | Planner | Waypoints | Contacts | Falls | Mission time (simulated) |
+|---|---|---|---|---|---|
+| Lite3 | `cmu` | 12/12 | 0 | 0 | 153 s |
+| Lite3 | `ego` | 12/12 | 0 | 0 | 194 s |
+| T1 | `cmu` | 12/12 | 0 | 0 | 174 s |
+| T1 | `ego` | 12/12 | 0 | 0 | 234 s |
+
+Both robots cross the ramp, the platform and the steps with either planner.
+
+Lite3 in more scenes (same mission, same 0.6 m/s limit; one run per row on
+2026-11-23, the default house twice). Time, path, speed and standing time
+are from the odometry between the first waypoint and the last movement;
+clearance is the horizontal distance from the torso's centre to the nearest
+obstacle surface:
+
+| Scene | Planner | Result | Time (s) | Path (m) | Mean speed (m/s) | Standing | Min clearance (m) |
+|---|---|---|---|---|---|---|---|
+| House | `cmu` | pass | 152, 146 | 64.2, 61.8 | 0.42 | 13%, 11% | 0.32, 0.36 |
+| | `ego` | pass | 192, 186 | 65.8, 64.8 | 0.34, 0.35 | 2% | 0.41, 0.40 |
+| House, `lidar:=mid360` | `cmu` | pass | 153 | 64.1 | 0.42 | 11% | 0.37 |
+| | `ego` | pass | 193 | 64.1 | 0.33 | 3% | 0.39 |
+| House, 2 cm lidar range noise | `cmu` | pass | 139 | 61.5 | 0.44 | 10% | 0.31 |
+| | `ego` | fail: waypoint 8 timed out | 238 | 68.4 | 0.29 | 17% | 0.43 |
+| Forest, seed 1 | `cmu` | pass | 132 | 60.2 | 0.46 | 9% | 0.54 |
+| | `ego` | pass | 166 | 57.5 | 0.35 | 1% | 0.48 |
+| Forest, seed 2 | `cmu` | pass | 128 | 58.3 | 0.46 | 7% | 0.57 |
+| | `ego` | pass | 172 | 58.3 | 0.34 | 2% | 0.64 |
+| Forest, seed 3 | `cmu` | pass | 123 | 59.1 | 0.48 | 4% | 0.66 |
+| | `ego` | pass | 172 | 57.6 | 0.33 | 2% | 0.59 |
+| Forest, 400 pillars | `cmu` | pass | 171 | 68.2 | 0.40 | 14% | 0.32 |
+| | `ego` | fail: 15 contact steps | 184 | 61.1 | 0.33 | 3% | 0.28 |
+
+In these runs the CMU planner finished 7% to 42% sooner and passed all
+eight; it also stands still more (4% to 14% of the time, not investigated),
+passes closer to the furniture in the house, and detours more in the dense
+forest. EGO's two failures were each seen once: its 400-pillar run was
+repeated once for the video below and passed without a contact (196 s
+against 161 s for the CMU planner), and the noise run was not repeated. So
+the failures may be chance. No fall in any run.
+
+Side by side, at twice the speed, from one more run each at `344c2b8`:
+[house](https://github.com/1nrobotics/star-nav/releases/download/site-assets/lite3-house-cmu-vs-ego-344c2b8.mp4)
+(155 s against 181 s),
+[forest with 400 pillars](https://github.com/1nrobotics/star-nav/releases/download/site-assets/lite3-dense-forest-cmu-vs-ego-344c2b8.mp4).
 
 ## References
 

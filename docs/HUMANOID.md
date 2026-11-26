@@ -14,12 +14,21 @@ built, what was measured and what is still missing. The quadruped's page,
 - **Walking**: booster_gym's trained velocity policy, run in NumPy (no
   PyTorch). Model and policy (Apache-2.0) are downloaded at a pinned commit by
   `./scripts/setup_mujoco_env.sh --t1`, not committed.
-- **Planning**: unchanged. EGO plans at trunk height (0.67 m); the lidar on the
-  head feeds the terrain filter, which lets it walk the house's ramp and steps.
+- **Planning**: the same as the Lite3. By default CMU's local planner
+  (`planner:=cmu`) sends the policy a velocity; the lidar on the head feeds
+  its terrain analysis, to which the house's ramp and steps are ground. With
+  `planner:=ego`, EGO plans at trunk height (0.67 m) behind the terrain
+  filter.
 - **Launch / test**: `exploration_t1.launch`, `t1_smoke.test` (house, lidar
   by default; `world:=forest`).
 
 ## Architecture
+
+With `planner:=cmu` (default) the chain is the Lite3's
+([QUADRUPED.md](QUADRUPED.md#architecture),
+[GROUND_PLANNING.md](GROUND_PLANNING.md#10-the-cmu-planner-in-star-nav)):
+waypoint router, local planner, path follower, velocity to the policy. With
+`planner:=ego`:
 
 ```
 waypoints ─► EGO-Planner (0.67 m, 0.5 m/s, 0.35 m inflation) ─► pos_cmd
@@ -115,7 +124,8 @@ Verification at the last commit:
   [Falls and getting up](#falls-and-getting-up)), and a fall is only logged:
   the smoke test fails later, on a waypoint timeout.
 - Shared with the Lite3: static worlds only, fixed-height planning,
-  ground-truth pose, a blind policy, and no CI (the assets are downloaded).
+  ground-truth pose, a blind policy, and tests that run locally only (the
+  assets are downloaded).
 
 ## Falls and getting up
 

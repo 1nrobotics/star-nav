@@ -42,19 +42,27 @@ roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
 - Update user-facing docs when launch commands or prerequisites change,
   including the project page in `site/` (see `site/README.md`).
 - Keep package license metadata accurate when moving or importing code.
-- Run lightweight checks that match your change:
-  - `bash -n` for shell scripts
-  - `./scripts/run_smoke_test.sh` (or `rostest star_nav_bringup sim_smoke.test`)
-    when planner, launch or Docker behavior changes
-  - `pytest` in `mujoco_sim/` and `./scripts/run_mujoco_smoke_test.sh` when
-    the MuJoCo simulator, the bridge or its protocol changes
-  - targeted catkin build if you touched package build files
+- Run the tests on your machine and push only when they pass:
 
-CI (`.github/workflows/sim-smoke.yml`) runs all of these on pull requests
-into `main` once they are ready for review, unless they only change
-documentation or `site/`. It does not run on drafts, on pull requests into
-other branches or on pushes to `main`; start it by hand from the Actions tab
-when needed. The project page is deployed when `site/` changes on `main`.
+  ```bash
+  ./scripts/run_local_tests.sh
+  ```
+
+  It runs, on a native ROS Noetic workspace, `bash -n` on the shell scripts,
+  `catkin_make`, the planner unit tests, `pytest` in `mujoco_sim/`, and the
+  end-to-end missions: `sim_smoke.test`, `mujoco_smoke.test` (depth camera
+  and lidar), and `lite3_smoke.test` and `t1_smoke.test` with each local
+  planner when the robots are downloaded. It prints a summary and exits
+  non-zero when a step fails. Steps can be picked by name
+  (`./scripts/run_local_tests.sh lint pytest mujoco`); the script's header
+  lists them.
+- Without a native ROS installation, the Docker variants cover the quadrotor:
+  `./scripts/run_smoke_test.sh` and `./scripts/run_mujoco_smoke_test.sh`.
+
+No test runs on GitHub when you push or open a pull request. The `sim-smoke`
+workflow (`.github/workflows/sim-smoke.yml`, the Docker variants above) can
+only be started by hand from the Actions tab. The project page is deployed
+when `site/` changes on `main`.
 
 ## Style
 

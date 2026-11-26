@@ -10,7 +10,8 @@ run it: [SIMULATION.md](SIMULATION.md#mujoco-simulator) and
 | Area | Status |
 |---|---|
 | Lite3 in MuJoCo, upstream walking policy | Working |
-| Planner (EGO) driving the robot | Working: the drone's stack at a fixed height |
+| CMU local planner driving the robot (default) | Working: terrain analysis, local planner, path follower; velocity commands |
+| EGO planner driving the robot (`planner:=ego`) | Working: the drone's stack at a fixed height |
 | Forest, lidar (recommended) or depth camera | 12/12 waypoints, no contacts |
 | House with the lidar: furniture, 12° ramp, 0.21 m platform, 7 cm steps | 12/12 waypoints, no contacts |
 | House with the depth camera, or with `terrain:=false` | Not supported: see Limitations |
@@ -18,9 +19,27 @@ run it: [SIMULATION.md](SIMULATION.md#mujoco-simulator) and
 | Localisation | Simulator ground truth |
 | Steps above 8 cm | Not supported (blind policy) |
 | Hardware | None |
-| CI | Not run (needs downloaded assets) |
+| Tests | Local: `scripts/run_local_tests.sh lite3` (needs the downloaded assets) |
 
 ## Architecture
+
+With the CMU local planner (`planner:=cmu`, the default; lidar only):
+
+```
+mission waypoints (exploration_manager)
+  -> cmu_waypoint_router.py: route around the walls (A* on the terrain map),
+     a waypoint up to 3 m along it
+  -> localPlanner: the pre-computed path group that is free and best aligned
+  -> pathFollower: body-frame velocity (forward, turn), 50 Hz
+  ==== ZeroMQ bridge ==== MuJoCo
+  -> tracking.Holonomic.limit: speed and turn-rate limits
+  -> walking policy (ONNX, 83 Hz): command -> 12 joint targets
+  -> PD (500 Hz): joint targets -> torques
+
+lidar (world frame) -> terrainAnalysis: height above the ground -> localPlanner
+```
+
+With the EGO planner (`planner:=ego`):
 
 ```
 mission waypoints (exploration_manager)
@@ -63,6 +82,10 @@ lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
 
 ### Planning
 
+- **CMU local planner** (default): see
+  [GROUND_PLANNING.md](GROUND_PLANNING.md#10-the-cmu-planner-in-star-nav)
+  for how it is wired and its parameters. The rest of this section is the
+  EGO path (`planner:=ego`).
 - **Planner**: EGO-Planner, the same as for the drone, at a fixed altitude of
   0.34 m. The parameters are in `star_nav_bringup/launch/exploration_lite3.launch`
   (the robot's sizes) and `exploration_ground.launch` (the rest):
@@ -154,8 +177,8 @@ The quadruped work also fixed two things that affect the drone:
 - **Ground-truth pose.** No odometry or SLAM is in the loop.
 - **Blind policy.** It cannot see terrain, so higher steps need a
   terrain-aware policy.
-- **Not in CI.** The model and policy are downloaded, so CI skips the walking
-  tests and does not run `lite3_smoke.test`.
+- **Tested locally only.** The model and policy are downloaded;
+  `scripts/run_local_tests.sh` runs `lite3_smoke.test` when they are there.
 
 ## Next Steps
 
@@ -165,6 +188,5 @@ The quadruped work also fixed two things that affect the drone:
 3. **Dynamic worlds**: clear terrain cells as rays pass through them.
 4. **Terrain-aware gait**: a policy that sees the terrain (height scan) for
    higher steps.
-5. **CI**: an optional job that caches the downloaded assets.
-6. **Hardware**: a Lite3 hardware branch (`hardware/*`) once the above
+5. **Hardware**: a Lite3 hardware branch (`hardware/*`) once the above
    are done.

@@ -18,6 +18,8 @@ Simulator -> bridge (simulator binds a PUB socket, default tcp://*:5555):
 Bridge -> simulator (simulator binds a SUB socket, default tcp://*:5556):
 
   b"cmd"    CMD     time, position, velocity, acceleration, yaw, yaw rate
+  b"vel"    VEL     time, body-frame velocity: forward, sideways, turn rate
+                    (ground robots; a planner that steers the robot itself)
 """
 
 from __future__ import annotations
@@ -29,13 +31,14 @@ import numpy as np
 
 from star_nav_mujoco import world
 
-VERSION = 1
+VERSION = 2
 
 TOPIC_STATE = b'state'
 TOPIC_DEPTH = b'depth'
 TOPIC_LIDAR = b'lidar'
 TOPIC_WORLD = b'world'
 TOPIC_CMD = b'cmd'
+TOPIC_VEL = b'vel'
 
 # u16 version, u16 pad, f64 t, 3 f64 pos, 4 f64 quat, 3 f64 vel, 3 f64 omega,
 # u32 contacts, u32 pad
@@ -52,6 +55,8 @@ OBSTACLE = struct.Struct('<B3x6f')
 # u16 version, u16 pad, u32 pad, f64 t, 3 f64 pos, 3 f64 vel, 3 f64 acc,
 # f64 yaw, f64 yaw_rate
 CMD = struct.Struct('<HHId3d3d3ddd')
+# u16 version, u16 pad, u32 pad, f64 t, f64 forward, f64 sideways, f64 turn
+VEL = struct.Struct('<HHId3d')
 
 
 class ProtocolError(ValueError):
@@ -150,3 +155,14 @@ def unpack_cmd(buf: bytes):
   _check(v[0])
   return (v[3], np.array(v[4:7]), np.array(v[7:10]), np.array(v[10:13]),
           v[13], v[14])
+
+
+def pack_vel(t: float, forward: float, sideways: float, turn: float) -> bytes:
+  return VEL.pack(VERSION, 0, 0, t, forward, sideways, turn)
+
+
+def unpack_vel(buf: bytes):
+  """Returns (t, (forward, sideways, turn rate))."""
+  v = VEL.unpack(buf)
+  _check(v[0])
+  return v[3], np.array(v[4:7])

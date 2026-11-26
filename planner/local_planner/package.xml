@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>local_planner</name>
+  <version>0.0.1</version>
+  <description>CMU local planner and path follower (autonomous_exploration_development_environment), for ground robots</description>
+
+  <!-- Upstream author and maintainer: Ji Zhang (zhangji@cmu.edu). See README.md. -->
+  <maintainer email="dev@1nrobotics.com">1nRobotics</maintainer>
+  <author email="zhangji@cmu.edu">Ji Zhang</author>
+  <license>BSD</license>
+  <url type="repository">https://github.com/HongbiaoZ/autonomous_exploration_development_environment</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>tf</depend>
+  <depend>pcl_ros</depend>
+  <depend>pcl_conversions</depend>
+</package>

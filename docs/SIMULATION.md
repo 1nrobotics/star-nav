@@ -7,7 +7,7 @@ This is the recommended way to evaluate and develop Star Nav.
 The simulation flow launches:
 
 - procedural map generation
-- the EGO planner stack
+- the EGO planner stack (quadrotor), or CMU's local planner (walking robots)
 - a simulated robot: a quadrotor (depth camera or lidar), or in MuJoCo the
   Lite3 quadruped or the T1 humanoid (lidar; see the
   [MuJoCo Simulator](#mujoco-simulator) section below,
@@ -48,7 +48,12 @@ default 9 m x 9 m mission and checks that:
 - all 12 waypoints are reached without a waypoint timeout
 - the flown path covers at least 80% of the exploration area
 
-It exits non-zero on failure, so it can be used in CI and before every push.
+It exits non-zero on failure, so it can be used before every push.
+
+On a native ROS Noetic workspace, `./scripts/run_local_tests.sh` runs this
+test and all the others (unit tests, the MuJoCo missions, the walking
+robots); see [CONTRIBUTING.md](../CONTRIBUTING.md). Tests are run locally:
+nothing runs on GitHub when you push.
 
 ## MuJoCo Simulator
 
@@ -104,17 +109,27 @@ rostest star_nav_bringup lite3_smoke.test lidar:=mid360 sim_args:="--lidar-pitch
 
 Quadruped: the same stack on DeepRobotics' Lite3, walking with its upstream
 velocity policy. By default it walks through a furnished house with a ramp, a
-platform and stairs on the mission route, with the lidar on its back; a
-terrain filter lets the planner walk over ramps and low steps instead of
-treating them as obstacles. The model and policy (BSD-3-Clause) are
-downloaded, not committed:
+platform and stairs on the mission route, with the lidar on its back. The
+model and policy (BSD-3-Clause) are downloaded, not committed:
 
 ```bash
 ./scripts/setup_mujoco_env.sh --lite3
+./scripts/fetch_cmu_paths.sh
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true
 rostest star_nav_bringup lite3_smoke.test                  # house, lidar
 rostest star_nav_bringup lite3_smoke.test world:=forest    # pillar forest
+rostest star_nav_bringup lite3_smoke.test planner:=ego     # EGO planner
 ```
+
+The walking robots are steered by CMU's local planner (`planner:=cmu`, the
+default): terrain analysis, a local planner that picks one of its
+pre-computed paths, and a path follower that sends the robot a velocity.
+Ramps and low steps are ground to it, not obstacles. Its path set (29 MB,
+BSD) is downloaded once by `fetch_cmu_paths.sh`, not committed. It needs the
+lidar. `planner:=ego` uses the quadrotor's EGO planner at a fixed height
+instead, with a terrain filter in front of its map; the quadrotor itself
+always flies with EGO. See [GROUND_PLANNING.md](GROUND_PLANNING.md).
+
 Development status, measurements and limitations: [QUADRUPED.md](QUADRUPED.md).
 
 Humanoid: Booster Robotics' T1, walking with its upstream velocity policy
@@ -123,6 +138,7 @@ lidar on its head:
 
 ```bash
 ./scripts/setup_mujoco_env.sh --t1
+./scripts/fetch_cmu_paths.sh
 roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true
 rostest star_nav_bringup t1_smoke.test                     # house, lidar
 ```

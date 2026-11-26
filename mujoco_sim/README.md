@@ -230,6 +230,7 @@ Two-frame ZeroMQ messages (`topic`, little-endian payload); layouts are in
 | `lidar` | sim → bridge | 10 Hz | time, sensor pose, float32 x y z per return (sensor frame) |
 | `world` | sim → bridge | 1 Hz | obstacle primitives (RViz cloud, exact markers for tests) |
 | `cmd` | bridge → sim | as published | position, velocity, acceleration, yaw, yaw rate |
+| `vel` | bridge → sim | as published | body-frame velocity: forward, sideways, turn rate (ground robots; replaces `cmd` once received) |
 
 ## Performance
 

@@ -4,8 +4,10 @@
          Needs the robot: the lite3 option of scripts/setup_mujoco_env.sh. By
          default it walks the mission through the house, over a ramp, a
          platform and stairs (it must get onto the platform), with the lidar.
-         world:=forest walks it through the pillar forest (and checks the map
-         against the world). Use the lidar: sensor:=depth (the depth camera)
+         planner:=cmu (default) needs scripts/fetch_cmu_paths.sh;
+         planner:=ego uses the EGO planner.
+         world:=forest walks it through the pillar forest (and, with
+         planner:=ego, checks the planner's map against the world). Use the lidar: sensor:=depth (the depth camera)
          only works with world:=forest, it fails in the house
          (docs/QUADRUPED.md). -->
     <arg name="exploration_width" default="9.0"/>
@@ -18,6 +20,7 @@
     <arg name="sensor" default="lidar"/>
     <arg name="lidar" default="uniform"/>
     <arg name="world" default="house"/>
+    <arg name="planner" default="cmu"/>
     <arg name="terrain" default="true"/>
     <arg name="lidar_raycasting" default="true"/>
     <arg name="lidar_max_hits" default="6"/>
@@ -33,6 +36,7 @@
         <arg name="sensor" value="$(arg sensor)"/>
         <arg name="lidar" value="$(arg lidar)"/>
         <arg name="world" value="$(arg world)"/>
+        <arg name="planner" value="$(arg planner)"/>
         <arg name="terrain" value="$(arg terrain)"/>
         <arg name="lidar_raycasting" value="$(arg lidar_raycasting)"/>
         <arg name="lidar_max_hits" value="$(arg lidar_max_hits)"/>
@@ -49,7 +53,7 @@
         <param name="exploration_height" value="$(arg exploration_height)"/>
         <param name="contacts_topic" value="/mujoco/contacts"/>
         <!-- Check the sensor data and the planner's map against the world -->
-        <param name="obstacles_topic" value="/mujoco/obstacles" if="$(eval world == 'forest')"/>
+        <param name="obstacles_topic" value="/mujoco/obstacles" if="$(eval world == 'forest' and planner == 'ego')"/>
         <!-- House: the torso (0.34 m above the feet) on the 0.21 m platform -->
         <param name="min_peak_height" value="0.5" if="$(eval world == 'house')"/>
         <!-- The raw lidar (the terrain filter's output is obstacle columns) -->

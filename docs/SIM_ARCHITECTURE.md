@@ -25,19 +25,21 @@ Written November 2026.
 │ sensors       lidar.py │ depth camera in sim.py                  │
 │ wire format   protocol.py (in sync with mujoco_bridge protocol.h)│
 └──────────────────────────────┬───────────────────────────────────┘
-     ZeroMQ PUB: state, depth, lidar, world        SUB: cmd
+     ZeroMQ PUB: state, depth, lidar, world        SUB: cmd, vel
 ┌──────────────────────────────┴───────────────────────────────────┐
 │ mujoco_bridge/ (C++, ROS 1)                                      │
 │   state → Odometry         depth → Image (16UC1) + camera_pose   │
 │   lidar → PointCloud2 (world frame) + lidar_pose                 │
 │   world → global_cloud, obstacles            pos_cmd → cmd       │
+│                                              cmd_vel → vel       │
 └──────────────────────────────┬───────────────────────────────────┘
 ┌──────────────────────────────┴───────────────────────────────────┐
 │ star_nav_bringup/launch                                          │
 │   exploration_mujoco.launch    quadrotor                         │
 │   exploration_<robot>.launch   a ground robot's sizes, then:     │
 │     exploration_ground.launch  what ground robots share          │
-│     └ terrain_filter.py (lidar only)                             │
+│     └ terrain_filter.py (lidar only; planner:=ego)               │
+│     └ cmu_planner.xml (planner:=cmu)                             │
 │   planning_stack.xml           EGO-Planner + exploration manager │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -45,7 +47,11 @@ Written November 2026.
 Every robot has the same contract with the rest of the stack: it takes the
 planner's position setpoint (`pos_cmd`: position, velocity, acceleration,
 yaw) and returns odometry and sensor data. ROS and the planner do not know
-which robot is simulated.
+which robot is simulated. A ground robot also takes a body-frame velocity
+(`cmd_vel`: forward, sideways, turn rate), which goes to its walking policy
+within the tracker's limits and replaces the position setpoint once one has
+been received; without a new one for `cmd_timeout` the robot stands. The CMU
+local planner (`planner:=cmu`) steers it this way.
 
 ## Robots
 
@@ -172,7 +178,7 @@ while True:
       depth due               → render, send       (blocks physics)
       lidar due               → cast, send         (blocks physics; threads)
       recorder captures if due
-  drain cmd messages → set_command
+  drain cmd and vel messages → set_command, set_velocity
   every 1 s → send world;  every 1/30 s → sync the web viewer
   every 10 s → log rates and timings
 ```
@@ -204,9 +210,11 @@ Tests follow the layers:
 
 From a read-through of the simulator, bridge, launch files, tests and CI.
 
-1. **Ground robots have no CI.** `sim-smoke.yml` runs the quadrotor only.
+1. **Ground robots had no CI.** `sim-smoke.yml` runs the quadrotor only.
    `test_lite3.py` and `test_t1.py` skip without the
-   downloaded assets, and their smoke tests are not in the workflow.
+   downloaded assets, and their smoke tests are not in the workflow. Since
+   then tests run locally (`scripts/run_local_tests.sh`), the walking
+   robots included; the workflow is started by hand only.
 2. **The terrain filter's step limit is too high for the T1.** `max_step`
    is now set per robot (Lite3 and T1 9 cm), but the T1 falls on
    7 cm steps going up, yet the planner treats them as walkable.
@@ -290,8 +298,7 @@ changing: more robots, better controllers, and measured results.
    each with the pose at its time, and add per-point time to the wire format.
    Star Nav uses the ground-truth pose, so nothing downstream needs this yet.
 
-Also open from the findings: CI for the ground robots (download and cache
-the assets), unit tests for the terrain filter, a neutral name for
+Also open from the findings: unit tests for the terrain filter, a neutral name for
 `quadrotor.Command`.
 
 ### What we take from the Antigravity Robotics plugin
