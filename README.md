@@ -8,6 +8,7 @@ planner interface drive every robot:
 
 | | Quadrotor | Quadruped (DeepRobotics Lite3) | Humanoid (Booster T1) |
 | --- | --- | --- | --- |
+| Robot type | `aerial` | `legged` | `legged` |
 | Simulation | kinematic, or MuJoCo 4 with flight dynamics | MuJoCo 4, walking with DeepRobotics' own policy | MuJoCo 4, walking with Booster Robotics' own policy |
 | World | random forest of pillars and rings | furnished house with a ramp and stairs (default), or the forest | the house (taller walls), or the forest |
 | Obstacle sensor | forward depth camera or 360° lidar | lidar on its back | lidar on its head |
@@ -16,7 +17,13 @@ planner interface drive every robot:
 | Launch | `exploration_mujoco.launch` | `exploration_lite3.launch` | `exploration_t1.launch` |
 | End-to-end test | `sim_smoke.test`, `mujoco_smoke.test` | `lite3_smoke.test` (the robot is downloaded) | `t1_smoke.test` (the robot is downloaded) |
 | Page | [project page](https://1nrobotics.github.io/star-nav/) | [quadruped page](https://1nrobotics.github.io/star-nav/quadruped.html) | [humanoid page](https://1nrobotics.github.io/star-nav/humanoid.html) |
-| Hardware | `hardware/vk180` branch ([Hardware Guide](docs/HARDWARE.md)) | simulation only so far ([status](docs/QUADRUPED.md)) | simulation only |
+| Status | [QUADROTOR.md](docs/QUADROTOR.md) | [QUADRUPED.md](docs/QUADRUPED.md) | [HUMANOID.md](docs/HUMANOID.md) |
+| Hardware | `hardware/vk180` branch ([Hardware Guide](docs/HARDWARE.md)) | simulation only so far | simulation only |
+
+The robot type decides the planner, and the two types share no planner code:
+what is said about EGO-Planner concerns the quadrotor only, and what is said
+about the CMU planner the walking robots only
+([docs/PLANNER_INTERFACE.md](docs/PLANNER_INTERFACE.md)).
 
 The `main` branch is simulation-first and hardware-independent. Integration
 with specific onboard sensors lives on dedicated hardware branches.
@@ -39,7 +46,8 @@ walked.* Full videos and the architecture are on the
 
 - Simulation is the recommended entrypoint. The quadrotor and walking-robot
   missions are covered by end-to-end tests, run locally before pushing:
-  `./scripts/run_local_tests.sh` ([CONTRIBUTING.md](CONTRIBUTING.md)).
+  `./scripts/run_local_tests.sh`, in the groups `common`, `aerial` and
+  `legged` ([docs/TESTING.md](docs/TESTING.md)).
 - The repository contains mixed licensing inherited from upstream components.
   Start with [docs/LICENSES.md](docs/LICENSES.md).
 
@@ -136,7 +144,9 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 ## Documentation
 
 - [Simulation Guide](docs/SIMULATION.md)
+- [Testing: procedure and what a step must show](docs/TESTING.md)
 - [Obstacle Sensors: depth camera or lidar](docs/SENSORS.md)
+- [Quadrotor: development status](docs/QUADROTOR.md)
 - [Quadruped (Lite3): development status](docs/QUADRUPED.md)
 - [Humanoid (T1): development status](docs/HUMANOID.md)
 - [Planner interface: one planner per kind of robot](docs/PLANNER_INTERFACE.md)
@@ -167,15 +177,19 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 ## Main Entry Points
 
 ```bash
+# aerial: the quadrotor
 roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true     # kinematic simulation
 roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true  # MuJoCo simulation
 rostest star_nav_bringup sim_smoke.test                              # end-to-end test
 rostest star_nav_bringup mujoco_smoke.test                           # end-to-end test, MuJoCo
+# legged: the walking robots
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true   # Lite3 quadruped (setup_mujoco_env.sh --lite3)
 rostest star_nav_bringup lite3_smoke.test                            # end-to-end test, Lite3 in the house
 roslaunch star_nav_bringup exploration_lite3.launch explore:=frontier # no waypoints: the Lite3 maps the house itself
 roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true      # T1 humanoid (setup_mujoco_env.sh --t1)
 rostest star_nav_bringup t1_smoke.test                               # end-to-end test, T1 in the house
+# every test, grouped by robot type
+./scripts/run_local_tests.sh
 ```
 
 ## Notes for Public Users

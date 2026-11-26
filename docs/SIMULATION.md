@@ -51,8 +51,9 @@ default 9 m x 9 m mission and checks that:
 It exits non-zero on failure, so it can be used before every push.
 
 On a native ROS Noetic workspace, `./scripts/run_local_tests.sh` runs this
-test and all the others (unit tests, the MuJoCo missions, the walking
-robots); see [CONTRIBUTING.md](../CONTRIBUTING.md). Tests are run locally:
+test and all the others, grouped by robot type (`common`, `aerial` for the
+quadrotor, `legged` for the walking robots); see [TESTING.md](TESTING.md)
+for the procedure and what each test must show. Tests are run locally:
 nothing runs on GitHub when you push.
 
 ## MuJoCo Simulator

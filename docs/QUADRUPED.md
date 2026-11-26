@@ -17,7 +17,7 @@ run it: [SIMULATION.md](SIMULATION.md#mujoco-simulator) and
 | Localisation | Simulator ground truth |
 | Steps above 8 cm | Not supported (blind policy) |
 | Hardware | None |
-| Tests | Local: `scripts/run_local_tests.sh lite3` (needs the downloaded assets) |
+| Tests | Local: `scripts/run_local_tests.sh legged` (needs the downloaded assets); what must hold: [TESTING.md](TESTING.md) |
 
 ## Architecture
 
@@ -157,18 +157,6 @@ each; times are simulated):
 
 The forest test no longer compares a map with the pillars: that check read
 EGO's map.
-
-## Changes Outside the Robot
-
-The quadruped work also fixed two things that affect the drone:
-
-- **EGO waypoint callback** (`ego_replan_fsm.cpp`): it busy-waited for
-  `EXEC_TRAJ`. If the trajectory ended during that wait, the planner hung and
-  ignored all further waypoints. This was behind intermittent drone lidar
-  failures (2 of 4 runs). It now triggers from `WAIT_TARGET` or replans from
-  `EXEC_TRAJ` directly; 4/4 runs pass.
-- **Smoke test**: rostest has no `rosout` node, so `/rosout_agg` was empty and
-  waypoint timeouts were never counted. The test now subscribes to `/rosout`.
 
 ## Limitations
 

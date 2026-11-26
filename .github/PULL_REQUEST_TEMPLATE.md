@@ -4,11 +4,12 @@
 
 ## Validation
 
-<!-- Tick what applies; see AGENTS.md / CONTRIBUTING.md. -->
+<!-- Tick what applies; see docs/TESTING.md. Paste the summary that
+     ./scripts/run_local_tests.sh prints. -->
 
-- [ ] `rostest star_nav_bringup sim_smoke.test` (or `docker compose run --rm test`)
-- [ ] MuJoCo simulator or bridge changed: `pytest` in `mujoco_sim/` and `mujoco_smoke.test` (or `./scripts/run_mujoco_smoke_test.sh`)
-- [ ] Shell scripts pass `bash -n`
+- [ ] Robot type the change concerns: `aerial` (quadrotor, EGO-Planner) / `legged` (Lite3, T1, CMU planner) / both
+- [ ] `./scripts/run_local_tests.sh` passes: `common`, `aerial` and `legged`, nothing of the changed type skipped
+- [ ] A step that was run again: both results and the reason are given (docs/TESTING.md)
 - [ ] Docs updated (README, docs/SIMULATION.md, site/) if commands or behaviour changed
 - [ ] No hardware- or vendor-SDK-specific dependencies added to `main`
 - [ ] Licensing: new upstream code comes with its license notice (docs/LICENSES.md)
