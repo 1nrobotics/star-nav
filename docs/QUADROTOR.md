@@ -69,18 +69,24 @@ Faults of EGO-Planner found while testing. They concern the quadrotor only.
   now and then (2 of 4 runs). It now triggers from `WAIT_TARGET` or replans
   from `EXEC_TRAJ` directly; 4/4 runs pass.
 
-**Open**
-
 - **Replanning from a trajectory that is ending** (`planner_manager.cpp`,
   `reboundReplan`): the planner samples the rest of its previous trajectory
   as the start of the new one, and loops until it has 7 points. With less
   than one sampling step (0.4 s) of the trajectory left and the target
   within 0.3 m of its end, there is one sample and no length: the loop never
-  ends. The node has one thread, so commands stop and every later waypoint
-  times out. It happens at the mission's first corner, where three waypoints
-  0.5 to 1 m apart are reached within about a second: 3 of 39 runs of the
-  lidar mission up to that corner (2026-11-26). The sign: `ego_planner_node`
-  uses a whole processor core and prints nothing.
+  ended, and read past its arrays. The node has one thread, so commands
+  stopped and every later waypoint timed out; `ego_planner_node` used a whole
+  processor core and printed nothing. It happened at the mission's first
+  corner, where three waypoints 0.5 to 1 m apart are reached within about a
+  second: 4 of 108 runs of the lidar mission up to that corner, and 3 of 39
+  when measured again (2026-11-26). The planner now starts from a polynomial
+  in that case (and when the previous trajectory has already ended). With
+  the fix, 80 of 80 runs passed the corner; in 79 earlier runs under a
+  debugger the case came up twice and the mission went on.
+
+**Open**
+
+None known.
 
 ## Limitations
 

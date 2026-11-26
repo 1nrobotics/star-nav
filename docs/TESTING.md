@@ -169,7 +169,6 @@ sign they leave, so that a failed step can be told apart from a new fault.
 
 | Type | Steps | Fault | Sign in the log | How often | State |
 |---|---|---|---|---|---|
-| `aerial` | `mujoco-lidar` | EGO stops planning at the mission's first corner | Waypoint 4 and all later ones time out; `ego_planner_node` uses a whole processor core and prints nothing | 3 of 39 runs up to that corner | Open; [QUADROTOR.md](QUADROTOR.md#planner-faults) |
 | `legged` | `t1` | The T1 falls going down the house's 7 cm steps | `t1 fell at t=...`, then every later waypoint times out | 17 of 120 runs of the simulator alone; 2 of 10 runs of `t1` (both about 75 s into the mission) | Open; [HUMANOID.md](HUMANOID.md#limitations) |
 
 **Judging a failed step**
@@ -199,9 +198,11 @@ request so that it can be repeated.
 
 A fault that showed in `k` of `n` runs is taken as fixed when at least
 `3 n / k` runs of the same scenario with the fix show none. (With no failure
-in `N` runs, the rate is below `3 / N` with 95 % confidence.) For 3 of 39
-that is 39 runs; for 17 of 120 it is 22. Then remove the row from the table
-and record the fix on the robot's status page.
+in `N` runs, the rate is below `3 / N` with 95 % confidence.) For 17 of 120
+that is 22 runs. EGO's hang at the mission's first corner
+([QUADROTOR.md](QUADROTOR.md#planner-faults)) showed in 3 of 39 runs: 39
+were needed, and 80 were made. Then remove the row from the table and
+record the fix on the robot's status page.
 
 **A new fault** that cannot be fixed at once gets a row: its type, the steps
 it fails, the sign in the log and the measured rate.

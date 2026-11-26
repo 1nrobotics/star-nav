@@ -153,6 +153,12 @@ namespace ego_planner
             pseudo_arc_length.push_back((segment_point.back() - segment_point[segment_point.size() - 2]).norm() + pseudo_arc_length.back());
           }
         }
+        if (segment_point.empty()) // The previous trajectory has ended: nothing to start from.
+        {
+          flag_force_polynomial = true;
+          flag_regenerate = true;
+          continue;
+        }
         t -= ts;
 
         double poly_time = (local_data_.position_traj_.evaluateDeBoorT(t) - local_target_pt).norm() / pp_.max_vel_ * 2;
@@ -177,6 +183,17 @@ namespace ego_planner
               return false;
             }
           }
+        }
+
+        // Less than one step of the previous trajectory is left and the target
+        // is too close for the polynomial above: one point, no length. The
+        // sampling below would never get its 7 points (and reads past the
+        // arrays), so start from a polynomial instead.
+        if (pseudo_arc_length.size() < 2 || !(pseudo_arc_length.back() > 0.0))
+        {
+          flag_force_polynomial = true;
+          flag_regenerate = true;
+          continue;
         }
 
         double sample_length = 0;
