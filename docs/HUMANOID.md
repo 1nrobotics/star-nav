@@ -102,13 +102,14 @@ Terrain (house corridor, setpoint moving at 0.2–0.6 m/s):
 | 12° ramp up, 7 cm steps down | 9 of 10 runs (one fall walking 0.3 rad off the corridor's axis) |
 | 7 cm steps up | Falls in 11 of 12 runs |
 
-Verification on 2026-11-26, with the CMU planner (one run each; times are
-simulated):
+Verification on 2026-11-26, with the CMU planner (one run each unless
+noted; times are simulated):
 
 | Check | Result |
 |---|---|
 | `t1_smoke.test` (house; the default) | 12/12, 0 contacts, 0 timeouts, reached the platform (peak trunk z 0.87 m), 183 s |
 | `t1_smoke.test world:=forest` | 12/12, 0 contacts, 0 timeouts, 166 s |
+| `t1_smoke.test`, 10 runs (`run_local_tests.sh --repeat 10 t1`) | 8 passed; in 2 the T1 fell going down the steps, about 75 s into the mission |
 
 When the T1 was added it followed EGO (`planner:=ego`, since removed; these
 rows cannot be repeated from the launch files):

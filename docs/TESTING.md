@@ -170,7 +170,7 @@ sign they leave, so that a failed step can be told apart from a new fault.
 | Type | Steps | Fault | Sign in the log | How often | State |
 |---|---|---|---|---|---|
 | `aerial` | `mujoco-lidar` | EGO stops planning at the mission's first corner | Waypoint 4 and all later ones time out; `ego_planner_node` uses a whole processor core and prints nothing | 3 of 39 runs up to that corner | Open; [QUADROTOR.md](QUADROTOR.md#planner-faults) |
-| `legged` | `t1` | The T1 falls going down the house's 7 cm steps | `t1 fell at t=...`, then every later waypoint times out | 17 of 120 runs of the simulator alone | Open; [HUMANOID.md](HUMANOID.md#limitations) |
+| `legged` | `t1` | The T1 falls going down the house's 7 cm steps | `t1 fell at t=...`, then every later waypoint times out | 17 of 120 runs of the simulator alone; 2 of 10 runs of `t1` (both about 75 s into the mission) | Open; [HUMANOID.md](HUMANOID.md#limitations) |
 
 **Judging a failed step**
 
