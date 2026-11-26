@@ -1,0 +1,36 @@
+<launch>
+    <!-- Headless end-to-end check of frontier exploration with the Lite3
+         quadruped in MuJoCo:
+         rostest star_nav_bringup frontier_smoke.test
+         Needs the robot: the lite3 option of scripts/setup_mujoco_env.sh.
+         No waypoints are given: from its start in the middle of the house
+         the robot has to map all of it (both rooms and the corridor), come
+         back, and touch nothing on the way.
+         It walks with the CMU planner: needs scripts/fetch_cmu_paths.sh. -->
+    <arg name="start_sim" default="true"/>
+    <arg name="sim_host" default="127.0.0.1"/>
+    <arg name="sim_args" default=""/>
+    <arg name="lidar" default="uniform"/>
+    <arg name="world" default="house"/>
+    <arg name="min_coverage" default="0.95"/>
+
+    <include file="$(find star_nav_bringup)/launch/exploration_lite3.launch">
+        <arg name="use_rviz" value="false"/>
+        <arg name="viewer" value="false"/>
+        <arg name="start_sim" value="$(arg start_sim)"/>
+        <arg name="sim_host" value="$(arg sim_host)"/>
+        <arg name="sim_args" value="$(arg sim_args)"/>
+        <arg name="lidar" value="$(arg lidar)"/>
+        <arg name="world" value="$(arg world)"/>
+        <arg name="planner" value="cmu"/>
+        <arg name="explore" value="frontier"/>
+    </include>
+
+    <test test-name="frontier_smoke" pkg="star_nav_bringup" type="frontier_smoke_test.py" time-limit="900.0">
+        <param name="contacts_topic" value="/mujoco/contacts"/>
+        <!-- The floor of the house, inside its walls (house.py) -->
+        <rosparam param="area">[-5.4, -5.4, 5.4, 5.4]</rosparam>
+        <param name="min_coverage" value="$(arg min_coverage)"/>
+        <param name="mission_timeout" value="600.0"/>
+    </test>
+</launch>

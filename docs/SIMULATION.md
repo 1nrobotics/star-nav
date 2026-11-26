@@ -121,6 +121,22 @@ rostest star_nav_bringup lite3_smoke.test world:=forest    # pillar forest
 rostest star_nav_bringup lite3_smoke.test planner:=ego     # EGO planner
 ```
 
+Without preset waypoints (frontier exploration): the robot keeps a 2D map of
+the floor it has seen with the lidar and walks to the nearest border between
+seen floor and unseen space until none it can reach is left, then walks
+home. `scripts/frontier_explorer.py` replaces the exploration manager; the
+map is on `/frontier_explorer/map` (`nav_msgs/OccupancyGrid`) and the
+frontiers are the pink spheres in the viewer:
+
+```bash
+roslaunch star_nav_bringup exploration_lite3.launch explore:=frontier use_rviz:=true
+./scripts/trigger_exploration.sh
+rostest star_nav_bringup frontier_smoke.test               # maps the whole house
+```
+
+It stays inside the exploration area plus `frontier_margin` (1.5 m). It needs
+the CMU planner (`planner:=cmu`, the default).
+
 The walking robots are steered by CMU's local planner (`planner:=cmu`, the
 default): terrain analysis, a local planner that picks one of its
 pre-computed paths, and a path follower that sends the robot a velocity.

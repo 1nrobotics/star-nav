@@ -37,6 +37,9 @@
     <arg name="waypoint_timeout" default="30.0"/>
     <arg name="waypoint_tolerance" default="0.5"/>
     <arg name="max_exploration_time" default="300.0"/>
+    <!-- waypoints: exploration_node and its preset waypoints. frontier:
+         somebody else sends the goals (exploration_ground.launch) -->
+    <arg name="explore" default="waypoints"/>
     <arg name="rviz_config" default="$(find star_nav_bringup)/config/star_nav.rviz"/>
     <!-- Ray-cast point cloud input into the probabilistic map -->
     <arg name="pointcloud_raycasting" default="false"/>
@@ -124,7 +127,8 @@
     <!-- ============================== -->
     <!-- 4. Exploration Manager         -->
     <!-- ============================== -->
-    <node pkg="exploration_manager" type="exploration_node" name="exploration_node" output="screen">
+    <node pkg="exploration_manager" type="exploration_node" name="exploration_node" output="screen"
+          unless="$(eval explore == 'frontier')">
         
         <!-- Remap odometry for simulation -->
         <remap from="/mavros/local_position/odom" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>

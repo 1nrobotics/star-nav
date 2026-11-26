@@ -47,6 +47,7 @@ working here should optimize for a clean public contributor experience.
   in sync.
 - Tests run locally, not on GitHub: `./scripts/run_local_tests.sh` runs all
   of the above and the walking robots (`lite3_smoke.test`, `t1_smoke.test`,
-  each with `planner:=ego` and `planner:=cmu`). Push only when it passes.
+  each with `planner:=ego` and `planner:=cmu`, and `frontier_smoke.test`).
+  Push only when it passes.
 - Keep `mujoco_sim/` free of ROS imports; ROS-specific code belongs in
   `mujoco_bridge/`.

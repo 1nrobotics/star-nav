@@ -28,6 +28,12 @@
          terrain:=false     planner:=ego: lidar straight into the planner's
                             3D map (flat ground only: ramps and steps become
                             obstacles)
+         explore:=frontier  no preset waypoints: the robot maps the place by
+                            walking to what it has not seen yet
+                            (scripts/frontier_explorer.py; needs the lidar
+                            and planner:=cmu).
+                            It stays inside the exploration area plus
+                            frontier_margin
 
          start_sim:=false   simulator already running (e.g. in Docker)
          viewer:=false      no web viewer (headless runs, CI)
@@ -72,6 +78,9 @@
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
     <arg name="enable_corner_smoothing" default="false"/>
+    <!-- waypoints (the lawnmower rows above) or frontier -->
+    <arg name="explore" default="waypoints"/>
+    <arg name="frontier_margin" default="1.5"/>
 
     <!-- Simulator -->
     <arg name="start_sim" default="true"/>
@@ -149,7 +158,11 @@
         <remap from="candidate_paths" to="/free_paths"/>
         <remap from="route_path" to="/cmu_route"/>
         <remap from="plan_marker" to="/drone_$(arg drone_id)_ego_planner_node/optimal_list"/>
-        <remap from="waypoint_markers" to="/exploration_node/exploration/waypoints"/>
+        <remap from="waypoint_markers" to="/exploration_node/exploration/waypoints"
+               unless="$(eval explore == 'frontier')"/>
+        <!-- Frontier exploration has no waypoints: the frontiers it may go to -->
+        <remap from="waypoint_markers" to="/frontier_explorer/frontiers"
+               if="$(eval explore == 'frontier')"/>
     </node>
 
     <!-- ============================== -->
@@ -183,6 +196,25 @@
     </include>
 
     <!-- ============================== -->
+    <!-- Frontier exploration           -->
+    <!-- ============================== -->
+    <node if="$(eval explore == 'frontier')" pkg="star_nav_bringup" type="frontier_explorer.py"
+          name="frontier_explorer" output="screen">
+        <remap from="cloud" to="/drone_$(arg drone_id)_lidar/cloud"/>
+        <remap from="lidar_pose" to="/drone_$(arg drone_id)_lidar/pose"/>
+        <remap from="odom" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>
+        <param name="altitude" value="$(arg altitude)"/>
+        <param name="robot_height" value="$(arg robot_height)"/>
+        <param name="max_step" value="$(arg max_step)"/>
+        <!-- Goals a little further from obstacles than the planner keeps -->
+        <param name="clearance" value="$(eval arg('obstacles_inflation') + 0.1)"/>
+        <param name="area_center_x" value="$(arg exploration_center_x)"/>
+        <param name="area_center_y" value="$(arg exploration_center_y)"/>
+        <param name="area_width" value="$(eval arg('exploration_width') + 2 * arg('frontier_margin'))"/>
+        <param name="area_height" value="$(eval arg('exploration_height') + 2 * arg('frontier_margin'))"/>
+    </node>
+
+    <!-- ============================== -->
     <!-- Planning stack and RViz        -->
     <!-- ============================== -->
     <include file="$(find star_nav_bringup)/launch/planning_stack.xml">
@@ -206,6 +238,7 @@
         <arg name="exploration_height" value="$(arg exploration_height)"/>
         <arg name="line_spacing" value="$(arg line_spacing)"/>
         <arg name="enable_corner_smoothing" value="$(arg enable_corner_smoothing)"/>
+        <arg name="explore" value="$(arg explore)"/>
         <arg name="cx" value="320.0"/>
         <arg name="cy" value="240.0"/>
         <arg name="fx" value="387.229248046875"/>

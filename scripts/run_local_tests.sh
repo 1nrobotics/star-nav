@@ -17,6 +17,8 @@
 #   mujoco   mujoco_smoke.test: quadrotor in MuJoCo, depth camera, then lidar
 #   lite3    lite3_smoke.test: Lite3 in the house, planner:=ego, then cmu
 #   t1       t1_smoke.test: T1 in the house, planner:=ego, then cmu
+#   frontier frontier map unit tests, then frontier_smoke.test: the Lite3
+#            maps the house without waypoints (planner:=cmu)
 #
 # Needs: the catkin workspace this repository is the src/ of, and
 # ./scripts/setup_mujoco_env.sh (pytest, mujoco, lite3, t1). lite3 and t1 are
@@ -35,7 +37,7 @@ mkdir -p "${logs}"
 
 steps=("$@")
 if [[ ${#steps[@]} -eq 0 ]]; then
-  steps=(lint build unit pytest sim mujoco lite3 t1)
+  steps=(lint build unit pytest sim mujoco lite3 t1 frontier)
 fi
 
 results=()
@@ -150,6 +152,16 @@ for step in "${steps[@]}"; do
       ;;
     lite3 | t1)
       ground "${step}"
+      ;;
+    frontier)
+      run frontier-unit python3 -B "${repo}/star_nav_bringup/test/test_frontier_map.py"
+      if [[ ! -d "${cache}/lite3" ]]; then
+        record frontier SKIP "(not downloaded: ./scripts/setup_mujoco_env.sh --lite3)"
+      elif [[ ! -f "${STAR_NAV_CMU_PATHS_DIR:-${cache}/cmu_paths}/correspondences.txt" ]]; then
+        record frontier SKIP "(no paths: ./scripts/fetch_cmu_paths.sh)"
+      else
+        smoke frontier frontier_smoke.test
+      fi
       ;;
     *)
       echo "Unknown step: ${step}" >&2

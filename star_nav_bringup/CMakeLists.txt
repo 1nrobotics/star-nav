@@ -10,6 +10,11 @@ install(DIRECTORY launch config test
 )
 
 catkin_install_python(PROGRAMS scripts/terrain_filter.py scripts/cmu_waypoint_router.py
+  scripts/frontier_explorer.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+# Imported by frontier_explorer.py
+install(FILES scripts/frontier_map.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

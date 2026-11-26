@@ -52,7 +52,7 @@ roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
   `catkin_make`, the planner unit tests, `pytest` in `mujoco_sim/`, and the
   end-to-end missions: `sim_smoke.test`, `mujoco_smoke.test` (depth camera
   and lidar), and `lite3_smoke.test` and `t1_smoke.test` with each local
-  planner when the robots are downloaded. It prints a summary and exits
+  planner and `frontier_smoke.test` when the robots are downloaded. It prints a summary and exits
   non-zero when a step fails. Steps can be picked by name
   (`./scripts/run_local_tests.sh lint pytest mujoco`); the script's header
   lists them.

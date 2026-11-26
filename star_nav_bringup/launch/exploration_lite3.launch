@@ -39,6 +39,8 @@
     <arg name="exploration_width" default="9.0"/>
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
+    <!-- waypoints, or frontier: map the place without preset waypoints -->
+    <arg name="explore" default="waypoints"/>
 
     <include file="$(find star_nav_bringup)/launch/exploration_ground.launch" pass_all_args="true"/>
 </launch>

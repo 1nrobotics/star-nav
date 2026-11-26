@@ -116,6 +116,46 @@ lidar (world frame) -> terrain_filter.py -> grid_map -> EGO
   lidar looks −30° … 52° so that it sees the ground near the robot, roughly a
   forward-tilted Mid-360.
 
+### Frontier exploration (`explore:=frontier`)
+
+Without preset waypoints: `star_nav_bringup/scripts/frontier_explorer.py`
+takes the place of `exploration_manager` and sends the planner its goals.
+It needs the CMU planner (`planner:=cmu`, the default).
+
+- **Map** (`frontier_map.py`, no ROS): a 2D grid of 0.1 m cells over the
+  whole run, built from the lidar scans in the world frame. Nothing is
+  forgotten. It is published on `/frontier_explorer/map`
+  (`nav_msgs/OccupancyGrid`) and is separate from the planner's own map.
+
+  | Per scan | What is kept |
+  |---|---|
+  | Every return | The cell's lowest return (the ground) and its highest within `robot_height` above that |
+  | Rays that end no higher than the lidar, up to 8 m, at most 4,000 a scan | The cells under the ray are *seen* |
+  | The robot | The cells within 0.5 m of it are seen (the lidar does not look under the robot) |
+
+  | Cell | State |
+  |---|---|
+  | Obstacle by the terrain filter's rule (the table above) | Obstacle |
+  | Seen, not an obstacle | Free |
+  | Unknown, with three of its four neighbours known (a gap between two rays) | Free |
+  | Anything else | Unknown |
+
+- **Frontiers**: free cells the robot can reach (0.4 m clear of obstacles),
+  next to an unknown cell, inside the exploration area plus `frontier_margin`.
+  They are grouped into clusters of 5 cells or more.
+- **Mission**: walk to the nearest cluster (by path length); when no frontier
+  is left near the goal, take the next one. A frontier that takes more than
+  60 s, or at which the robot stands for 6 s, is given up. When none is left
+  the robot walks home. The states are on `/exploration/state`
+  (`PLAN_TO_FRONTIER`, `EXEC_FRONTIER`, `RETURN_HOME`, `FINISH`).
+- **Goals**: the frontier itself; the CMU planner's waypoint router finds
+  the way to it. The EGO planner is not supported: it needs goals it can
+  reach in a straight line.
+- **Done** means no reachable frontier is left. Coverage is not part of the
+  rule; `frontier_smoke.test` measures it afterwards as the share of known
+  cells (free or obstacle) of the floor inside the house's walls
+  (10.8 m x 10.8 m), and expects 95 %.
+
 ## Measured
 
 Flat ground, policy command → speed reached:
@@ -142,6 +182,7 @@ Verification at the last commit:
 | `lite3_smoke.test` (house, lidar; the default) | 12/12, 0 contacts, 0 timeouts, reached the platform (peak torso z 0.54 m) |
 | `lite3_smoke.test world:=forest` | 12/12, 0 contacts, 0 timeouts, all 107 pillars mapped |
 | `lite3_smoke.test world:=forest sensor:=depth` | 12/12, 0 contacts |
+| `frontier_smoke.test` (house, CMU planner; six runs) | 15 to 20 frontiers, 98.6 to 98.8 % of the floor known, 72 to 86 s, 33 to 37 m walked, home within 0.26 m, no frontier given up, 0 contacts |
 | `pytest` in `mujoco_sim/` | 30 passed; the walking tests need the assets |
 
 ## Changes Outside the Robot
@@ -175,6 +216,13 @@ The quadruped work also fixed two things that affect the drone:
   here in one horizontal layer. It does not plan up or down terrain, and
   heading is only what the trajectory's yaw gives.
 - **Ground-truth pose.** No odometry or SLAM is in the loop.
+- **Frontier exploration needs the CMU planner**, and has only been run
+  with the Lite3 in the house. An earlier version for the EGO planner (goals
+  on the way, in a straight free line from the robot) was dropped: in 3 of 5
+  runs the robot stopped on the way, and the cause was not found.
+- **The frontier map is not checked or saved.** Coverage counts known cells;
+  the map is not compared with the simulator's world, and it is not written
+  to a file.
 - **Blind policy.** It cannot see terrain, so higher steps need a
   terrain-aware policy.
 - **Tested locally only.** The model and policy are downloaded;
