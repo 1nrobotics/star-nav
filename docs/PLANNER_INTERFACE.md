@@ -231,7 +231,9 @@ chosen with `planner:=<name>`. The simulator side of a new robot is in
   the `launch` step of `./scripts/run_local_tests.sh`.
 - The smoke tests run each pair for real: `sim_smoke.test` and
   `mujoco_smoke.test` (aerial, ego), `lite3_smoke.test`, `t1_smoke.test`
-  and `frontier_smoke.test` (legged, cmu).
+  and `frontier_smoke.test` (legged, cmu). They are the `aerial` and
+  `legged` groups of `./scripts/run_local_tests.sh`; what each must show is
+  in [TESTING.md](TESTING.md).
 
 ## Limits and next steps
 

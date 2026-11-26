@@ -48,14 +48,24 @@ roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
   ./scripts/run_local_tests.sh
   ```
 
-  It runs, on a native ROS Noetic workspace, `bash -n` on the shell scripts,
-  `catkin_make`, the planner unit tests, `pytest` in `mujoco_sim/`, and the
-  end-to-end missions: `sim_smoke.test`, `mujoco_smoke.test` (depth camera
-  and lidar), and `lite3_smoke.test`, `t1_smoke.test` and
-  `frontier_smoke.test` when the robots are downloaded. It prints a summary
-  and exits non-zero when a step fails. Steps can be picked by name
-  (`./scripts/run_local_tests.sh lint pytest mujoco`); the script's header
-  lists them.
+  It runs on a native ROS Noetic workspace, in three groups:
+
+  | Group | For | Steps |
+  |---|---|---|
+  | `common` | every robot | `bash -n` on the shell scripts, `catkin_make`, the planner interface, `pytest` in `mujoco_sim/` |
+  | `aerial` | the quadrotor (EGO-Planner) | EGO's map unit tests, `sim_smoke.test`, `mujoco_smoke.test` (depth camera and lidar) |
+  | `legged` | the Lite3 and the T1 (CMU planner) | `lite3_smoke.test`, `t1_smoke.test` and `frontier_smoke.test`, when the robots are downloaded |
+
+  It prints a summary and exits non-zero when a step fails. While you work,
+  run the group of the code you change
+  (`./scripts/run_local_tests.sh common aerial`); before you push, run
+  everything. [docs/TESTING.md](docs/TESTING.md) has the procedure, what each
+  step must show to pass, and what to do when a mission fails in one run and
+  passes in the next.
+- Say which robot type a change or a fault concerns. Notes on EGO-Planner go
+  to [docs/QUADROTOR.md](docs/QUADROTOR.md), notes on the CMU planner and the
+  walking policies to [docs/QUADRUPED.md](docs/QUADRUPED.md) and
+  [docs/HUMANOID.md](docs/HUMANOID.md).
 - Without a native ROS installation, the Docker variants cover the quadrotor:
   `./scripts/run_smoke_test.sh` and `./scripts/run_mujoco_smoke_test.sh`.
 

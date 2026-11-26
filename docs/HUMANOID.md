@@ -23,7 +23,9 @@ built, what was measured and what is still missing. The quadruped's page,
   trunk height behind a terrain filter; results on this page that name EGO
   or the depth camera are from then.
 - **Launch / test**: `exploration_t1.launch`, `t1_smoke.test` (house, lidar
-  by default; `world:=forest`).
+  by default; `world:=forest`). It is part of the `legged` group of
+  `scripts/run_local_tests.sh`; what must hold, and how a fall in a test run
+  is judged: [TESTING.md](TESTING.md).
 
 ## Architecture
 
