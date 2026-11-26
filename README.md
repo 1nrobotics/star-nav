@@ -1,16 +1,18 @@
 # Star Nav
 
 Star Nav is a ROS Noetic navigation stack for **drones and legged robots**:
-an EGO-Planner based local planner and a waypoint exploration manager, with
-simulators to develop and test them. One planning stack drives every robot:
+a waypoint exploration manager and a local planner for each kind of robot
+(EGO-Planner flies the quadrotor, the ground version of CMU's local planner
+walks the legged robots), with simulators to develop and test them. One mission and one
+planner interface drive every robot:
 
 | | Quadrotor | Quadruped (DeepRobotics Lite3) | Humanoid (Booster T1) |
 | --- | --- | --- | --- |
 | Simulation | kinematic, or MuJoCo 4 with flight dynamics | MuJoCo 4, walking with DeepRobotics' own policy | MuJoCo 4, walking with Booster Robotics' own policy |
 | World | random forest of pillars and rings | furnished house with a ramp and stairs (default), or the forest | the house (taller walls), or the forest |
 | Obstacle sensor | forward depth camera or 360° lidar | lidar on its back | lidar on its head |
-| Local planner | EGO-Planner | CMU local planner (default) or EGO-Planner | the same as the Lite3 |
-| Robot-specific parts | SE(3) flight controller; `px4ctrl` for PX4 | velocity command to the walking policy; CMU terrain analysis (or a terrain filter for EGO) for ramps and steps | the same as the Lite3 |
+| Local planner | EGO-Planner | CMU local planner (ground version) | CMU local planner (ground version) |
+| Robot-specific parts | SE(3) flight controller; `px4ctrl` for PX4 | velocity command to the walking policy; CMU terrain analysis for ramps and steps | the same as the Lite3 |
 | Launch | `exploration_mujoco.launch` | `exploration_lite3.launch` | `exploration_t1.launch` |
 | End-to-end test | `sim_smoke.test`, `mujoco_smoke.test` | `lite3_smoke.test` (the robot is downloaded) | `t1_smoke.test` (the robot is downloaded) |
 | Page | [project page](https://1nrobotics.github.io/star-nav/) | [quadruped page](https://1nrobotics.github.io/star-nav/quadruped.html) | [humanoid page](https://1nrobotics.github.io/star-nav/humanoid.html) |
@@ -26,9 +28,10 @@ flown path and the planner's occupancy map.*
 
 ![Lite3 quadruped: MuJoCo simulator (left) and RViz (right) in the house](site/assets/lite3-house-rviz.jpg)
 
-*Quadruped. Left: Lite3 in the MuJoCo house, with its lidar returns. Right:
-RViz with the planner's map (walls and furniture; the ramp and steps are
-walkable) and the path walked.* Full videos and the architecture are on the
+*Quadruped. Left: Lite3 on the ramp in the MuJoCo house, with its lidar
+returns and the planner's path. Right: RViz with the CMU planner's terrain
+map (green: ground to walk on; red: walls and furniture) and the path
+walked.* Full videos and the architecture are on the
 [project page](https://1nrobotics.github.io/star-nav/) (source in
 [`site/`](site/)).
 
@@ -70,6 +73,7 @@ camera ([Obstacle Sensors](docs/SENSORS.md)). In Docker, use
 
 ```bash
 ./scripts/setup_mujoco_env.sh --lite3                               # once: model + policy
+./scripts/fetch_cmu_paths.sh                                        # once: the CMU planner's paths
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true   # house, lidar
 ```
 
@@ -80,6 +84,7 @@ Trigger exploration as below; `world:=forest` walks the pillar forest. See
 
 ```bash
 ./scripts/setup_mujoco_env.sh --t1                                  # once: model + policy
+./scripts/fetch_cmu_paths.sh                                        # once: the CMU planner's paths
 roslaunch star_nav_bringup exploration_t1.launch use_rviz:=true      # house, lidar
 ```
 
@@ -134,6 +139,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 - [Obstacle Sensors: depth camera or lidar](docs/SENSORS.md)
 - [Quadruped (Lite3): development status](docs/QUADRUPED.md)
 - [Humanoid (T1): development status](docs/HUMANOID.md)
+- [Planner interface: one planner per kind of robot](docs/PLANNER_INTERFACE.md)
 - [Planning for ground robots: survey notes](docs/GROUND_PLANNING.md)
 - [MuJoCo simulator: architecture](docs/SIM_ARCHITECTURE.md)
 - [Hardware Guide](docs/HARDWARE.md)
@@ -149,7 +155,7 @@ rostopic pub -1 /exploration/trigger geometry_msgs/PoseStamped "{}"
 - `star_nav_bringup/`: launch files, RViz config and the simulation smoke tests
 - `mujoco_sim/`: standalone MuJoCo simulator for the quadrotor, the Lite3 quadruped and the T1 humanoid (Python, no ROS)
 - `mujoco_bridge/`: ROS bridge between `mujoco_sim` and the planning stack
-- `planner/`: EGO-Planner-based planning stack and exploration manager
+- `planner/`: the planners, one folder each (`ego/`: EGO-Planner for the quadrotor, GPLv3; `cmu/`: the ground version of CMU's local planner, for the walking robots, BSD), and the exploration manager. They sit behind one interface: [docs/PLANNER_INTERFACE.md](docs/PLANNER_INTERFACE.md)
 - `uav_simulator/`: simulation, mapping, and local sensing components
 - `px4ctrl/`: PX4 controller integration
 - `rviz_gcs_plugin/`: RViz panel to trigger and monitor exploration

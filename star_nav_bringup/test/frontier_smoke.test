@@ -22,7 +22,6 @@
         <arg name="sim_args" value="$(arg sim_args)"/>
         <arg name="lidar" value="$(arg lidar)"/>
         <arg name="world" value="$(arg world)"/>
-        <arg name="planner" value="cmu"/>
         <arg name="explore" value="frontier"/>
     </include>
 

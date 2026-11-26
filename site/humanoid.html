@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Star Nav Humanoid</title>
-<meta name="description" content="Booster Robotics T1 humanoid on the Star Nav stack: EGO-Planner, a learned walking policy and a terrain filter, in a textured MuJoCo house and forest.">
+<meta name="description" content="Booster Robotics T1 humanoid on the Star Nav stack: CMU's local planner and a learned walking policy, in a textured MuJoCo house and forest.">
 <meta property="og:title" content="Star Nav Humanoid">
-<meta property="og:description" content="The Star Nav planning stack on a humanoid: Booster T1 in MuJoCo, through a house with a ramp, steps and furniture.">
+<meta property="og:description" content="The Star Nav mission on a humanoid: Booster T1 in MuJoCo, through a house with a ramp, steps and furniture.">
 <meta property="og:image" content="assets/t1-house.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%232f7d4f' stroke-width='3' stroke-linecap='round'%3E%3Ccircle cx='16' cy='6' r='3.5'/%3E%3Cpath d='M16 10v10M9 13h14M16 20l-5 9M16 20l5 9'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
@@ -30,11 +30,11 @@
 <main>
   <div class="wrap hero">
     <p class="eyebrow">Booster Robotics T1 · MuJoCo</p>
-    <h1>The same navigation stack, on two legs</h1>
+    <h1>The same mission, on two legs</h1>
     <p class="lead">
-      The T1 humanoid explores a house and a forest with the planner the drone
-      and the quadruped use, walking with Booster Robotics' learned policy and
-      seeing with a lidar on its head.
+      The T1 humanoid explores a house and a forest with the planner the
+      quadruped uses, CMU's local planner, walking with Booster Robotics'
+      learned policy and seeing with a lidar on its head.
     </p>
   </div>
 
@@ -48,7 +48,9 @@
       </div>
       <figcaption>
         <b>House, one full mission, 4&times; speed.</b> Around the dining table and the
-        sofa, up a 12° ramp and down three 7&nbsp;cm steps; dots are lidar returns.
+        sofa, up a 12° ramp and down three 7&nbsp;cm steps. Blue dots are lidar
+        returns; the yellow line is the route to the next waypoint, the red one
+        the path the planner follows.
       </figcaption>
     </figure>
 
@@ -74,7 +76,6 @@
             <tbody>
               <tr><td>House, lidar</td><td class="ok">12/12, 0 contacts, reached the platform</td></tr>
               <tr><td>Forest, lidar</td><td class="ok">12/12, 0 contacts</td></tr>
-              <tr><td>Forest, depth camera</td><td class="warn">12/12, but brushes a stump</td></tr>
             </tbody>
           </table>
         </div>
@@ -93,7 +94,7 @@
         Not yet:
         <ul>
           <li>It cannot climb 7&nbsp;cm steps; the policy was trained on steps of about 2&nbsp;cm.</li>
-          <li>With the depth camera the planner may route over low obstacles; use the lidar for now.</li>
+          <li>Lidar only: the planner has no depth-camera mode.</li>
           <li>The pose comes from the simulator; simulation only, no hardware branch yet.</li>
         </ul>
       </div>
@@ -121,16 +122,15 @@
           <span class="tag ros">Sensing</span>
           <dl>
             <dt>Lidar</dt><dd>32 beams, −50° to 30°, 10&nbsp;Hz, on the head</dd>
-            <dt>Or</dt><dd>Depth camera in the face, 30&nbsp;Hz</dd>
-            <dt>Terrain filter</dt><dd>Obstacles up to 1.25&nbsp;m; the table is not a roof</dd>
+            <dt>Terrain analysis</dt><dd>Obstacles up to 1.25&nbsp;m; the table is not a roof</dd>
           </dl>
         </div>
         <div class="card">
           <span class="tag plan">Planning</span>
           <dl>
-            <dt>Planner</dt><dd>EGO-Planner at trunk height, 0.67&nbsp;m</dd>
+            <dt>Planner</dt><dd>CMU local planner, as the quadruped</dd>
             <dt>Speed</dt><dd>Up to 0.5&nbsp;m/s</dd>
-            <dt>Clearance</dt><dd>0.35&nbsp;m; the arms reach 0.27&nbsp;m</dd>
+            <dt>Clearance</dt><dd>0.45&nbsp;m; the arms reach 0.27&nbsp;m</dd>
           </dl>
         </div>
       </div>

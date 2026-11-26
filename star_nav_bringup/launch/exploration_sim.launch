@@ -59,6 +59,7 @@
     <!-- ============================== -->
     <include file="$(find star_nav_bringup)/launch/planning_stack.xml">
         <arg name="drone_id" value="$(arg drone_id)"/>
+        <arg name="robot_type" value="aerial"/>
         <arg name="obj_num" value="$(arg obj_num)"/>
         <arg name="use_rviz" value="$(arg use_rviz)"/>
         <arg name="map_size_x" value="$(arg map_size_x)"/>

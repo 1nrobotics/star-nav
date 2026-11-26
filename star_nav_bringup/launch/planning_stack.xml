@@ -1,12 +1,13 @@
 <launch>
-    <!-- Planning stack shared by all simulators: EGO planner, trajectory
-         server, exploration manager and RViz. The simulator must provide
-         odometry, a depth image and the camera pose (see the args below). -->
+    <!-- Planning stack shared by all simulators: the planner (planner.xml:
+         the robot type's, or the one asked for), the exploration manager and
+         RViz. The simulator must provide odometry and a depth image with the
+         camera pose or a point cloud (see the args below). -->
     <arg name="drone_id"/>
-    <!-- ego: EGO planner and trajectory server. cmu: neither (a ground robot
-         with the CMU local planner, started by exploration_ground.launch);
-         the exploration manager and RViz only. -->
-    <arg name="planner" default="ego"/>
+    <!-- aerial or legged, and auto (its planner) or the planner's name:
+         planner.xml -->
+    <arg name="robot_type"/>
+    <arg name="planner" default="auto"/>
     <arg name="obj_num"/>
     <arg name="use_rviz"/>
     <arg name="map_size_x"/>
@@ -26,13 +27,13 @@
     <arg name="fy"/>
     <!-- Planner obstacle inflation (m): at least the vehicle radius -->
     <arg name="obstacles_inflation" default="0.099"/>
-    <!-- Vehicle: speed limits, waypoint height, and for ground robots the
-         height below which depth returns are floor rather than obstacles -->
+    <!-- Vehicle: speed limits and waypoint height; for ground robots their
+         height -->
     <arg name="max_vel" default="1.5"/>
     <arg name="max_acc" default="3.0"/>
     <arg name="planning_horizon" default="7.5"/>
     <arg name="altitude" default="1.0"/>
-    <arg name="obstacle_min_height" default="-1000.0"/>
+    <arg name="robot_height" default="0.0"/>
     <!-- Exploration timing (s) and arrival distance (m) -->
     <arg name="waypoint_timeout" default="30.0"/>
     <arg name="waypoint_tolerance" default="0.5"/>
@@ -41,88 +42,59 @@
          somebody else sends the goals (exploration_ground.launch) -->
     <arg name="explore" default="waypoints"/>
     <arg name="rviz_config" default="$(find star_nav_bringup)/config/star_nav.rviz"/>
-    <!-- Ray-cast point cloud input into the probabilistic map -->
-    <arg name="pointcloud_raycasting" default="false"/>
-    <!-- Point cloud sensor position in the body frame (ray origin) -->
+    <!-- Obstacle sensor: depth or lidar; the lidar's point cloud (without
+         the /drone_<id>_ prefix) and position in the body frame (ray origin) -->
+    <arg name="sensor" default="depth"/>
+    <arg name="cloud_topic" default="pcl_render_node/cloud"/>
     <arg name="lidar_offset" default="[0.0, 0.0, 0.0]"/>
     <!-- Hide map voxels below this height in RViz (e.g. the ground) -->
     <arg name="visualization_min_height" default="-1000.0"/>
     <arg name="visualization_max_height" default="1.8"/>
-    <!-- Map update (see plan_manage/launch/advanced_param.xml) -->
-    <arg name="max_hits_per_update" default="1"/>
+    <!-- Planner options: see planner.xml -->
+    <arg name="lidar_raycasting" default="true"/>
+    <arg name="lidar_max_hits" default="6"/>
     <arg name="sliding_map" default="false"/>
     <arg name="sliding_size" default="20.0"/>
     <arg name="show_occ_time" default="false"/>
+    <arg name="cmu_obstacle_height" default="0.15"/>
+    <arg name="cmu_path_scale" default="1.0"/>
+    <arg name="cmu_min_path_scale" default="0.5"/>
 
     <!-- ============================== -->
-    <!-- 2. EGO Planner                 -->
+    <!-- 2-3. Planner                   -->
     <!-- ============================== -->
-    <include file="$(find ego_planner)/launch/advanced_param.xml" if="$(eval planner == 'ego')">
+    <include file="$(find star_nav_bringup)/launch/planner.xml">
         <arg name="drone_id" value="$(arg drone_id)"/>
-        <arg name="map_size_x_" value="$(arg map_size_x)"/>
-        <arg name="map_size_y_" value="$(arg map_size_y)"/>
-        <arg name="map_size_z_" value="$(arg map_size_z)"/>
-        <arg name="odometry_topic" value="$(arg odom_topic)"/>
-        <arg name="obj_num_set" value="$(arg obj_num)" />
-
-        <!-- Use simulated sensing -->
-        <arg name="camera_pose_topic" value="pcl_render_node/camera_pose"/>
-        <arg name="depth_topic" value="pcl_render_node/depth"/>
-        <arg name="cloud_topic" value="pcl_render_node/cloud"/>
-
-        <!-- Camera intrinsics -->
+        <arg name="robot_type" value="$(arg robot_type)"/>
+        <arg name="planner" value="$(arg planner)"/>
+        <arg name="odom_topic" value="$(arg odom_topic)"/>
+        <arg name="cloud_topic" value="$(arg cloud_topic)"/>
+        <arg name="map_size_x" value="$(arg map_size_x)"/>
+        <arg name="map_size_y" value="$(arg map_size_y)"/>
+        <arg name="map_size_z" value="$(arg map_size_z)"/>
+        <arg name="max_vel" value="$(arg max_vel)"/>
+        <arg name="max_acc" value="$(arg max_acc)"/>
+        <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
+        <arg name="robot_height" value="$(arg robot_height)"/>
+        <arg name="sensor" value="$(arg sensor)"/>
+        <arg name="lidar_offset" value="$(arg lidar_offset)"/>
         <arg name="cx" value="$(arg cx)"/>
         <arg name="cy" value="$(arg cy)"/>
         <arg name="fx" value="$(arg fx)"/>
         <arg name="fy" value="$(arg fy)"/>
-        <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
-        <arg name="obstacle_min_height" value="$(arg obstacle_min_height)"/>
-        <arg name="pointcloud_raycasting" value="$(arg pointcloud_raycasting)"/>
-        <arg name="lidar_offset" value="$(arg lidar_offset)"/>
-        <arg name="visualization_min_height" value="$(arg visualization_min_height)"/>
-        <arg name="visualization_max_height" value="$(arg visualization_max_height)"/>
-        <arg name="max_hits_per_update" value="$(arg max_hits_per_update)"/>
+        <arg name="obj_num" value="$(arg obj_num)"/>
+        <arg name="planning_horizon" value="$(arg planning_horizon)"/>
+        <arg name="lidar_raycasting" value="$(arg lidar_raycasting)"/>
+        <arg name="lidar_max_hits" value="$(arg lidar_max_hits)"/>
         <arg name="sliding_map" value="$(arg sliding_map)"/>
         <arg name="sliding_size" value="$(arg sliding_size)"/>
         <arg name="show_occ_time" value="$(arg show_occ_time)"/>
-
-        <!-- Planning parameters -->
-        <arg name="max_vel" value="$(arg max_vel)" />
-        <arg name="max_acc" value="$(arg max_acc)" />
-        <arg name="planning_horizon" value="$(arg planning_horizon)" />
-        <arg name="use_distinctive_trajs" value="false" />
-
-        <!-- Manual target mode for exploration -->
-        <arg name="flight_type" value="1" />
-
-        <!-- Dummy waypoints (not used in manual mode) -->
-        <arg name="point_num" value="0" />
-        <arg name="point0_x" value="0" />
-        <arg name="point0_y" value="0" />
-        <arg name="point0_z" value="0" />
-        <arg name="point1_x" value="0" />
-        <arg name="point1_y" value="0" />
-        <arg name="point1_z" value="0" />
-        <arg name="point2_x" value="0" />
-        <arg name="point2_y" value="0" />
-        <arg name="point2_z" value="0" />
-        <arg name="point3_x" value="0" />
-        <arg name="point3_y" value="0" />
-        <arg name="point3_z" value="0" />
-        <arg name="point4_x" value="0" />
-        <arg name="point4_y" value="0" />
-        <arg name="point4_z" value="0" />
+        <arg name="visualization_min_height" value="$(arg visualization_min_height)"/>
+        <arg name="visualization_max_height" value="$(arg visualization_max_height)"/>
+        <arg name="cmu_obstacle_height" value="$(arg cmu_obstacle_height)"/>
+        <arg name="cmu_path_scale" value="$(arg cmu_path_scale)"/>
+        <arg name="cmu_min_path_scale" value="$(arg cmu_min_path_scale)"/>
     </include>
-
-    <!-- ============================== -->
-    <!-- 3. Trajectory Server           -->
-    <!-- ============================== -->
-    <node pkg="ego_planner" name="drone_$(arg drone_id)_traj_server" type="traj_server" output="screen"
-          if="$(eval planner == 'ego')">
-        <remap from="~planning/bspline" to="drone_$(arg drone_id)_planning/bspline"/>
-        <remap from="/position_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
-        <param name="traj_server/time_forward" value="1.0" type="double"/>
-    </node>
 
     <!-- ============================== -->
     <!-- 4. Exploration Manager         -->

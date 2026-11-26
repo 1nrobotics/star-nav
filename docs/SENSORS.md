@@ -114,7 +114,7 @@ nothing is behind it within range, its voxels stay occupied until the vehicle
 moves on. Real lidars also return nothing from black, specular or glass
 surfaces, so treating a missing return as free space would erase real
 obstacles, so grid_map does not do it. Implementation
-details and measurements: [planner/plan_env/POINTCLOUD_RAYCASTING_FIX.md](../planner/plan_env/POINTCLOUD_RAYCASTING_FIX.md).
+details and measurements: [planner/ego/plan_env/POINTCLOUD_RAYCASTING_FIX.md](../planner/ego/plan_env/POINTCLOUD_RAYCASTING_FIX.md).
 
 ## Map Memory: Sliding Window
 

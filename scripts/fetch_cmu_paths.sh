@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Downloads the pre-computed path set of the CMU local planner (29 MB, BSD).
 #
-# planner/local_planner reads these files at start (planner:=cmu). They come
+# planner/cmu/local_planner reads these files at start (planner:=cmu). They come
 # from the upstream repository at a pinned commit, are checked against known
 # checksums and are not part of this repository.
 #

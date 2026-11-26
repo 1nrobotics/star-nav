@@ -68,14 +68,17 @@ gh release create site-assets --prerelease --title "Project page assets" \
 gh release upload site-assets site/assets/exploration-demo.mp4 site/assets/lidar-exploration-demo.mp4 --clobber
 ```
 
+The walking robots' videos show the CMU planner (recorded November 2026).
 `lite3-house-rviz.mp4` is made like the quadrotor video below, with
 `exploration_lite3.launch use_rviz:=true` (its RViz window is 1600 × 900; the
 3D view is crop 1000:810:585:60) and sped up 4× (`setpts=PTS/4` in the
-filter). The other two quadruped videos are the simulator's follow camera
-alone (`--record` in `sim_args`), sped up 4×. Posters: `assets/lite3-*.jpg`.
+filter; crf 29). The other two quadruped videos are the simulator's follow
+camera alone (`--record` in `sim_args`), sped up 4× (crf 27 to 28). Posters:
+`assets/lite3-*.jpg`.
 `t1-house.mp4` is the follow camera of one `exploration_t1.launch` mission
 (`sim_args:="--record ..."`), sped up 4× and scaled to 960 × 540 (crf 30);
-poster `assets/t1-house.jpg`.
+poster `assets/t1-house.jpg`. Each starts 2 s before the trigger and ends
+4 s after the mission's `FINISH`.
 Pass `-draw_mouse 0` to ffmpeg's x11grab to keep the pointer out.
 
 The quadrotor video puts the simulator's follow camera next to the RViz window for one mission

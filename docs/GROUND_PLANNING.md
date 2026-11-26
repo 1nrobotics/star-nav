@@ -2,7 +2,7 @@
 
 Star Nav flies the quadrotor with EGO-Planner and first used it for the
 Lite3 quadruped and the T1 humanoid too; they now walk with the CMU local
-planner by default (section 10). These notes collect what others have
+planner only (section 10). These notes collect what others have
 done with EGO-Planner on the ground, how off-road wheeled robots are planned
 for, and how the CMU ground autonomy stack differs from EGO. They end with
 what this means for Star Nav. Written November 2026; claims that were not
@@ -17,14 +17,15 @@ checked against a paper or the code are marked as such.
   ([HUMANOID.md](HUMANOID.md)).
 - **Two fixes are in use:** plan in 2D (a fixed height), or penalize or
   suppress vertical motion. Either needs the map to put an obstacle's whole
-  height into the planning plane; Star Nav's terrain filter does this for the
-  lidar.
+  height into the planning plane; Star Nav's terrain filter did this for the
+  lidar while EGO moved the walking robots (section 10).
 - **Off-road wheeled robots** are planned for in four ways: terrain analysis
   plus a local planner (CMU), SE(2) optimization over terrain (ZJU FAST Lab),
   learned traversability plus a classic planner, and end-to-end learned
   planners (YOPO-Rally, iPlanner/ViPlanner).
-- **The CMU stack** perceives in 2.5D and plans in 2D, by picking one of 343
-  precomputed paths. It has no notion of time or dynamics, which a separate
+- **The CMU ground stack** perceives in 2.5D and plans in 2D, by picking one
+  of 343 precomputed paths. (CMU also publishes an aerial version of the
+  planner, with 3D paths; these notes and Star Nav use the ground one.) It has no notion of time or dynamics, which a separate
   path follower adds. It is simple, deterministic and cheap, which suits slow
   walking robots.
 - **MPPI** samples control sequences, rolls them out through a model and
@@ -85,7 +86,14 @@ its strength (depth only) is where Star Nav's walking robots are weakest.
 ## 3. The CMU ground autonomy stack
 
 From the code of `autonomous_exploration_development_environment` (noetic
-branch).
+branch), CMU's stack for ground vehicles. CMU's stack for aerial vehicles is
+a separate repository,
+[aerial_navigation_development_environment](https://github.com/caochao39/aerial_navigation_development_environment): its local planner works
+the same way with 4,375 paths in 3D (25 groups), takes a range sensor's
+point cloud without a terrain analysis, and its path follower outputs an
+attitude command (roll, pitch, yaw rate, vertical speed). Its README names Falco as the reference. It is under
+CMU's non-commercial license, and Star Nav does not use it; everything
+below is about the ground version.
 
 ### Terrain analysis (`terrainAnalysis.cpp`): 2.5D
 
@@ -154,7 +162,9 @@ No search or optimization: a hand-designed, three-level tree of curves.
 
 ## 4. CMU local planner vs EGO-Planner
 
-| | CMU local planner | EGO-Planner |
+The CMU column is the ground version (section 3).
+
+| | CMU local planner (ground) | EGO-Planner |
 |---|---|---|
 | Method | Selection from a precomputed path library | Gradient-based optimization (L-BFGS) of B-spline control points |
 | Space | 2D (vehicle frame) | 3D |
@@ -352,12 +362,12 @@ removes MPPI's main weakness. A sketch (not implemented):
 
 Setting the height constant is not enough on its own. In this repository:
 
-1. **A\*** (`planner/path_searching/src/dyn_a_star.cpp`, the `dz` loop):
+1. **A\*** (`planner/ego/path_searching/src/dyn_a_star.cpp`, the `dz` loop):
    search the planning layer only (`dz = 0`). This matters most: EGO's
    rebound uses A\* around a colliding segment to get push-out directions;
    an A\* path over the obstacle gives mostly vertical directions, which
    cannot push the trajectory out sideways.
-2. **Optimizer** (`planner/bspline_opt/src/bspline_optimizer.cpp`,
+2. **Optimizer** (`planner/ego/bspline_opt/src/bspline_optimizer.cpp`,
    `combineCostRebound` and `combineCostRefine`): zero the z row of the
    gradient. With all control points starting at the planning height, L-BFGS
    then never moves z. Project the push-out directions (`cps_.direction`)
@@ -406,6 +416,10 @@ For the T1 in this simulator:
 
 ## 9. What this means for Star Nav
 
+Written while EGO moved the walking robots. They now walk with the CMU
+planner only (section 10), so items 1, 3 and 4 would start from that, or
+bring EGO back for ground robots first.
+
 1. **2D mode for EGO** (`planning_2d`, on for walking robots) and a
    height-band projection in the grid map, so `sensor:=depth` works; keep the
    virtual ceiling for drones.
@@ -421,10 +435,22 @@ For the T1 in this simulator:
 
 ## 10. The CMU planner in Star Nav
 
-`exploration_ground.launch planner:=cmu` (the default for the Lite3 and the
-T1) replaces the EGO planner, its trajectory server and the terrain filter
-with `star_nav_bringup/launch/cmu_planner.xml`. The quadrotor keeps EGO: the
-CMU planner is 2D and outputs a ground vehicle's velocity.
+The CMU planner is the planner of a legged robot, the Lite3 and the T1:
+`star_nav_bringup/launch/planners/cmu.xml`. It is the ground version: 2D,
+with a ground vehicle's velocity as its output. The quadrotor keeps EGO.
+That is the project's choice; CMU's aerial version (section 3) could fly a
+quadrotor, and is not in Star Nav. Both planners sit behind one interface:
+[PLANNER_INTERFACE.md](PLANNER_INTERFACE.md#cmus-two-planners).
+
+Until November 2026 the walking robots could run EGO as well
+(`planner:=ego`): EGO planned at the height of the robot's body, a terrain
+filter (`terrain_filter.py`) turned the lidar's scans into obstacle columns
+so that ramps and steps of 9 cm or less stayed free, and the simulator
+steered the robot to EGO's position setpoints. The measurements below
+compare the two on the same missions. That path and the filter were removed
+with the planner interface (the T1 first, then the Lite3), so each kind of
+robot has one planner; the `ego` rows cannot be repeated from the launch
+files.
 
 ```
 lidar cloud (world frame) ─► terrainAnalysis ─► /terrain_map ─► localPlanner ─► /path
@@ -434,8 +460,8 @@ exploration_manager goal ─► cmu_waypoint_router.py ─► /way_point ─┘ 
                               mujoco_bridge ─► simulator ─► walking policy ◄──────┘
 ```
 
-- **CMU code, unmodified:** `planner/terrain_analysis` and
-  `planner/local_planner` (`localPlanner`, `pathFollower`) from
+- **CMU code, unmodified:** `planner/cmu/terrain_analysis` and
+  `planner/cmu/local_planner` (`localPlanner`, `pathFollower`) from
   autonomous_exploration_development_environment, branch `noetic`, commit
   `bf0cba7` (BSD). Its topics (`/state_estimation`, `/registered_scan`) are
   remapped to the bridge's odometry and lidar cloud. The path set is
@@ -445,7 +471,7 @@ exploration_manager goal ─► cmu_waypoint_router.py ─► /way_point ─┘ 
   (protocol version 2, topic `vel`); a ground robot's walking policy gets it
   within `tracking.Holonomic`'s limits, in place of the tracker's output.
   Without a command for 0.5 s the robot stands.
-- **Waypoint router** (`star_nav_bringup/scripts/cmu_waypoint_router.py`,
+- **Waypoint router** (`star_nav_bringup/scripts/planners/cmu/cmu_waypoint_router.py`,
   Star Nav's own): the local planner looks 3 m ahead and heads straight for
   its waypoint, so the mission's goals, up to 9 m away and behind walls,
   leave it facing a wall. Measured in the house: without the router the
@@ -455,7 +481,7 @@ exploration_manager goal ─► cmu_waypoint_router.py ─► /way_point ─┘ 
   terrain map's obstacles (remembered beyond 3.5 m from the robot: static
   worlds only), searches it with A* and gives the local planner the farthest
   point of the route, up to 3 m along it, that is in a straight free line.
-- **Parameters** (`cmu_planner.xml`; the rest are upstream's defaults):
+- **Parameters** (`planners/cmu.xml`; the rest are upstream's defaults):
 
   | Parameter | Value | Why |
   |---|---|---|
@@ -469,9 +495,9 @@ exploration_manager goal ─► cmu_waypoint_router.py ─► /way_point ─┘ 
   | `pathScale` / `minPathScale` | 1.0 / 0.5 | clearance 0.45 m, down to 0.23 m where nothing else is free |
   | `dirDiffThre` | 0.2 rad | upstream 0.1; walks while within this of the path's direction |
 
-- **Limits.** The lidar only (`sensor:=depth` needs `planner:=ego`). Static
-  worlds only. The forest test's map check reads EGO's map, so with
-  `planner:=cmu` it is skipped. One obstacle threshold for both robots: the
+- **Limits.** The lidar only (`sensor:=depth` is refused). Static
+  worlds only. The walking robots' tests do not check a map against the
+  world (the quadrotor's check reads EGO's map). One obstacle threshold for both robots: the
   T1 is allowed onto 7 cm steps going up, which it does not always manage
   ([HUMANOID.md](HUMANOID.md)). The router has no unit tests yet.
 
@@ -486,7 +512,8 @@ not a benchmark):
 | T1 | `cmu` | 12/12 | 0 | 0 | 174 s |
 | T1 | `ego` | 12/12 | 0 | 0 | 234 s |
 
-Both robots cross the ramp, the platform and the steps with either planner.
+Both robots crossed the ramp, the platform and the steps with either
+planner.
 
 Lite3 in more scenes (same mission, same 0.6 m/s limit; one run per row on
 2026-11-23, the default house twice). Time, path, speed and standing time
@@ -541,5 +568,6 @@ Side by side, at twice the speed, from one more run each at `344c2b8`:
 - Wild Visual Navigation, [arXiv 2305.08510](https://arxiv.org/abs/2305.08510); Trailblazer, [arXiv 2505.09739](https://arxiv.org/abs/2505.09739); Verti-Bench, [arXiv 2502.11426](https://arxiv.org/abs/2502.11426)
 - CMU code: [localPlanner.cpp](https://github.com/HongbiaoZ/autonomous_exploration_development_environment/blob/noetic/src/local_planner/src/localPlanner.cpp), [terrainAnalysis.cpp](https://github.com/HongbiaoZ/autonomous_exploration_development_environment/blob/noetic/src/terrain_analysis/src/terrainAnalysis.cpp), [path_generator.m](https://github.com/HongbiaoZ/autonomous_exploration_development_environment/blob/noetic/src/local_planner/paths/path_generator.m); [autonomy_stack_go2](https://github.com/jizhang-cmu/autonomy_stack_go2); [open-source list](https://frc.ri.cmu.edu/~zhangji/others.html)
 - MPPI: Williams et al., Information-Theoretic MPC, T-RO 2018, [arXiv 1707.02342](https://arxiv.org/abs/1707.02342); Log-MPPI, [arXiv 2203.16599](https://arxiv.org/abs/2203.16599); Smooth-MPPI, [arXiv 2112.09988](https://arxiv.org/abs/2112.09988); Biased-MPPI, [arXiv 2401.09241](https://arxiv.org/abs/2401.09241); [nav2_mppi_controller](https://github.com/ros-navigation/navigation2/tree/main/nav2_mppi_controller)
+- CMU aerial version: [aerial_navigation_development_environment](https://github.com/caochao39/aerial_navigation_development_environment) (`src/local_planner`)
 - FAR Planner, [arXiv 2110.09460](https://arxiv.org/abs/2110.09460); Falco, [CMU RI](https://ri.cmu.edu/?p=125590)
 - FFI, [Development of off-road autonomy for UGVs](https://www.ffi.no/en/publications-archive/development-of-off-road-autonomy-for-unmanned-ground-vehicles)
