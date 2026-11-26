@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Star Nav Quadrotor</title>
+<meta name="description" content="A quadrotor on the Star Nav stack: EGO-Planner and an SE(3) flight controller fly an exploration mission through a MuJoCo forest, with a depth camera or a 360° lidar.">
+<meta property="og:title" content="Star Nav Quadrotor">
+<meta property="og:description" content="The Star Nav planning stack on a flying robot: a quadrotor in a MuJoCo forest of pillars and rings.">
+<meta property="og:image" content="assets/exploration-demo.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%232563eb' stroke-width='3'%3E%3Ccircle cx='8' cy='8' r='5'/%3E%3Ccircle cx='24' cy='8' r='5'/%3E%3Ccircle cx='8' cy='24' r='5'/%3E%3Ccircle cx='24' cy='24' r='5'/%3E%3Cpath d='M11 11l10 10M21 11L11 21'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+  {"imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }}
+</script>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="8" cy="8" r="5"/><circle cx="24" cy="8" r="5"/><circle cx="8" cy="24" r="5"/><circle cx="24" cy="24" r="5"/><path d="M11 11l10 10M21 11L11 21"/></g></svg>
+      Star Nav <span class="sub">· Quadrotor</span>
+    </a>
+    <nav class="links">
+      <a href="#live">Live</a>
+      <a href="#results">Results</a>
+      <a href="#specs">Key facts</a>
+      <a class="hide-xs" href="https://github.com/1nrobotics/star-nav/blob/main/docs/QUADROTOR.md">Docs</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <p class="eyebrow">Quadrotor · EGO-Planner · MuJoCo</p>
+    <h1>A forest explored in flight</h1>
+    <p class="lead">
+      The quadrotor flies a 12-waypoint mission over a 9&nbsp;&times;&nbsp;9&nbsp;m
+      area among 150 pillars and tilted rings. EGO-Planner plans through the map
+      it builds from a depth camera or a 360° lidar, and an SE(3) flight
+      controller turns its setpoints into rotor thrusts.
+    </p>
+  </div>
+
+  <div class="wrap" id="demo">
+    <figure class="video">
+      <div class="video-frame">
+        <video class="wide" controls muted loop playsinline preload="metadata" poster="assets/exploration-demo.jpg">
+          <source src="assets/exploration-demo.mp4" type="video/mp4">
+          Your browser cannot play this video. <a href="assets/exploration-demo.mp4">Download it</a>.
+        </video>
+      </div>
+      <div class="video-labels">
+        <div><b>Simulator.</b> Physics, flight control and the onboard depth camera.</div>
+        <div><b>Planner's view.</b> Magenta: the map it builds from depth. Blue: the path flown.</div>
+      </div>
+      <figcaption>One full mission with the depth camera, in real time.</figcaption>
+    </figure>
+
+    <figure class="video" style="margin-top:20px">
+      <div class="video-frame">
+        <video class="wide" controls muted loop playsinline preload="metadata" poster="assets/lidar-exploration-demo.jpg">
+          <source src="assets/lidar-exploration-demo.mp4" type="video/mp4">
+          Your browser cannot play this video. <a href="assets/lidar-exploration-demo.mp4">Download it</a>.
+        </video>
+      </div>
+      <div class="video-labels">
+        <div><b>With a 360° lidar.</b> Returns drawn as dots on the ground, pillars and rings.</div>
+        <div><b>Planner's view.</b> Red: the current scan. Coloured: obstacles in the map.</div>
+      </div>
+    </figure>
+
+    <div class="stats">
+      <div class="stat"><div class="v">12 / 12</div><div class="k">waypoints, 0 contacts</div></div>
+      <div class="stat"><div class="v">500 Hz</div><div class="k">physics and flight control</div></div>
+      <div class="stat"><div class="v">30 / 10 Hz</div><div class="k">depth camera / 360° lidar</div></div>
+      <div class="stat"><div class="v">≤ 5 mm</div><div class="k">lidar error on obstacle surfaces</div></div>
+    </div>
+  </div>
+
+  <section id="live">
+    <div class="wrap">
+      <h2>Live in your browser</h2>
+      <p class="sub">
+        MuJoCo, compiled to WebAssembly, flies the quadrotor in this page in
+        real time: the model, the forest and the flight controller of the
+        simulator. No planner runs in the browser; the quadrotor follows the
+        setpoints EGO-Planner sent in a recorded mission. Drag to orbit,
+        scroll to zoom.
+      </p>
+      <div class="live" data-live="quadrotor">
+        <div class="live-frame">
+          <div class="live-status" data-live-status>The interactive scene loads when you scroll here.</div>
+          <div class="live-controls">
+            <button type="button" data-live-play>Pause</button>
+            <button type="button" data-live-follow aria-pressed="true">Follow</button>
+            <button type="button" data-live-restart>Restart</button>
+          </div>
+          <div class="live-hud" data-live-time></div>
+        </div>
+        <p class="note" data-live-note>Blue: the planned path. Orange: the path flown in your browser.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="results">
+    <div class="wrap">
+      <h2>Results</h2>
+      <p class="sub">
+        Each mission is an automated test that fails on any contact or waypoint
+        timeout. In MuJoCo the planner's map is also compared with the
+        simulator's obstacles.
+      </p>
+      <div class="grid2">
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Mission</th><th>Result</th></tr></thead>
+            <tbody>
+              <tr><td>Forest, depth camera</td><td class="ok">12/12, 0 contacts</td></tr>
+              <tr><td>Forest, 360° lidar</td><td class="ok">12/12, 0 contacts</td></tr>
+              <tr><td>Lightweight simulator</td><td class="ok">12/12; collisions are not detected there</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Map against the world</th><th>Limit of the test</th></tr></thead>
+            <tbody>
+              <tr><td>Occupied voxels farther than 0.45&nbsp;m from any obstacle</td><td class="ok">1&nbsp;% at most</td></tr>
+              <tr><td>Lidar points farther than 2&nbsp;cm from any surface</td><td class="ok">0.1&nbsp;% at most</td></tr>
+              <tr><td>Pillars within 2.5&nbsp;m that are in the map (lidar)</td><td class="ok">95&nbsp;% at least</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="limits">
+        Not yet:
+        <ul>
+          <li>Local planner only: a goal behind a wall may leave the quadrotor stuck.</li>
+          <li>The mission is the waypoint pattern; exploring without waypoints needs the walking robots' planner.</li>
+          <li>Tested in the pillar forest only, not in the house.</li>
+          <li>The pose comes from the simulator. Hardware code is on the <code>hardware/vk180</code> branch.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="specs">
+    <div class="wrap">
+      <h2>Key facts</h2>
+      <p class="sub">
+        The planner sends position setpoints; the flight controller and the
+        rotors are simulated, so the path flown is not the path planned.
+      </p>
+      <div class="facts">
+        <div class="card">
+          <span class="tag sim">Robot</span>
+          <dl>
+            <dt>Model</dt><dd>Quadrotor, rigid body, four rotors with motor lag</dd>
+            <dt>Flight control</dt><dd>SE(3) controller at 500&nbsp;Hz</dd>
+            <dt>Command</dt><dd>Position, velocity, acceleration and yaw</dd>
+          </dl>
+        </div>
+        <div class="card">
+          <span class="tag ros">Sensing</span>
+          <dl>
+            <dt>Depth camera</dt><dd>640&nbsp;&times;&nbsp;480, 30&nbsp;Hz, used from 0.2 to 5&nbsp;m</dd>
+            <dt>Lidar</dt><dd>32 beams &times; 1024, 10&nbsp;Hz, 360°</dd>
+            <dt>Map</dt><dd>Voxel grid, ray-cast up to 4.5&nbsp;m</dd>
+          </dl>
+        </div>
+        <div class="card">
+          <span class="tag plan">Planning</span>
+          <dl>
+            <dt>Planner</dt><dd>EGO-Planner: a B-spline trajectory through its map</dd>
+            <dt>Speed</dt><dd>Up to 1.5&nbsp;m/s and 3&nbsp;m/s²</dd>
+            <dt>Flight height</dt><dd>1.0&nbsp;m; obstacles inflated by 0.2&nbsp;m</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>
+      EGO-Planner: ZJU FAST Lab, GPLv3. Simulator and bridge: MIT.
+      <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">Licenses</a>
+    </span>
+    <span>
+      <a href="index.html">Star Nav home</a> ·
+      <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/QUADROTOR.md">Docs</a> ·
+      <a href="https://github.com/1nrobotics/star-nav">GitHub</a>
+    </span>
+  </div>
+</footer>
+<script type="module" src="assets/mujoco/embed.js"></script>
+</body>
+</html>

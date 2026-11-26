@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Star Nav</title>
-<meta name="description" content="Autonomous exploration for drones and legged robots on ROS Noetic: EGO-Planner flies a quadrotor, CMU's local planner walks the Lite3 quadruped and the T1 humanoid, in a MuJoCo 4 simulator that also runs in the browser.">
+<meta name="description" content="Autonomous exploration for legged robots and drones on ROS Noetic: CMU's local planner walks the Lite3 quadruped and the T1 humanoid, EGO-Planner flies a quadrotor, in a MuJoCo 4 simulator. Each robot also runs live in the browser.">
 <meta property="og:title" content="Star Nav">
-<meta property="og:description" content="One navigation stack for a quadrotor, a quadruped and a humanoid, simulation first, in MuJoCo 4.">
-<meta property="og:image" content="assets/exploration-demo.jpg">
+<meta property="og:description" content="One navigation stack for a quadruped, a humanoid and a quadrotor, simulation first, in MuJoCo 4.">
+<meta property="og:image" content="assets/lite3-house-rviz.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%232563eb' stroke-width='3'%3E%3Ccircle cx='8' cy='8' r='5'/%3E%3Ccircle cx='24' cy='8' r='5'/%3E%3Ccircle cx='8' cy='24' r='5'/%3E%3Ccircle cx='24' cy='24' r='5'/%3E%3Cpath d='M11 11l10 10M21 11L11 21'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 <script type="importmap">
@@ -27,8 +27,9 @@
     </a>
     <nav class="links">
       <a class="hide-xs" href="#robots">Robots</a>
-      <a class="hide-xs" href="#architecture">Architecture</a>
-      <a class="hide-sm" href="#live">Live</a>
+      <a class="hide-xs" href="#live">Live</a>
+      <a class="hide-sm" href="#results">Results</a>
+      <a class="hide-sm" href="#architecture">Architecture</a>
       <a href="#quick-start">Quick start</a>
       <a class="hide-sm" href="https://github.com/1nrobotics/star-nav">GitHub</a>
     </nav>
@@ -37,17 +38,18 @@
 
 <main>
   <div class="wrap hero">
-    <p class="eyebrow">ROS Noetic · EGO-Planner · MuJoCo 4</p>
-    <h1>One navigation stack for drones and legged robots</h1>
+    <p class="eyebrow">ROS Noetic · MuJoCo 4 · CMU planner · EGO-Planner</p>
+    <h1>One navigation stack for legged robots and drones</h1>
     <p class="lead">
       Star Nav explores unknown spaces with a waypoint mission and a local
-      planner for each kind of robot, seeing through a depth camera or a lidar.
-      EGO-Planner flies a quadrotor through a forest; CMU's local planner walks
-      a quadruped and a humanoid through a house with a ramp and stairs, all in
-      simulation first.
+      planner for each kind of robot. CMU's local planner walks a quadruped and
+      a humanoid through a house with a ramp and steps; EGO-Planner flies a
+      quadrotor through a forest. All of it runs in simulation first, and each
+      robot runs live in this page.
     </p>
     <div class="cta">
-      <a class="btn primary" href="#quick-start">Run it in 5 minutes</a>
+      <a class="btn primary" href="#live">Try it in your browser</a>
+      <a class="btn" href="#quick-start">Run it yourself</a>
       <a class="btn" href="https://github.com/1nrobotics/star-nav">View on GitHub</a>
     </div>
   </div>
@@ -55,20 +57,12 @@
   <section id="robots" style="padding-top:8px">
     <div class="wrap">
       <div class="robots">
-        <a class="robot" href="#quadrotor">
-          <img src="assets/exploration-demo.jpg" alt="The quadrotor in the MuJoCo forest" loading="lazy">
-          <div class="body">
-            <b>Quadrotor</b>
-            <span>Flies a 12-waypoint mission through a forest of pillars and rings.</span>
-            <div class="more">Results below ↓</div>
-          </div>
-        </a>
         <a class="robot" href="quadruped.html">
           <img src="assets/lite3-house-rviz.jpg" alt="The Lite3 quadruped in the MuJoCo house" loading="lazy">
           <div class="body">
             <b>Quadruped · Lite3</b>
-            <span>Walks the house with its learned policy, up a ramp and down steps.</span>
-            <div class="more">Results →</div>
+            <span>Walks the house with its learned policy: under the table, up a ramp, down steps.</span>
+            <div class="more">Videos and results →</div>
           </div>
         </a>
         <a class="robot" href="humanoid.html">
@@ -76,53 +70,106 @@
           <div class="body">
             <b>Humanoid · T1</b>
             <span>The same mission on two legs, with a lidar on its head.</span>
-            <div class="more">Results →</div>
+            <div class="more">Videos and results →</div>
+          </div>
+        </a>
+        <a class="robot" href="quadrotor.html">
+          <img src="assets/exploration-demo.jpg" alt="The quadrotor in the MuJoCo forest" loading="lazy">
+          <div class="body">
+            <b>Quadrotor</b>
+            <span>Flies the mission through a forest of pillars and rings, with a depth camera or a lidar.</span>
+            <div class="more">Videos and results →</div>
           </div>
         </a>
       </div>
     </div>
   </section>
 
-  <section id="quadrotor">
+  <section id="live">
     <div class="wrap">
-      <h2>Quadrotor in the forest</h2>
+      <h2>Live in your browser</h2>
       <p class="sub">
-        One full mission in real time: 12 waypoints over a 9&nbsp;&times;&nbsp;9&nbsp;m
-        area among 150 pillars and tilted rings, with no collisions. The same run is
-        an automated test in CI.
+        MuJoCo, compiled to WebAssembly, simulates each robot in this page in
+        real time, with the model, the world and the controller of the
+        simulator: the manufacturers' walking policies for the legged robots,
+        the flight controller for the quadrotor. No planner runs in the browser;
+        the robot follows the path its planner led it along in a recorded
+        mission. Drag to orbit, scroll to zoom.
       </p>
-      <figure class="video">
-        <div class="video-frame">
-          <video class="wide" controls muted loop playsinline preload="metadata" poster="assets/exploration-demo.jpg">
-            <source src="assets/exploration-demo.mp4" type="video/mp4">
-            Your browser cannot play this video. <a href="assets/exploration-demo.mp4">Download it</a>.
-          </video>
+      <div class="live" data-live="lite3">
+        <div class="live-tabs" role="group" aria-label="Robot">
+          <button type="button" data-robot="lite3" aria-pressed="true">Quadruped · Lite3</button>
+          <button type="button" data-robot="t1" aria-pressed="false">Humanoid · T1</button>
+          <button type="button" data-robot="quadrotor" aria-pressed="false">Quadrotor</button>
         </div>
-        <div class="video-labels">
-          <div><b>Simulator.</b> Physics, flight control and the onboard depth camera.</div>
-          <div><b>Planner's view.</b> Magenta: the map it builds from depth. Blue: the path flown.</div>
+        <div class="live-frame">
+          <div class="live-status" data-live-status>The interactive scene loads when you scroll here.</div>
+          <div class="live-controls">
+            <button type="button" data-live-play>Pause</button>
+            <button type="button" data-live-follow aria-pressed="true">Follow</button>
+            <button type="button" data-live-restart>Restart</button>
+            <button type="button" data-live-drive aria-pressed="false" hidden>Drive</button>
+          </div>
+          <div class="live-pad" data-live-pad hidden>
+            <button type="button" data-key="strafe-left" aria-label="Step left">⇤</button>
+            <button type="button" data-key="forward" aria-label="Forward">▲</button>
+            <button type="button" data-key="strafe-right" aria-label="Step right">⇥</button>
+            <button type="button" data-key="left" aria-label="Turn left">↺</button>
+            <button type="button" data-key="back" aria-label="Back">▼</button>
+            <button type="button" data-key="right" aria-label="Turn right">↻</button>
+          </div>
+          <div class="live-hud" data-live-time></div>
         </div>
-      </figure>
-
-      <div class="stats">
-        <div class="stat"><div class="v">12 / 12</div><div class="k">waypoints, 0 collisions</div></div>
-        <div class="stat"><div class="v">500 Hz</div><div class="k">physics and flight control</div></div>
-        <div class="stat"><div class="v">30 / 10 Hz</div><div class="k">depth camera / 360° lidar</div></div>
-        <div class="stat"><div class="v">≤ 5 mm</div><div class="k">lidar error on obstacle surfaces</div></div>
+        <p class="note" data-live-note>Blue: the path of the recorded mission. Orange: the path walked in your browser.</p>
+        <p class="note">
+          <b>Drive</b> (legged robots) gives the walking policy your command in
+          place of the path: W and S walk, A and D turn, Q and E step sideways,
+          or use the buttons on the scene. Nothing avoids the walls then.
+        </p>
       </div>
+    </div>
+  </section>
 
-      <figure class="video" style="margin-top:28px">
-        <div class="video-frame">
-          <video class="wide" controls muted loop playsinline preload="metadata" poster="assets/lidar-exploration-demo.jpg">
-            <source src="assets/lidar-exploration-demo.mp4" type="video/mp4">
-            Your browser cannot play this video. <a href="assets/lidar-exploration-demo.mp4">Download it</a>.
-          </video>
-        </div>
-        <div class="video-labels">
-          <div><b>With a 360° lidar.</b> Returns drawn as dots on the ground, pillars and rings.</div>
-          <div><b>Planner's view.</b> Red: the current scan. Coloured: obstacles in the map.</div>
-        </div>
-      </figure>
+  <section id="results">
+    <div class="wrap">
+      <h2>Results</h2>
+      <p class="sub">
+        Every robot runs the same mission, 12 waypoints over a
+        9&nbsp;&times;&nbsp;9&nbsp;m area, as an automated test that fails on any
+        contact with an obstacle, fall or waypoint timeout. The quadruped also
+        maps the house with no waypoints given.
+      </p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Robot</th><th>Planner</th><th>Sensor</th><th>World</th><th>Mission</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><a href="quadruped.html">Quadruped · Lite3</a></td><td>CMU local planner</td><td>Lidar</td>
+              <td>House, forest</td><td class="ok">12/12, 0 contacts</td>
+            </tr>
+            <tr>
+              <td><a href="quadruped.html">Quadruped · Lite3</a></td><td>CMU local planner</td><td>Lidar</td>
+              <td>House, no waypoints given</td><td class="ok">98.6&nbsp;% of the floor mapped, 0 contacts</td>
+            </tr>
+            <tr>
+              <td><a href="humanoid.html">Humanoid · T1</a></td><td>CMU local planner</td><td>Lidar</td>
+              <td>House, forest</td><td class="ok">12/12, 0 contacts</td>
+            </tr>
+            <tr>
+              <td><a href="humanoid.html">Humanoid · T1</a></td><td>CMU local planner</td><td>Lidar</td>
+              <td>House, 10 missions</td><td class="warn">8 complete; 2 falls going down the steps</td>
+            </tr>
+            <tr>
+              <td><a href="quadrotor.html">Quadrotor</a></td><td>EGO-Planner</td><td>Depth camera or lidar</td>
+              <td>Forest</td><td class="ok">12/12, 0 contacts</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">
+        Each robot's page has the videos, what was measured and what does not
+        work yet.
+      </p>
     </div>
   </section>
 
@@ -135,7 +182,7 @@
         bottom of the simulator changes from robot to robot.
       </p>
 
-      <div class="diagram" role="img" aria-label="The MuJoCo simulator sends the robot's pose and sensor data through a bridge to the navigation stack, which builds a map, plans with the robot's local planner (EGO-Planner for the drone, CMU's local planner for the legged robots) and sends commands back through the bridge to the robot's controller.">
+      <div class="diagram" role="img" aria-label="The MuJoCo simulator sends the robot's pose and sensor data through a bridge to the navigation stack, which builds a map, plans with the robot's local planner (CMU's local planner for the legged robots, EGO-Planner for the drone) and sends commands back through the bridge to the robot's controller.">
         <svg viewBox="0 0 1000 440" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0 0L10 5L0 10z"/></marker>
@@ -148,17 +195,17 @@
           <text x="28" y="70" font-size="12.5" class="t-muted">MuJoCo 4 · Python · no ROS</text>
           <rect class="box-inner" x="28" y="86" width="284" height="58" rx="8"/>
           <text x="42" y="110" font-size="14" font-weight="600">Robot and physics</text>
-          <text x="42" y="130" font-size="12.5" class="t-muted">quadrotor · Lite3 · T1, 500 Hz</text>
+          <text x="42" y="130" font-size="12.5" class="t-muted">Lite3 · T1 · quadrotor, 500 Hz</text>
           <rect class="box-inner" x="28" y="158" width="284" height="58" rx="8"/>
           <text x="42" y="182" font-size="14" font-weight="600">Sensors</text>
-          <text x="42" y="202" font-size="12.5" class="t-muted">depth camera or 360° lidar</text>
+          <text x="42" y="202" font-size="12.5" class="t-muted">360° lidar or depth camera</text>
           <rect class="box-inner" x="28" y="230" width="284" height="58" rx="8"/>
           <text x="42" y="254" font-size="14" font-weight="600">Worlds</text>
-          <text x="42" y="274" font-size="12.5" class="t-muted">forest · house with ramp and stairs</text>
+          <text x="42" y="274" font-size="12.5" class="t-muted">house with ramp and steps · forest</text>
           <rect class="box-key" x="28" y="310" width="284" height="92" rx="8"/>
           <text x="42" y="334" font-size="14" font-weight="600">Robot controller</text>
-          <text x="42" y="356" font-size="12.5" class="t-muted">Drone: flight controller → rotors</text>
-          <text x="42" y="376" font-size="12.5" class="t-muted">Legs: walking policy → joints</text>
+          <text x="42" y="356" font-size="12.5" class="t-muted">Legs: walking policy → joints</text>
+          <text x="42" y="376" font-size="12.5" class="t-muted">Drone: flight controller → rotors</text>
 
           <!-- Bridge -->
           <rect class="box-ros" x="405" y="20" width="170" height="400" rx="12" stroke-width="1.5"/>
@@ -176,14 +223,14 @@
           <text x="682" y="130" font-size="12.5" class="t-muted">waypoints over the area to cover</text>
           <rect class="box-inner" x="668" y="158" width="304" height="58" rx="8"/>
           <text x="682" y="182" font-size="14" font-weight="600">Map</text>
-          <text x="682" y="202" font-size="12.5" class="t-muted">Drone: occupancy grid · Legs: terrain map</text>
+          <text x="682" y="202" font-size="12.5" class="t-muted">Legs: terrain map · Drone: occupancy grid</text>
           <rect class="box-inner" x="668" y="230" width="304" height="58" rx="8"/>
           <text x="682" y="254" font-size="14" font-weight="600">Local planner</text>
-          <text x="682" y="274" font-size="12.5" class="t-muted">Drone: EGO-Planner · Legs: CMU planner</text>
+          <text x="682" y="274" font-size="12.5" class="t-muted">Legs: CMU planner · Drone: EGO-Planner</text>
           <rect class="box-key" x="668" y="310" width="304" height="92" rx="8"/>
           <text x="682" y="334" font-size="14" font-weight="600">Command</text>
-          <text x="682" y="356" font-size="12.5" class="t-muted">Drone: position setpoints, 100 Hz</text>
-          <text x="682" y="376" font-size="12.5" class="t-muted">Legs: walking velocity, 50 Hz</text>
+          <text x="682" y="356" font-size="12.5" class="t-muted">Legs: walking velocity, 50 Hz</text>
+          <text x="682" y="376" font-size="12.5" class="t-muted">Drone: position setpoints, 100 Hz</text>
 
           <!-- up: pose and sensor data -->
           <path class="flow" d="M312 115 H405" marker-end="url(#ah)"/>
@@ -193,7 +240,7 @@
           <path class="flow" d="M575 115 H668" marker-end="url(#ah)"/>
           <text x="590" y="107" font-size="12" class="t-muted">odometry</text>
           <path class="flow" d="M575 187 H668" marker-end="url(#ah)"/>
-          <text x="590" y="179" font-size="12" class="t-muted">depth, cloud</text>
+          <text x="590" y="179" font-size="12" class="t-muted">cloud, depth</text>
 
           <!-- inside the navigation stack -->
           <path class="flow" d="M820 216 V230" marker-end="url(#ah)"/>
@@ -218,46 +265,25 @@
           <span class="tag plan">One interface</span>
           <h3>A planner for each kind of robot</h3>
           <p>The mission and the planners never see ground truth. They get only
-          what a real robot would: odometry and a depth image or lidar scan.
-          EGO-Planner flies the drone and the ground version of CMU's local
-          planner walks the legged robots, behind one interface.</p>
+          what a real robot would: odometry and a lidar scan or depth image.
+          The ground version of CMU's local planner walks the legged robots
+          and EGO-Planner flies the drone, behind one interface.</p>
         </div>
         <div class="card">
           <span class="tag sim">Simulator</span>
           <h3>Plain Python, no ROS</h3>
-          <p>Runs on any OS or in Docker, with a browser viewer. Collisions are
-          counted, and every mission is an automated test that fails on any
-          contact or fall.</p>
+          <p>Runs on any OS or in Docker, with a browser viewer. Contacts with
+          obstacles are counted, and every mission is an automated test that
+          fails on any contact or fall.</p>
         </div>
         <div class="card">
           <span class="tag ros">Robot layer</span>
           <h3>Commands in, motion out</h3>
-          <p>The drone tracks position setpoints with a flight controller. The
-          walking robots get a walking velocity for the manufacturers' learned
-          policies; to their planner, ramps and low steps are ground.</p>
+          <p>The walking robots get a walking velocity for the manufacturers'
+          learned policies; to their planner, ramps and low steps are ground.
+          The drone tracks position setpoints with a flight controller.</p>
         </div>
       </div>
-    </div>
-  </section>
-
-  <section id="live">
-    <div class="wrap">
-      <h2>Live in your browser</h2>
-      <p class="sub">
-        MuJoCo, compiled to WebAssembly, flies the quadrotor in this page in real
-        time: the same model, forest and flight controller, following the setpoints
-        the planner sent in a recorded mission. Drag to orbit, scroll to zoom.
-      </p>
-      <div class="live-frame" id="live-frame">
-        <div class="live-status" id="live-status">The interactive scene loads when you scroll here.</div>
-        <div class="live-controls">
-          <button type="button" id="live-play">Pause</button>
-          <button type="button" id="live-follow" aria-pressed="true">Follow drone</button>
-          <button type="button" id="live-restart">Restart</button>
-        </div>
-        <div class="live-hud" id="live-time"></div>
-      </div>
-      <p class="note">Blue: the planned path. Orange: the path flown in your browser.</p>
     </div>
   </section>
 
@@ -265,30 +291,44 @@
     <div class="wrap">
       <h2>Quick start</h2>
       <p class="sub">
-        Docker is the shortest path and works on Linux, macOS and Windows (WSL2).
-        See the <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/SIMULATION.md">simulation guide</a>
-        for the walking robots and all options.
+        The walking robots need Ubuntu 20.04 with ROS Noetic. Docker runs the
+        quadrotor on Linux, macOS and Windows (WSL2). All options are in the
+        <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/SIMULATION.md">simulation guide</a>.
       </p>
       <div class="steps">
         <div class="card step">
-          <h3><span class="n">01</span>Headless check in Docker</h3>
-          <p>Builds the images and flies a full mission; exits non-zero on failure or collision.</p>
-<pre><code>git clone https://github.com/1nrobotics/star-nav.git
-cd star-nav
-./scripts/run_mujoco_smoke_test.sh</code></pre>
-        </div>
-        <div class="card step">
-          <h3><span class="n">02</span>Watch it fly (Ubuntu 20.04 + ROS Noetic)</h3>
+          <h3><span class="n">01</span>Build (Ubuntu 20.04 + ROS Noetic)</h3>
           <p>The repository is the <code>src</code> folder of a catkin workspace.</p>
 <pre><code>git clone https://github.com/1nrobotics/star-nav.git ~/catkin_ws/src
 cd ~/catkin_ws
 source /opt/ros/noetic/setup.bash
 rosdep install --from-paths src --ignore-src -r -y
 catkin_make -DCMAKE_BUILD_TYPE=Release
-source devel/setup.bash
-./src/scripts/setup_mujoco_env.sh   <span class="c"># once</span>
+source devel/setup.bash</code></pre>
+        </div>
+        <div class="card step">
+          <h3><span class="n">02</span>Walk the house: quadruped or humanoid</h3>
+          <p>The setup downloads each robot's model and walking policy from its manufacturer, and the planner's path set.</p>
+<pre><code>cd ~/catkin_ws/src
+./scripts/setup_mujoco_env.sh --lite3 --t1   <span class="c"># once</span>
+./scripts/fetch_cmu_paths.sh                 <span class="c"># once</span>
+roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true</code></pre>
+          <p style="margin-top:8px">
+            For the humanoid, launch <code>exploration_t1.launch</code>. Open
+            <a href="http://localhost:8080">localhost:8080</a> and press
+            <b>Start Exploration</b> in RViz.
+          </p>
+        </div>
+        <div class="card step">
+          <h3><span class="n">03</span>Fly the forest: quadrotor</h3>
+          <p>With the workspace of step 01:</p>
+<pre><code>cd ~/catkin_ws/src
+./scripts/setup_mujoco_env.sh   <span class="c"># once</span>
 roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true</code></pre>
-          <p style="margin-top:8px">Open <a href="http://localhost:8080">localhost:8080</a> and press <b>Start Exploration</b> in RViz.</p>
+          <p style="margin-top:8px">Or without ROS, a headless check in Docker; it exits non-zero on a failure or a collision:</p>
+<pre><code>git clone https://github.com/1nrobotics/star-nav.git
+cd star-nav
+./scripts/run_mujoco_smoke_test.sh</code></pre>
         </div>
       </div>
     </div>
@@ -298,8 +338,10 @@ roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true</code></pre>
 <footer>
   <div class="wrap">
     <span>
-      Mixed license: EGO-Planner is GPLv3, CMU's local planner BSD, the
-      simulator and bridge MIT. <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">Details</a>
+      Mixed license: CMU's local planner is BSD, EGO-Planner GPLv3, the
+      simulator and bridge MIT. The Lite3 (DeepRobotics, BSD-3-Clause) and the
+      T1 (Booster Robotics, Apache-2.0) are downloaded, not redistributed.
+      <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">Details</a>
     </span>
     <span>
       <a href="https://github.com/1nrobotics/star-nav">GitHub</a> ·
@@ -326,34 +368,6 @@ roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true</code></pre>
     pre.appendChild(btn);
   });
 </script>
-<script type="module">
-  // Load the live MuJoCo scene (~11 MB of WebAssembly) only when it is near.
-  const frame = document.getElementById('live-frame');
-  const ui = {
-    status: document.getElementById('live-status'),
-    time: document.getElementById('live-time'),
-    play: document.getElementById('live-play'),
-    follow: document.getElementById('live-follow'),
-    restart: document.getElementById('live-restart'),
-  };
-  let started = false;
-  const go = () => {
-    if (started) return;
-    started = true;
-    import('./assets/mujoco/live.js')
-      .then((m) => m.start(frame, ui))
-      .catch((e) => {
-        ui.status.textContent = 'The live scene could not start in this browser (' + e.message + ').';
-        console.error(e);
-      });
-  };
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver((entries, obs) => {
-      if (entries.some((e) => e.isIntersecting)) { obs.disconnect(); go(); }
-    }, { rootMargin: '300px' }).observe(frame);
-  } else {
-    go();
-  }
-</script>
+<script type="module" src="assets/mujoco/embed.js"></script>
 </body>
 </html>

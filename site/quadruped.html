@@ -10,6 +10,12 @@
 <meta property="og:image" content="assets/lite3-house-rviz.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%232f7d4f' stroke-width='3' stroke-linecap='round'%3E%3Crect x='5' y='9' width='22' height='8' rx='3'/%3E%3Cpath d='M9 17l-2 9M13 17l1 9M19 17l-1 9M23 17l2 9'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
+<script type="importmap">
+  {"imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }}
+</script>
 </head>
 <body>
 
@@ -20,6 +26,7 @@
       Star Nav <span class="sub">· Quadruped</span>
     </a>
     <nav class="links">
+      <a href="#live">Live</a>
       <a href="#results">Results</a>
       <a href="#specs">Key facts</a>
       <a class="hide-xs" href="https://github.com/1nrobotics/star-nav/blob/main/docs/QUADRUPED.md">Docs</a>
@@ -30,12 +37,12 @@
 <main>
   <div class="wrap hero">
     <p class="eyebrow">DeepRobotics Lite3 · MuJoCo</p>
-    <h1>The same mission, on four legs</h1>
+    <h1>A house explored on four legs</h1>
     <p class="lead">
-      The Lite3 explores a house and a forest on the mission the drone flies,
-      steered by CMU's local planner and walking with DeepRobotics' own learned
-      policy. It goes under the table,
-      around the furniture, up a ramp and down a flight of steps.
+      The Lite3 explores a house and a forest on a waypoint mission, steered
+      by CMU's local planner and walking with DeepRobotics' own learned
+      policy. It goes under the table, around the furniture, up a ramp and
+      down a flight of steps.
     </p>
   </div>
 
@@ -62,7 +69,7 @@
             Your browser cannot play this video. <a href="assets/lite3-forest-lidar.mp4">Download it</a>.
           </video>
         </div>
-        <figcaption><b>Forest.</b> The drone's mission through the pillars, 4&times; speed.</figcaption>
+        <figcaption><b>Forest.</b> The same mission among the pillars, 4&times; speed.</figcaption>
       </figure>
       <figure class="video">
         <div class="video-frame">
@@ -82,6 +89,45 @@
       <div class="stat"><div class="v">7 cm</div><div class="k">steps, up and down</div></div>
     </div>
   </div>
+
+  <section id="live">
+    <div class="wrap">
+      <h2>Live in your browser</h2>
+      <p class="sub">
+        MuJoCo, compiled to WebAssembly, simulates the Lite3 in this page in
+        real time: DeepRobotics' model and walking policy, the house, and the
+        joint control of the simulator. No planner runs in the browser; the
+        robot follows the path CMU's planner led it along in a recorded
+        mission. Drag to orbit, scroll to zoom.
+      </p>
+      <div class="live" data-live="lite3">
+        <div class="live-frame">
+          <div class="live-status" data-live-status>The interactive scene loads when you scroll here.</div>
+          <div class="live-controls">
+            <button type="button" data-live-play>Pause</button>
+            <button type="button" data-live-follow aria-pressed="true">Follow</button>
+            <button type="button" data-live-restart>Restart</button>
+            <button type="button" data-live-drive aria-pressed="false" hidden>Drive</button>
+          </div>
+          <div class="live-pad" data-live-pad hidden>
+            <button type="button" data-key="strafe-left" aria-label="Step left">⇤</button>
+            <button type="button" data-key="forward" aria-label="Forward">▲</button>
+            <button type="button" data-key="strafe-right" aria-label="Step right">⇥</button>
+            <button type="button" data-key="left" aria-label="Turn left">↺</button>
+            <button type="button" data-key="back" aria-label="Back">▼</button>
+            <button type="button" data-key="right" aria-label="Turn right">↻</button>
+          </div>
+          <div class="live-hud" data-live-time></div>
+        </div>
+        <p class="note" data-live-note>Blue: the path of the recorded mission. Orange: the path walked in your browser.</p>
+        <p class="note">
+          <b>Drive</b> gives the walking policy your command in place of the
+          path: W and S walk, A and D turn, Q and E step sideways, or use the
+          buttons on the scene. Nothing avoids the walls then.
+        </p>
+      </div>
+    </div>
+  </section>
 
   <section id="results">
     <div class="wrap">
@@ -128,9 +174,9 @@
     <div class="wrap">
       <h2>Key facts</h2>
       <p class="sub">
-        The mission is the drone's. The planner is CMU's local planner for
-        ground robots: its terrain analysis takes ramps and low steps as
-        ground, and it sends the walking policy a velocity.
+        The planner is CMU's local planner for ground robots: its terrain
+        analysis takes ramps and low steps as ground, and it sends the walking
+        policy a velocity.
       </p>
       <div class="facts">
         <div class="card">
@@ -166,7 +212,8 @@
 <footer>
   <div class="wrap">
     <span>
-      Lite3 model and policy: DeepRobotics, BSD-3-Clause, downloaded at setup.
+      Lite3 model and policy: DeepRobotics, BSD-3-Clause; downloaded at setup,
+      and by this page from DeepRobotics' repositories, not redistributed.
       <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">Licenses</a>
     </span>
     <span>
@@ -176,5 +223,6 @@
     </span>
   </div>
 </footer>
+<script type="module" src="assets/mujoco/embed.js"></script>
 </body>
 </html>
