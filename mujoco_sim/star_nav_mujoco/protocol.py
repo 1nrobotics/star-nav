@@ -20,6 +20,9 @@ Bridge -> simulator (simulator binds a SUB socket, default tcp://*:5556):
   b"cmd"    CMD     time, position, velocity, acceleration, yaw, yaw rate
   b"vel"    VEL     time, body-frame velocity: forward, sideways, turn rate
                     (ground robots; a planner that steers the robot itself)
+  b"draw"   DRAW    layer (overlay.py: plan, route, waypoints, ...), point count,
+                    then float32 x, y, z per point in the world frame: a path
+                    of the planner's to show in the viewer and the recording
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ import numpy as np
 
 from star_nav_mujoco import world
 
-VERSION = 2
+VERSION = 3
 
 TOPIC_STATE = b'state'
 TOPIC_DEPTH = b'depth'
@@ -39,6 +42,7 @@ TOPIC_LIDAR = b'lidar'
 TOPIC_WORLD = b'world'
 TOPIC_CMD = b'cmd'
 TOPIC_VEL = b'vel'
+TOPIC_DRAW = b'draw'
 
 # u16 version, u16 pad, f64 t, 3 f64 pos, 4 f64 quat, 3 f64 vel, 3 f64 omega,
 # u32 contacts, u32 pad
@@ -57,6 +61,8 @@ OBSTACLE = struct.Struct('<B3x6f')
 CMD = struct.Struct('<HHId3d3d3ddd')
 # u16 version, u16 pad, u32 pad, f64 t, f64 forward, f64 sideways, f64 turn
 VEL = struct.Struct('<HHId3d')
+# u16 version, u16 layer, u32 count
+DRAW = struct.Struct('<HHI')
 
 
 class ProtocolError(ValueError):
@@ -166,3 +172,18 @@ def unpack_vel(buf: bytes):
   v = VEL.unpack(buf)
   _check(v[0])
   return v[3], np.array(v[4:7])
+
+
+def pack_draw(layer: int, points) -> bytes:
+  pts = np.ascontiguousarray(points, dtype='<f4').reshape(-1, 3)
+  return DRAW.pack(VERSION, layer, len(pts)) + pts.tobytes()
+
+
+def unpack_draw(buf: bytes):
+  """Returns (layer, points (n, 3) float32)."""
+  version, layer, n = DRAW.unpack_from(buf)
+  _check(version)
+  if len(buf) != DRAW.size + 12 * n:
+    raise ProtocolError('draw size mismatch')
+  pts = np.frombuffer(buf, dtype='<f4', count=3 * n, offset=DRAW.size)
+  return layer, pts.reshape(n, 3)

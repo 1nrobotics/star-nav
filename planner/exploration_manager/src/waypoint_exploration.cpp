@@ -46,6 +46,7 @@ void WaypointExploration::init(ros::NodeHandle& nh) {
   goal_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10);
   state_pub_ = nh.advertise<std_msgs::String>("/exploration/state", 10);
   params_pub_ = nh.advertise<std_msgs::String>("/exploration/parameters", 1, true); // latched
+  waypoints_pub_ = nh.advertise<visualization_msgs::MarkerArray>("exploration/waypoints", 1, true); // latched
 
   // Publish parameters for GCS
   std_msgs::String params_msg;
@@ -132,6 +133,7 @@ void WaypointExploration::generateWaypointsState() {
 
   have_waypoints_ = true;
   current_waypoint_idx_ = 0;
+  publishWaypoints();
 
   ROS_INFO("[WaypointExploration] Generated %lu waypoints, starting with waypoint 0", waypoints_.size());
   transitState(PLAN_TO_WAYPOINT, "generateWaypointsState");
@@ -412,6 +414,31 @@ void WaypointExploration::visualizeState() {
   std_msgs::String state_msg;
   state_msg.data = state_str_[int(state_)];
   state_pub_.publish(state_msg);
+}
+
+// The mission's waypoints as spheres, for RViz and the simulator's viewer.
+void WaypointExploration::publishWaypoints() {
+  visualization_msgs::MarkerArray markers;
+  for (size_t i = 0; i < waypoints_.size(); ++i) {
+    visualization_msgs::Marker sphere;
+    sphere.header.frame_id = "world";
+    sphere.header.stamp = ros::Time::now();
+    sphere.ns = "waypoints";
+    sphere.id = i;
+    sphere.type = visualization_msgs::Marker::SPHERE;
+    sphere.action = visualization_msgs::Marker::ADD;
+    sphere.pose.position.x = waypoints_[i].first(0);
+    sphere.pose.position.y = waypoints_[i].first(1);
+    sphere.pose.position.z = waypoints_[i].first(2);
+    sphere.pose.orientation.w = 1.0;
+    sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.2;
+    sphere.color.r = 0.2;
+    sphere.color.g = 0.5;
+    sphere.color.b = 1.0;
+    sphere.color.a = 0.6;
+    markers.markers.push_back(sphere);
+  }
+  waypoints_pub_.publish(markers);
 }
 
 void WaypointExploration::odometryCallback(const nav_msgs::OdometryConstPtr& msg) {

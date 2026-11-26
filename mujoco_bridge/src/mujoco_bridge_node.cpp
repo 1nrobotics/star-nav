@@ -17,6 +17,12 @@
 //             <--vel---- geometry_msgs/TwistStamped      cmd_vel (ground
 //                        robots: body-frame velocity from a planner that
 //                        steers the robot itself)
+//             <--draw--- nav_msgs/Path              plan_path, route_path
+//                        visualization_msgs/Marker  plan_marker (line strip)
+//                        sensor_msgs/PointCloud2    candidate_paths
+//                        visualization_msgs/MarkerArray  waypoint_markers
+//                        (the planner's paths, shown in the simulator's
+//                        viewer and recording)
 //
 // With /use_sim_time the bridge also publishes /clock from the simulator, so
 // the planning stack runs on simulated time and stays consistent with the
@@ -28,6 +34,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 #include <zmq.h>
@@ -35,6 +42,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <nav_msgs/Odometry.h>
+#include <nav_msgs/Path.h>
 #include <quadrotor_msgs/PositionCommand.h>
 #include <ros/ros.h>
 #include <rosgraph_msgs/Clock.h>
@@ -74,6 +82,23 @@ class Bridge {
                             ros::TransportHints().tcpNoDelay());
     vel_sub_ = nh.subscribe("cmd_vel", 10, &Bridge::onVelocity, this,
                             ros::TransportHints().tcpNoDelay());
+    // The planner's paths, drawn in the simulator's viewer and recording.
+    // Points in another frame than the world's are taken as in the robot's
+    // (heading only, like CMU's "vehicle" frame). draw_height, if set, puts
+    // every point at that height from the robot's body: a ground robot's
+    // paths on the ground under it.
+    pnh.param("draw_height", draw_height_, draw_height_);
+    pnh.param("candidate_resolution", candidate_resolution_, 0.08);
+    plan_path_sub_ = nh.subscribe<nav_msgs::Path>(
+        "plan_path", 2, boost::bind(&Bridge::onPath, this, _1, kDrawPlan));
+    route_path_sub_ = nh.subscribe<nav_msgs::Path>(
+        "route_path", 2, boost::bind(&Bridge::onPath, this, _1, kDrawRoute));
+    plan_marker_sub_ = nh.subscribe("plan_marker", 2, &Bridge::onPlanMarker, this);
+    candidates_sub_ = nh.subscribe("candidate_paths", 1, &Bridge::onCandidates, this);
+    // The mission's waypoints (exploration_manager's markers, latched). Sent
+    // again every second: the simulator may start after they are published.
+    waypoints_sub_ = nh.subscribe("waypoint_markers", 1, &Bridge::onWaypoints, this);
+    waypoints_timer_ = nh.createWallTimer(ros::WallDuration(1.0), &Bridge::sendWaypoints, this);
 
     ctx_ = zmq_ctx_new();
     sub_ = zmq_socket(ctx_, ZMQ_SUB);
@@ -207,6 +232,12 @@ class Bridge {
   void onState(const std::vector<char>& payload) {
     StateMsg s;
     if (!checkHeader(payload, "state", &s)) return;
+    {
+      std::lock_guard<std::mutex> lock(pose_mutex_);
+      std::copy(s.pos, s.pos + 3, pos_);
+      yaw_ = std::atan2(2.0 * (s.quat[0] * s.quat[3] + s.quat[1] * s.quat[2]),
+                        1.0 - 2.0 * (s.quat[2] * s.quat[2] + s.quat[3] * s.quat[3]));
+    }
     nav_msgs::Odometry odom;
     odom.header.stamp = stamp(s.t);
     odom.header.frame_id = world_frame_;
@@ -452,6 +483,109 @@ class Bridge {
     zmq_send(pub_, &v, sizeof(v), 0);
   }
 
+  // Draws points of one frame on a layer of the simulator's overlay.
+  class Drawing {
+   public:
+    // on_ground: at draw_height from the robot, if that is set.
+    Drawing(Bridge* bridge, const std::string& frame, bool on_ground = true)
+        : bridge_(bridge), on_ground_(on_ground) {
+      world_ = frame.empty() || frame == bridge->world_frame_;
+      std::lock_guard<std::mutex> lock(bridge->pose_mutex_);
+      std::copy(bridge->pos_, bridge->pos_ + 3, pos_);
+      cos_ = std::cos(bridge->yaw_);
+      sin_ = std::sin(bridge->yaw_);
+    }
+
+    void add(double x, double y, double z) {
+      if (!world_) {
+        const double bx = x, by = y;
+        x = pos_[0] + cos_ * bx - sin_ * by;
+        y = pos_[1] + sin_ * bx + cos_ * by;
+        z += pos_[2];
+      }
+      if (on_ground_ && std::isfinite(bridge_->draw_height_)) {
+        z = pos_[2] + bridge_->draw_height_;
+      }
+      for (double v : {x, y, z}) points_.push_back(float(v));
+    }
+
+    void send(DrawLayer layer) {
+      DrawHeader h{kProtocolVersion, layer, uint32_t(points_.size() / 3)};
+      std::vector<char> payload(sizeof(h) + points_.size() * sizeof(float));
+      std::memcpy(payload.data(), &h, sizeof(h));
+      if (!points_.empty()) {
+        std::memcpy(payload.data() + sizeof(h), points_.data(),
+                    points_.size() * sizeof(float));
+      }
+      std::lock_guard<std::mutex> lock(bridge_->pub_mutex_);
+      zmq_send(bridge_->pub_, kTopicDraw, std::strlen(kTopicDraw), ZMQ_SNDMORE);
+      zmq_send(bridge_->pub_, payload.data(), payload.size(), 0);
+    }
+
+   private:
+    Bridge* bridge_;
+    bool on_ground_;
+    bool world_;
+    double pos_[3], cos_, sin_;
+    std::vector<float> points_;
+  };
+
+  void onPath(const nav_msgs::Path::ConstPtr& msg, DrawLayer layer) {
+    Drawing drawing(this, msg->header.frame_id);
+    for (const auto& p : msg->poses) {
+      drawing.add(p.pose.position.x, p.pose.position.y, p.pose.position.z);
+    }
+    drawing.send(layer);
+  }
+
+  // EGO-Planner's optimal_list: its line strip (the sphere list repeats it).
+  void onPlanMarker(const visualization_msgs::Marker::ConstPtr& msg) {
+    if (msg->type != visualization_msgs::Marker::LINE_STRIP) return;
+    Drawing drawing(this, msg->header.frame_id);
+    for (const auto& p : msg->points) drawing.add(p.x, p.y, p.z);
+    drawing.send(kDrawPlan);
+  }
+
+  // CMU's free_paths: the points of every path it could take. One point per
+  // candidate_resolution cell is enough to show them.
+  void onCandidates(const sensor_msgs::PointCloud2::ConstPtr& msg) {
+    Drawing drawing(this, msg->header.frame_id);
+    std::unordered_set<int64_t> seen;
+    sensor_msgs::PointCloud2ConstIterator<float> it(*msg, "x");
+    for (; it != it.end(); ++it) {
+      const int64_t ix = int64_t(std::floor(it[0] / candidate_resolution_));
+      const int64_t iy = int64_t(std::floor(it[1] / candidate_resolution_));
+      if (!seen.insert(ix * 100003 + iy).second) continue;
+      drawing.add(it[0], it[1], it[2]);
+    }
+    drawing.send(kDrawCandidates);
+  }
+
+  // The mission's waypoints: the spheres of the markers, where they are (a
+  // ground robot's are at its body's height).
+  void onWaypoints(const visualization_msgs::MarkerArray::ConstPtr& msg) {
+    {
+      std::lock_guard<std::mutex> lock(waypoints_mutex_);
+      waypoints_.clear();
+      for (const auto& m : msg->markers) {
+        if (m.type != visualization_msgs::Marker::SPHERE) continue;
+        if (m.action != visualization_msgs::Marker::ADD) continue;
+        waypoints_.push_back(m.pose.position);
+      }
+    }
+    sendWaypoints(ros::WallTimerEvent());
+  }
+
+  void sendWaypoints(const ros::WallTimerEvent&) {
+    Drawing drawing(this, world_frame_, false);
+    {
+      std::lock_guard<std::mutex> lock(waypoints_mutex_);
+      if (waypoints_.empty()) return;
+      for (const auto& p : waypoints_) drawing.add(p.x, p.y, p.z);
+    }
+    drawing.send(kDrawWaypoints);
+  }
+
   std::string state_address_, cmd_address_, world_frame_, camera_frame_;
   double cloud_resolution_ = 0.1;
 
@@ -460,6 +594,16 @@ class Bridge {
   int ring_segments_ = 24;
   double ring_tube_ = 0.04;
   ros::Subscriber cmd_sub_, vel_sub_;
+  ros::Subscriber plan_path_sub_, route_path_sub_, plan_marker_sub_, candidates_sub_;
+  ros::Subscriber waypoints_sub_;
+  ros::WallTimer waypoints_timer_;
+  std::mutex waypoints_mutex_;
+  std::vector<geometry_msgs::Point> waypoints_;
+  double draw_height_ = std::nan("");
+  double candidate_resolution_ = 0.08;
+  std::mutex pose_mutex_;  // the robot's last pose, for the drawings
+  double pos_[3] = {0.0, 0.0, 0.0};
+  double yaw_ = 0.0;
 
   void* ctx_ = nullptr;
   void* sub_ = nullptr;

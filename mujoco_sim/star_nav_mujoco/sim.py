@@ -17,6 +17,7 @@ import numpy as np
 
 from star_nav_mujoco import house
 from star_nav_mujoco import lidar as lidar_lib
+from star_nav_mujoco import overlay
 from star_nav_mujoco import protocol
 from star_nav_mujoco import quadrotor
 from star_nav_mujoco import robots
@@ -43,6 +44,7 @@ class SimConfig:
   depth_range: float = 10.0  # returns beyond this are reported as 0
   cmd_timeout: float = 0.5  # hold position when commands stop (s)
   lidar: lidar_lib.LidarConfig | None = None  # 360-degree lidar, off by default
+  draw: bool = False  # markers for the planner's paths (overlay.py)
 
 
 class Simulator:
@@ -86,6 +88,7 @@ class Simulator:
                   if support and m.geom(g).name.endswith(support)}
     self._cam = m.camera(self.robot.camera).id
     self._mocap = m.body_mocapid[m.body('setpoint').id]
+    self._overlay = overlay.Overlay(m) if self.cfg.draw else None
     self.controller = self.robot.controller(m, self.data, self.cfg)
     self.fallen = False
     self.contact_steps = 0
@@ -113,8 +116,19 @@ class Simulator:
       self._renderer.enable_depth_rendering()
 
     self.lidar = None
+    self._scan_data = None
     if self.cfg.lidar is not None:
-      self.lidar = lidar_lib.Lidar(m, self.cfg.lidar, self._body)
+      body = self._body
+      if self.cfg.draw:
+        # A ray cast takes longer with every body in the model, also with
+        # those it ignores: the path markers made a scan several times
+        # slower. The lidar scans a copy of the scene without them.
+        m = self.robot.build(dataclasses.replace(self.cfg, draw=False),
+                             self.obstacles, extra).compile()
+        assert m.nq == self.model.nq
+        self._scan_data = mujoco.MjData(m)
+        body = m.body(self.robot.body).id
+      self.lidar = lidar_lib.Lidar(m, self.cfg.lidar, body)
       self.cfg.lidar = self.lidar.cfg  # with the model's range
 
   # -- state -----------------------------------------------------------------
@@ -192,6 +206,16 @@ class Simulator:
     self._twist = twist
     self._twist_time = self.data.time if t is None else t
     return True
+
+  def draw(self, layer: int, points) -> bool:
+    """Draws a path of the planner's (world frame) on a layer of overlay.py.
+
+    Returns False for an unknown layer or points that are not finite. Without
+    ``SimConfig.draw`` there is nothing to draw with and it does nothing.
+    """
+    if self._overlay is None:
+      return layer in overlay.LAYERS
+    return self._overlay.set(self.data, layer, points)
 
   def _active_command(self):
     if self._twist is not None:
@@ -280,7 +304,15 @@ class Simulator:
     """Casts one lidar scan (points in the sensor frame)."""
     if self.lidar is None:
       raise RuntimeError('Simulator was created without a lidar')
-    return self.lidar.scan(self.data)
+    if self._scan_data is None:
+      return self.lidar.scan(self.data)
+    d = self._scan_data
+    d.time = self.data.time
+    d.qpos[:] = self.data.qpos
+    d.mocap_pos[:] = self.data.mocap_pos[:len(d.mocap_pos)]
+    d.mocap_quat[:] = self.data.mocap_quat[:len(d.mocap_quat)]
+    mujoco.mj_kinematics(self.lidar.model, d)
+    return self.lidar.scan(d)
 
   def close(self) -> None:
     if self.lidar is not None:
@@ -318,6 +350,8 @@ def run(sim: Simulator, rc: RunConfig) -> None:
   sub = ctx.socket(zmq.SUB)
   sub.setsockopt(zmq.SUBSCRIBE, protocol.TOPIC_CMD)
   sub.setsockopt(zmq.SUBSCRIBE, protocol.TOPIC_VEL)
+  if sim.cfg.draw:
+    sub.setsockopt(zmq.SUBSCRIBE, protocol.TOPIC_DRAW)
   sub.bind(f'tcp://{rc.bind}:{rc.cmd_port}')
   log.info('ZeroMQ: state/depth/world on tcp://%s:%d, commands on tcp://%s:%d',
            rc.bind, rc.state_port, rc.bind, rc.cmd_port)
@@ -398,6 +432,9 @@ def run(sim: Simulator, rc: RunConfig) -> None:
           if topic == protocol.TOPIC_VEL:
             _, twist = protocol.unpack_vel(payload)
             ok = sim.set_velocity(twist)
+          elif topic == protocol.TOPIC_DRAW:
+            sim.draw(*protocol.unpack_draw(payload))
+            continue
           elif topic == protocol.TOPIC_CMD:
             _, pos, vel, acc, yaw, yaw_rate = protocol.unpack_cmd(payload)
             ok = sim.set_command(quadrotor.Command(pos, vel, acc, yaw, yaw_rate))

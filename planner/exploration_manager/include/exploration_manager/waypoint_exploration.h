@@ -58,6 +58,7 @@ private:
   // Utility functions
   void transitState(EXPL_STATE new_state, std::string pos_call);
   void visualizeState();
+  void publishWaypoints();
 
   // Waypoint generation
   void generateLawnmowerWaypoints();
@@ -69,6 +70,7 @@ private:
   ros::Publisher goal_pub_;
   ros::Publisher state_pub_;
   ros::Publisher params_pub_;
+  ros::Publisher waypoints_pub_;
   ros::Subscriber odom_sub_;
   ros::Subscriber trigger_sub_;
   ros::Subscriber finish_sub_;

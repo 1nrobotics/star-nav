@@ -71,7 +71,7 @@ class Lidar:
     self.cfg = cfg = cfg.resolved()
     self.sensor = lidar_models.get(cfg.model)
     self.lines = self.sensor.lines(cfg)
-    self._model = model
+    self.model = model
     self._body = body
     self._table = self.sensor.table(cfg)
     n = self.sensor.scan_size(cfg, self._table)
@@ -118,7 +118,7 @@ class Lidar:
     def cast(idx: np.ndarray) -> None:
       geom = np.empty(len(idx), np.int32)
       dist = np.empty(len(idx))
-      mujoco.mj_multiRay(self._model, data, pos,
+      mujoco.mj_multiRay(self.model, data, pos,
                          np.ascontiguousarray(world_dirs[idx]).ravel(), self._groups, 1,
                          self._body, geom, dist, None, len(idx), cutoff)
       self._geom[idx] = geom
