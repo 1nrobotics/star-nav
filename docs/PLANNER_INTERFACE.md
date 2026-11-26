@@ -187,12 +187,10 @@ set and follow it; they differ in what the paths are and what is commanded:
 | In Star Nav | yes: `planner/cmu/`, backend `cmu` | no |
 
 The aerial version's numbers are read from its code (branch
-`melodic-noetic`, commit `0dcc4b1`); it was not built or run here. For the
-quadrotor Star Nav chose EGO-Planner, which the project started with, and
-did not compare the two. The aerial version would be one more backend for
-`aerial` (see below). Its command is a third kind, an attitude command, and
-its license does not allow commercial use, which would have to be recorded
-in [LICENSES.md](LICENSES.md).
+`melodic-noetic`, commit `0dcc4b1`); it was not built or run here. It would
+be one more backend for `aerial` (see below). Its command is a third kind,
+an attitude command, and its license does not allow commercial use, which
+would have to be recorded in [LICENSES.md](LICENSES.md).
 
 ## Adding a planner
 
