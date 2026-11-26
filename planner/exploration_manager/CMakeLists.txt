@@ -45,8 +45,8 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
-  ${PROJECT_SOURCE_DIR}/../plan_manage/include
-  ${PROJECT_SOURCE_DIR}/../path_searching/include
+  ${PROJECT_SOURCE_DIR}/../ego/plan_manage/include
+  ${PROJECT_SOURCE_DIR}/../ego/path_searching/include
 )
 
 ## Waypoint Exploration Library

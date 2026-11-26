@@ -38,7 +38,7 @@ The exploration manager's occupancy grid was not detecting any free space when u
 
 ## The Fix
 
-Modified `cloudCallback()` in `/planner/plan_env/src/grid_map.cpp` to **optionally** enable raycasting:
+Modified `cloudCallback()` in `/planner/ego/plan_env/src/grid_map.cpp` to **optionally** enable raycasting:
 
 ### Changes Made:
 
@@ -78,7 +78,7 @@ if (mp_.enable_pointcloud_raycasting_)
 **3. Launch file configuration**
 
 ```xml
-<!-- EGO Planner (planner/plan_manage/launch/advanced_param_exp.xml) -->
+<!-- EGO Planner (planner/ego/plan_manage/launch/advanced_param_exp.xml) -->
 <!-- Parameter NOT set → defaults to false → original behavior preserved -->
 
 <!-- Exploration Manager (vk180-ros/launch/vk180_exploration.launch) -->
@@ -176,10 +176,10 @@ Key indicators of success:
 
 ## Related Files
 
-- `/planner/plan_env/src/grid_map.cpp` - Main fix location
-- `/planner/plan_env/include/plan_env/grid_map.h` - GridMap class definition
+- `/planner/ego/plan_env/src/grid_map.cpp` - Main fix location
+- `/planner/ego/plan_env/include/plan_env/grid_map.h` - GridMap class definition
 - `/planner/exploration_manager/src/frontier_finder.cpp` - Uses free/unknown for frontiers
-- `/planner/bspline_opt/src/bspline_optimizer.cpp` - Uses inflate_occupancy only
+- `/planner/ego/bspline_opt/src/bspline_optimizer.cpp` - Uses inflate_occupancy only
 
 ## Compatibility
 
