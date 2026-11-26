@@ -1,18 +1,19 @@
 # Project page
 
-Three static pages with no build step, sharing `style.css`:
+Four static pages with no build step, sharing `style.css`. The walking
+robots come first, then the quadrotor:
 
 | Page | What |
 | --- | --- |
-| `index.html` | Home: the three robots, the quadrotor's results, the architecture, the live MuJoCo scene, quick start |
-| `quadruped.html` | The Lite3 quadruped: simulation results and key facts (no external scripts) |
-| `humanoid.html` | The Booster T1 humanoid: simulation results and key facts (no external scripts) |
+| `index.html` | Home: the three robots, the live MuJoCo scene with a robot switcher, a results summary, the architecture, quick start |
+| `quadruped.html` | The Lite3 quadruped: videos, live scene, results and key facts |
+| `humanoid.html` | The Booster T1 humanoid: videos, live scene, results and key facts |
+| `quadrotor.html` | The quadrotor: videos, live scene, results and key facts |
 
-`index.html` is a static page with no build step. The only external scripts
-are those of the live MuJoCo scene (below), loaded from jsDelivr when a visitor
-scrolls to it. `.github/workflows/pages.yml` publishes this folder to GitHub Pages
-on every push to `main` that touches it; enable it once under
-Settings → Pages → Source: GitHub Actions.
+The only external scripts are those of the live MuJoCo scene (below), loaded
+from jsDelivr when a visitor scrolls to it. `.github/workflows/pages.yml`
+publishes this folder to GitHub Pages on every push to `main` that touches it;
+enable it once under Settings → Pages → Source: GitHub Actions.
 
 Preview locally:
 
@@ -22,35 +23,86 @@ python3 -m http.server -d site 8000   # then open http://localhost:8000
 
 ## Live MuJoCo scene
 
-The "Live MuJoCo in your browser" section runs MuJoCo 4.0.1 compiled to
-WebAssembly (`@mujoco/mujoco`, Apache-2.0, ~11 MB) and draws it with three.js
-0.170 (MIT), both from jsDelivr. Files in `assets/mujoco/`:
+Every page has a "Live in your browser" section. It runs MuJoCo 4.0.1
+compiled to WebAssembly (`@mujoco/mujoco`, Apache-2.0, ~11 MB) and draws it
+with three.js 0.170 (MIT), both from jsDelivr. No planner runs in the browser:
+each robot follows what its planner produced in one recorded mission, through
+the simulator's controller and physics.
+
+| Robot | Follows | Controller in the browser |
+| --- | --- | --- |
+| Lite3, T1 | The path walked in one mission with the CMU planner (`<robot>-path.json`), as a moving position setpoint | `walk.js`: the setpoint tracker (`tracking.py`), the manufacturer's walking policy and the joint PD of `robots/lite3.py`, `robots/t1.py` |
+| Quadrotor | The `pos_cmd` setpoints EGO-Planner sent in one mission (`setpoints.json`) | `flight.js`: the SE(3) controller of `quadrotor.py` |
+
+With **Drive**, a visitor's keys (or the buttons on the scene) give a walking
+robot's policy its velocity command in place of the path. Nothing avoids
+obstacles then. A robot that falls starts its mission again.
+
+Files in `assets/mujoco/`:
 
 | File | What |
 | --- | --- |
+| `embed.js` | Starts the scene of a page's `<div class="live" data-live="lite3 \| t1 \| quadrotor">` when it is near; buttons with `data-robot` switch the robot |
+| `live.js` | three.js rendering of the MuJoCo geoms (meshes too), mouse orbit, buttons, Drive |
+| `walk.js` | The walking robots: policy (ONNX or TorchScript weights, read in JavaScript), PD, path following; no rendering |
+| `flight.js` | The quadrotor: JavaScript port of `quadrotor.py` (same parameters and SE(3) controller) and the replay loop; no rendering |
+| `lite3.xml`, `t1.xml` | MJCF of the house (each robot's wall height), with the robot's upstream MJCF attached unchanged |
+| `lite3.json`, `t1.json` | The robot's constants from `robots/*.py` (gains, standing pose, tracker), and where its upstream files and policy are |
+| `lite3-path.json`, `t1-path.json` | The path of one recorded mission (20 Hz, without the body's sway) |
 | `forest.xml` | MJCF of the default world (seed 1) around the exploration area, with the quadrotor |
 | `setpoints.json` | The `pos_cmd` setpoints of one recorded MuJoCo mission (25 Hz) |
-| `flight.js` | JavaScript port of `quadrotor.py` (same parameters and SE(3) controller) and the replay loop; no rendering |
-| `live.js` | three.js rendering of the MuJoCo geoms, mouse orbit, buttons |
 
-The planner does not run in the browser: the drone replays the setpoints the
-planner produced, through the real controller and physics. To regenerate the
-two data files after changing the world or the planner:
+**Upstream files are not in this repository.** The Lite3's and the T1's MJCF,
+meshes and walking policy are DeepRobotics' (BSD-3-Clause) and Booster
+Robotics' (Apache-2.0). The page downloads them when the scene starts, from
+jsDelivr's mirror of their GitHub repositories at the commits the simulator
+pins (`robots/lite3.py`, `robots/t1.py`), and checks the policy's SHA-256
+against the simulator's.
+
+To regenerate the scenes and the recorded missions after changing a world, a
+robot's constants or a planner:
 
 ```bash
-mujoco_sim/.venv/bin/python site/tools/export_web_scene.py site/assets/mujoco/forest.xml
-roslaunch star_nav_bringup exploration_mujoco.launch viewer:=false &   # wait for it to start
+mujoco_sim/.venv/bin/python site/tools/export_web_scene.py site/assets/mujoco
+
+roslaunch star_nav_bringup exploration_lite3.launch viewer:=false &   # wait for it to start
+python3 site/tools/record_path.py site/assets/mujoco/lite3-path.json  # then stop roslaunch
+roslaunch star_nav_bringup exploration_t1.launch viewer:=false &
+python3 site/tools/record_path.py site/assets/mujoco/t1-path.json
+roslaunch star_nav_bringup exploration_mujoco.launch viewer:=false &
 python3 site/tools/record_setpoints.py site/assets/mujoco/setpoints.json
 ```
 
-`flight.js` must stay equivalent to `quadrotor.py`; its controller was checked
-against the Python one on random states (thrusts equal to 1e-14 N).
+Record a mission that finished without a timeout or a fall (the launch's log
+says so); the T1 falls on the steps in some.
+
+`walk.js` and `flight.js` must stay equivalent to the simulator's Python.
+What was checked:
+
+- `flight.js`: its controller against the Python one on random states
+  (thrusts equal to 1e-14 N).
+- `walk.js`: its policy against the simulator's on random observations
+  (largest difference 1e-5), and each robot's whole mission in MuJoCo's
+  WebAssembly build under Node, which must end without a fall and within
+  0.3 m of the path's end:
+
+  ```bash
+  npm install --prefix /tmp/mujoco-web @mujoco/mujoco@4.0.1
+  node site/tools/check_walk.mjs /tmp/mujoco-web             # downloads the robots from jsDelivr
+  STAR_NAV_ASSETS=~/.cache/star_nav node site/tools/check_walk.mjs /tmp/mujoco-web   # or uses the simulator's copies
+  ```
+
+  Measured 2026-11-27: Lite3 no fall, at most 0.18 m from the path; T1 no
+  fall, at most 0.11 m. One run each: the T1's fall on the steps
+  ([docs/TESTING.md](../docs/TESTING.md#failures-that-do-not-happen-every-time))
+  can happen in the browser too.
 
 ## Demo videos
 
-The videos (`exploration-demo.mp4`, `lidar-exploration-demo.mp4`, and on the
-quadruped page `lite3-house-rviz.mp4`, `lite3-house.mp4`, `lite3-forest-lidar.mp4`, and on the
-humanoid page `t1-house.mp4`) are not tracked in git, to keep the
+The videos (on the quadruped page `lite3-house-rviz.mp4`, `lite3-house.mp4`,
+`lite3-forest-lidar.mp4`; on the humanoid page `t1-house.mp4`; on the
+quadrotor page `exploration-demo.mp4`, `lidar-exploration-demo.mp4`) are not
+tracked in git, to keep the
 repository small (`.gitignore`). They are attached to the `site-assets` GitHub
 release, and the Pages workflow downloads them at deploy time. To preview
 locally, download them into `assets/`; without them the page shows the poster
