@@ -28,10 +28,10 @@ flown path and the planner's occupancy map.*
 
 ![Lite3 quadruped: MuJoCo simulator (left) and RViz (right) in the house](site/assets/lite3-house-rviz.jpg)
 
-*Quadruped. Left: Lite3 in the MuJoCo house, with its lidar returns. Right:
-RViz with the obstacle map (walls and furniture; the ramp and steps are
-walkable) and the path walked; recorded when the Lite3 still followed
-EGO-Planner.* Full videos and the architecture are on the
+*Quadruped. Left: Lite3 on the ramp in the MuJoCo house, with its lidar
+returns and the planner's path. Right: RViz with the CMU planner's terrain
+map (green: ground to walk on; red: walls and furniture) and the path
+walked.* Full videos and the architecture are on the
 [project page](https://1nrobotics.github.io/star-nav/) (source in
 [`site/`](site/)).
 
