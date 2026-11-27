@@ -166,6 +166,13 @@ EGO's map.
   ground is an obstacle (`cmu_obstacle_height`); the policy climbs 7 cm
   steps reliably. A step between 8 and 15 cm is not an obstacle to the
   planner and may stall the robot.
+- **A turn next to a wall end can touch it.** On the way to the last
+  waypoint of the house mission the Lite3 walks past the north end of the
+  corridor's west wall, to about (1.0, 1.95), and turns round there, 0.35 m
+  from the wall's end. In 1 of 11 runs of `lite3_smoke.test` it stood 7 cm
+  nearer and its front right foot touched the wall for 0.09 s; it reached
+  all 12 waypoints, and the test failed on the contact
+  ([TESTING.md](TESTING.md#failures-that-do-not-happen-every-time)).
 - **Static worlds only.** The terrain analysis is set up for a world that
   does not change (`clearDyObs` false).
 - **Ground-truth pose.** No odometry or SLAM is in the loop.

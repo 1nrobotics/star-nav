@@ -10,6 +10,12 @@
 <meta property="og:image" content="assets/t1-house.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%232f7d4f' stroke-width='3' stroke-linecap='round'%3E%3Ccircle cx='16' cy='6' r='3.5'/%3E%3Cpath d='M16 10v10M9 13h14M16 20l-5 9M16 20l5 9'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
+<script type="importmap">
+  {"imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }}
+</script>
 </head>
 <body>
 
@@ -20,6 +26,7 @@
       Star Nav <span class="sub">· Humanoid</span>
     </a>
     <nav class="links">
+      <a href="#live">Live</a>
       <a href="#results">Results</a>
       <a href="#specs">Key facts</a>
       <a class="hide-xs" href="https://github.com/1nrobotics/star-nav/blob/main/docs/HUMANOID.md">Docs</a>
@@ -30,7 +37,7 @@
 <main>
   <div class="wrap hero">
     <p class="eyebrow">Booster Robotics T1 · MuJoCo</p>
-    <h1>The same mission, on two legs</h1>
+    <h1>The same house, on two legs</h1>
     <p class="lead">
       The T1 humanoid explores a house and a forest with the planner the
       quadruped uses, CMU's local planner, walking with Booster Robotics'
@@ -55,19 +62,59 @@
     </figure>
 
     <div class="stats">
-      <div class="stat"><div class="v">12 / 12</div><div class="k">waypoints, 0 contacts</div></div>
+      <div class="stat"><div class="v">12 / 12</div><div class="k">waypoints, 0 contacts, in 8 of 10 missions</div></div>
       <div class="stat"><div class="v">0.42 m/s</div><div class="k">at a 0.5 m/s command</div></div>
       <div class="stat"><div class="v">50 Hz</div><div class="k">walking policy</div></div>
       <div class="stat"><div class="v">1.2 m</div><div class="k">lidar height, on the head</div></div>
     </div>
   </div>
 
+  <section id="live">
+    <div class="wrap">
+      <h2>Live in your browser</h2>
+      <p class="sub">
+        MuJoCo, compiled to WebAssembly, simulates the T1 in this page in real
+        time: Booster Robotics' model and walking policy, the house, and the
+        joint control of the simulator. No planner runs in the browser; the
+        robot follows the path CMU's planner led it along in a recorded
+        mission. Drag to orbit, scroll to zoom.
+      </p>
+      <div class="live" data-live="t1">
+        <div class="live-frame">
+          <div class="live-status" data-live-status>The interactive scene loads when you scroll here.</div>
+          <div class="live-controls">
+            <button type="button" data-live-play>Pause</button>
+            <button type="button" data-live-follow aria-pressed="true">Follow</button>
+            <button type="button" data-live-restart>Restart</button>
+            <button type="button" data-live-drive aria-pressed="false" hidden>Drive</button>
+          </div>
+          <div class="live-pad" data-live-pad hidden>
+            <button type="button" data-key="strafe-left" aria-label="Step left">⇤</button>
+            <button type="button" data-key="forward" aria-label="Forward">▲</button>
+            <button type="button" data-key="strafe-right" aria-label="Step right">⇥</button>
+            <button type="button" data-key="left" aria-label="Turn left">↺</button>
+            <button type="button" data-key="back" aria-label="Back">▼</button>
+            <button type="button" data-key="right" aria-label="Turn right">↻</button>
+          </div>
+          <div class="live-hud" data-live-time></div>
+        </div>
+        <p class="note" data-live-note>Blue: the path of the recorded mission. Orange: the path walked in your browser. When the T1 falls, as it sometimes does on the steps, the mission starts again.</p>
+        <p class="note">
+          <b>Drive</b> gives the walking policy your command in place of the
+          path: W and S walk, A and D turn, Q and E step sideways, or use the
+          buttons on the scene. Nothing avoids the walls then.
+        </p>
+      </div>
+    </div>
+  </section>
+
   <section id="results">
     <div class="wrap">
       <h2>Results</h2>
       <p class="sub">
         Each mission is an automated test that fails on any contact, fall or
-        waypoint timeout.
+        waypoint timeout. The T1 completes the house mission in 8 of 10 runs;
+        in the others it falls going down the steps.
       </p>
       <div class="grid2">
         <div class="table-scroll">
@@ -75,6 +122,7 @@
             <thead><tr><th>Mission</th><th>Result</th></tr></thead>
             <tbody>
               <tr><td>House, lidar</td><td class="ok">12/12, 0 contacts, reached the platform</td></tr>
+              <tr><td>House, 10 missions</td><td class="warn">8 complete; 2 falls going down the steps</td></tr>
               <tr><td>Forest, lidar</td><td class="ok">12/12, 0 contacts</td></tr>
             </tbody>
           </table>
@@ -83,7 +131,7 @@
           <table>
             <thead><tr><th>Terrain</th><th>Result</th></tr></thead>
             <tbody>
-              <tr><td>12° ramp up, 7&nbsp;cm steps down</td><td class="ok">9 of 10 runs</td></tr>
+              <tr><td>12° ramp up, 7&nbsp;cm steps down</td><td class="warn">Falls in 17 of 120 runs</td></tr>
               <tr><td>7&nbsp;cm steps up</td><td class="warn">Falls in 11 of 12 runs</td></tr>
               <tr><td>Table at 0.75&nbsp;m</td><td class="ok">Walked around</td></tr>
             </tbody>
@@ -93,7 +141,7 @@
       <div class="limits">
         Not yet:
         <ul>
-          <li>It cannot climb 7&nbsp;cm steps; the policy was trained on steps of about 2&nbsp;cm.</li>
+          <li>It cannot climb 7&nbsp;cm steps, and sometimes falls going down them; the policy was trained on steps of about 2&nbsp;cm.</li>
           <li>Lidar only: the planner has no depth-camera mode.</li>
           <li>The pose comes from the simulator; simulation only, no hardware branch yet.</li>
         </ul>
@@ -141,7 +189,8 @@
 <footer>
   <div class="wrap">
     <span>
-      T1 model and policy: Booster Robotics, Apache-2.0, downloaded at setup.
+      T1 model and policy: Booster Robotics, Apache-2.0; downloaded at setup,
+      and by this page from Booster Robotics' repository, not redistributed.
       <a href="https://github.com/1nrobotics/star-nav/blob/main/docs/LICENSES.md">Licenses</a>
     </span>
     <span>
@@ -151,5 +200,6 @@
     </span>
   </div>
 </footer>
+<script type="module" src="assets/mujoco/embed.js"></script>
 </body>
 </html>
