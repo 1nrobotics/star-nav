@@ -176,7 +176,9 @@ EGO's map.
 - **Static worlds only.** The terrain analysis is set up for a world that
   does not change (`clearDyObs` false).
 - **Ground-truth pose.** No odometry or SLAM is in the loop.
-- **Frontier exploration has only been run with the Lite3 in the house.**
+- **Frontier exploration is tested with the Lite3 in the house only.** The
+  T1 has done it there in 5 runs by hand ([HUMANOID.md](HUMANOID.md#measured));
+  neither robot has in the forest.
 - **The frontier map is not checked or saved.** Coverage counts known cells;
   the map is not compared with the simulator's world, and it is not written
   to a file.
