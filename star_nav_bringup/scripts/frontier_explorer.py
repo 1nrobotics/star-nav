@@ -15,7 +15,8 @@ has to find the way to it. The CMU planner's waypoint router finds one round
 the walls; EGO-Planner flies at the goal through its own map and has no
 route round a wall.
 A frontier the robot does not get to in ``goal_timeout`` seconds, or stands
-still in front of, is given up.
+still on the way to for ``stall_time`` seconds, is given up. A robot that
+turns on the spot does not stand still.
 
 Subscribes ``cloud`` (lidar, world frame), ``lidar_pose``, ``odom`` and
 /exploration/trigger. Publishes /move_base_simple/goal and
@@ -81,7 +82,8 @@ class FrontierExplorer:
 
         self.lock = threading.Lock()
         self.pos = None
-        self.speed = 0.0
+        self.speed = 0.0        # m/s, along the ground
+        self.turn = 0.0         # rad/s, yaw rate
         self.sensor = None
         self.state = "WAIT_TRIGGER"
         self.triggered = False
@@ -113,6 +115,7 @@ class FrontierExplorer:
         p, v = msg.pose.pose.position, msg.twist.twist.linear
         self.pos = np.array([p.x, p.y, p.z])
         self.speed = float(np.hypot(v.x, v.y))
+        self.turn = abs(float(msg.twist.twist.angular.z))
 
     def on_lidar_pose(self, msg):
         p = msg.pose.position
@@ -243,10 +246,16 @@ class FrontierExplorer:
     def arrived(self, target):
         return np.hypot(*(self.pos[:2] - target)) < self.tolerance
 
+    def still(self):
+        """Neither under way nor turning on the spot. A walking robot turns
+        on the spot before it walks to a goal at its side or behind it (5 s
+        for half a turn), and its speed is then near zero."""
+        return self.speed <= 0.05 and self.turn <= 0.1
+
     def stuck(self, now):
         if (now - self.target_since).to_sec() > self.goal_timeout:
             return True
-        if self.speed > 0.05:
+        if not self.still():
             self.stopped_since = None
         elif self.stopped_since is None:
             self.stopped_since = now
@@ -270,7 +279,7 @@ class FrontierExplorer:
         goal = np.array(self.map.point(cells[-1]) if cells else target, float)
         self.publish_path(cells, now)
         # Again only if it moved, or if the robot stands still with the old one.
-        waiting = self.speed < 0.05 and (now - self.sent_at).to_sec() > 3.0 if self.sent_at else False
+        waiting = self.still() and (now - self.sent_at).to_sec() > 3.0 if self.sent_at else False
         if self.sent is not None and np.hypot(*(goal - self.sent)) < 0.5 and not waiting:
             return
         self.sent = goal

@@ -116,8 +116,9 @@ takes the place of `exploration_manager` and sends the planner its goals.
   They are grouped into clusters of 5 cells or more.
 - **Mission**: walk to the nearest cluster (by path length); when no frontier
   is left near the goal, take the next one. A frontier that takes more than
-  60 s, or at which the robot stands for 6 s, is given up. When none is left
-  the robot walks home. The states are on `/exploration/state`
+  60 s (`goal_timeout`), or on the way to which the robot stands still for
+  6 s (`stall_time`), is given up; a robot that turns on the spot does not
+  stand still. When none is left the robot walks home. The states are on `/exploration/state`
   (`PLAN_TO_FRONTIER`, `EXEC_FRONTIER`, `RETURN_HOME`, `FINISH`).
 - **Goals**: the frontier itself; the CMU planner's waypoint router finds
   the way to it.

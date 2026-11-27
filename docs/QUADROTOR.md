@@ -130,7 +130,8 @@ None known.
 - **Frontier exploration without a route planner.** A frontier is given to
   EGO as it is. In the pillar forest that is enough; a frontier behind a
   wall is given up after 60 s (`goal_timeout`), or after 6 s of standing
-  still, and the area behind it stays unmapped. It needs the lidar, and it
+  still (`stall_time`: neither flying nor turning), and the area behind it
+  stays unmapped. It needs the lidar, and it
   runs in MuJoCo only.
 - **The lightweight simulator detects no collisions.** Only the MuJoCo
   missions check contacts.

@@ -4,6 +4,9 @@
     python3 -m unittest discover -s star_nav_bringup/test -p 'test_frontier_map.py'
 
 A lidar is imitated in a flat world of walls: two rooms joined by a door.
+
+With rospy installed, also of frontier_explorer.py's rule for a robot that
+stands still; no ROS master is needed. Without rospy that test is skipped.
 """
 
 import os
@@ -14,6 +17,12 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 import frontier_map  # noqa: E402
+
+try:
+    import rospy
+    import frontier_explorer
+except ImportError:
+    rospy = None
 
 RES = 0.1
 SENSOR_Z = 0.44
@@ -153,6 +162,43 @@ class FrontierMapTest(unittest.TestCase):
         g = m.grid()
         self.assertEqual(g[m.cell((1.25, 0.0))], frontier_map.FREE)
         self.assertEqual(g[m.cell((-0.85, 0.15))], frontier_map.OBSTACLE)
+
+
+@unittest.skipIf(rospy is None, "needs rospy")
+class StandingStillTest(unittest.TestCase):
+    """A frontier is given up after stall_time of standing still, or after
+    goal_timeout. The explorer looks twice a second."""
+
+    def setUp(self):
+        self.explorer = frontier_explorer.FrontierExplorer.__new__(frontier_explorer.FrontierExplorer)
+        self.explorer.goal_timeout, self.explorer.stall_time = 60.0, 6.0
+        self.time = 10.0
+        self.explorer.begin((3.0, 0.0), rospy.Time(self.time))
+
+    def given_up_after(self, seconds, speed, turn):
+        """Seconds of this speed (m/s) and yaw rate (rad/s) until the
+        frontier is given up; None if it is not within ``seconds``."""
+        self.explorer.speed, self.explorer.turn = speed, turn
+        start = self.time
+        while self.time < start + seconds:
+            self.time += 0.5
+            if self.explorer.stuck(rospy.Time(self.time)):
+                return self.time - start
+        return None
+
+    def test_standing_still(self):
+        self.assertEqual(self.given_up_after(10.0, 0.0, 0.0), 7.0)
+
+    def test_walking(self):
+        self.assertIsNone(self.given_up_after(50.0, 0.5, 0.0))
+
+    def test_a_turn_on_the_spot_is_not_standing_still(self):
+        # Half a turn at the Lite3's 0.6 rad/s; its feet move it at 0.03 m/s.
+        self.assertIsNone(self.given_up_after(8.0, 0.03, 0.6))
+        self.assertEqual(self.given_up_after(10.0, 0.0, 0.0), 7.0)
+
+    def test_turning_without_end(self):
+        self.assertEqual(self.given_up_after(100.0, 0.03, 0.6), 60.5)
 
 
 if __name__ == "__main__":

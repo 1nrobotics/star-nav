@@ -57,7 +57,7 @@ tests themselves (`star_nav_bringup/test/sim_smoke_test.py`,
 | | `mujoco-frontier` | `mujoco_frontier_smoke.test`: the quadrotor maps the area round its start without waypoints | 40 s |
 | `legged` | `lite3` | `lite3_smoke.test`: the Lite3 walks the mission through the house | 3 min |
 | | `t1` | `t1_smoke.test`: the T1 walks the mission through the house | 3 min |
-| | `frontier` | `test_frontier_map.py` (`frontier-unit`), then `frontier_smoke.test`: the Lite3 maps the house without waypoints | 2 min |
+| | `frontier` | `test_frontier_map.py` (`frontier-unit`: the map, and the explorer's rule for a robot that stands still), then `frontier_smoke.test`: the Lite3 maps the house without waypoints | 2 min |
 
 The times are from one machine (2026-11-26, `mujoco-frontier` 2026-11-27);
 everything takes about a quarter of an hour there.
