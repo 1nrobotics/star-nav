@@ -17,7 +17,7 @@ not run EGO.
 | Planner | EGO-Planner (`planner/ego/`, GPLv3): position setpoints |
 | Obstacle sensor | Forward depth camera, or 360° lidar (`sensor:=lidar`); see [SENSORS.md](SENSORS.md) |
 | Mission in the pillar forest | 12/12 waypoints, no contacts, with either sensor |
-| Frontier exploration (`explore:=frontier`) | Not supported: it needs the CMU planner |
+| Frontier exploration (`explore:=frontier`) | Working in MuJoCo, in the pillar forest, with the lidar: the quadrotor maps the area round its start without waypoints ([below](#frontier-exploration-explorefrontier)) |
 | Localisation | The simulator's pose |
 | Hardware | `hardware/vk180` branch ([HARDWARE.md](HARDWARE.md)) |
 | Tests | Local: `scripts/run_local_tests.sh aerial`. Docker: `scripts/run_smoke_test.sh`, `scripts/run_mujoco_smoke_test.sh` |
@@ -50,12 +50,47 @@ The map (ray casting, hits per update, sliding window) is described in
 [SENSORS.md](SENSORS.md); the simulator in
 [SIM_ARCHITECTURE.md](SIM_ARCHITECTURE.md).
 
+### Frontier exploration (`explore:=frontier`)
+
+Without preset waypoints, in MuJoCo (`exploration_mujoco.launch`):
+`star_nav_bringup/scripts/frontier_explorer.py` takes the place of
+`exploration_manager`. From the lidar scans it keeps a 2D map of what stands
+in the way at flight height, sends EGO the nearest border between seen free
+space and unseen space as its next goal (`/move_base_simple/goal`, at the
+flight height), and the start as the last goal when no border is left. The
+node, its map and its rules are those of the walking robots
+([QUADRUPED.md](QUADRUPED.md#frontier-exploration-explorefrontier)); the
+quadrotor gives it other numbers:
+
+| Parameter | Value |
+|---|---|
+| Sensor | The lidar, whatever `sensor` says: the map is made from lidar scans |
+| Goal height (`altitude`) | 1.0 m |
+| Obstacle (`robot_height`) | What rises from the ground into the 0.5 m above the flight height (1.5 m) |
+| Goals' distance from obstacles (`clearance`) | `obstacles_inflation` + 0.3 m: 0.5 m |
+| Area | The exploration area plus `frontier_margin` (1.5 m) on every side: 12 m x 12 m by default |
+
+The map is on `/frontier_explorer/map` (`nav_msgs/OccupancyGrid`), separate
+from EGO's voxel map. EGO flies straight to each goal through its own map;
+nothing plans a route (see [Limitations](#limitations)).
+
+## Measured
+
+Frontier exploration in MuJoCo, seed 1 (2026-11-27; times are simulated,
+from the trigger to `FINISH`):
+
+| Check | Result |
+|---|---|
+| `mujoco_frontier_smoke.test` (12 m x 12 m), 10 runs (`run_local_tests.sh --repeat 10 mujoco-frontier`) | 10 passed: 4 to 8 frontiers, 99.6 to 99.7 % of the area known, 22 to 27 s, 26 to 30 m flown, home within 0.06 to 0.30 m, 0 contacts |
+| 24 m x 24 m (`exploration_width:=21 exploration_height:=21`), one run | 43 frontiers, 99.7 % of the area known, 64 s, 82 m flown, home within 0.18 m, 0 contacts |
+
 ## Tests
 
 The `aerial` group of `scripts/run_local_tests.sh`: EGO's map unit tests,
-the mission in the lightweight simulator, and the mission in MuJoCo with
-the depth camera and with the lidar. What each must show, and how a failure
-that does not happen every time is judged: [TESTING.md](TESTING.md).
+the mission in the lightweight simulator, the mission in MuJoCo with the
+depth camera and with the lidar, and frontier exploration in MuJoCo
+(`mujoco_frontier_smoke.test`). What each must show, and how a failure that
+does not happen every time is judged: [TESTING.md](TESTING.md).
 
 ## Planner faults
 
@@ -92,7 +127,11 @@ None known.
 
 - **Local planner only.** A goal behind a wall may leave the quadrotor
   stuck; there is no route planner as for the walking robots.
-- **No frontier exploration.** The mission is the waypoint pattern.
+- **Frontier exploration without a route planner.** A frontier is given to
+  EGO as it is. In the pillar forest that is enough; a frontier behind a
+  wall is given up after 60 s (`goal_timeout`), or after 6 s of standing
+  still, and the area behind it stays unmapped. It needs the lidar, and it
+  runs in MuJoCo only.
 - **The lightweight simulator detects no collisions.** Only the MuJoCo
   missions check contacts.
 - **Tested in the pillar forest only**, not in the house.

@@ -11,6 +11,8 @@
          viewer:=false      no web viewer (headless runs, CI)
          sensor:=lidar      avoid obstacles with a 360-degree lidar instead
                             of the forward depth camera (docs/SIMULATION.md)
+         explore:=frontier  no waypoints: the quadrotor maps the area itself
+                            (docs/QUADROTOR.md); always with the lidar
 
          ROS runs on the simulator's clock (/clock from mujoco_bridge), so
          planning stays consistent with the physics even on a slow machine. -->
@@ -30,6 +32,11 @@
     <arg name="exploration_height" default="9.0"/>
     <arg name="line_spacing" default="3.0"/>
     <arg name="enable_corner_smoothing" default="false"/>
+    <!-- waypoints (the lawnmower rows above) or frontier -->
+    <arg name="explore" default="waypoints"/>
+    <arg name="frontier_margin" default="1.5"/>
+    <!-- Flight height (m); the quadrotor starts at it -->
+    <arg name="altitude" default="1.0"/>
 
     <!-- Simulator -->
     <arg name="start_sim" default="true"/>
@@ -42,6 +49,8 @@
     <arg name="obstacles_inflation" default="0.2"/>
     <!-- Obstacle sensor for the planner: depth (camera) or lidar (360 deg) -->
     <arg name="sensor" default="depth"/>
+    <!-- The frontier map is made from lidar scans -->
+    <arg name="sensor_used" value="$(eval 'lidar' if explore == 'frontier' else sensor)"/>
     <!-- Lidar model the simulator imitates: uniform (ideal spinning lidar)
          or mid360 (Livox Mid-360; fetch its beam table first, see
          docs/SIMULATION.md) -->
@@ -63,7 +72,7 @@
     <arg name="viewer_flag" value="--no-viewer" unless="$(arg viewer)"/>
     <node if="$(arg start_sim)" pkg="star_nav_bringup" type="mujoco_sim.sh"
           name="mujoco_sim" output="screen" required="true"
-          args="--seed $(arg seed) --map-size $(arg map_size_x) $(arg map_size_y) --start 0 0 1.0 --sensor $(arg sensor) --lidar-model $(arg lidar) $(arg viewer_flag) $(arg sim_args)"/>
+          args="--seed $(arg seed) --map-size $(arg map_size_x) $(arg map_size_y) --start 0 0 $(arg altitude) --sensor $(arg sensor_used) --lidar-model $(arg lidar) $(arg viewer_flag) $(arg sim_args)"/>
 
     <!-- ============================== -->
     <!-- 2. ROS bridge                  -->
@@ -82,7 +91,31 @@
         <remap from="pos_cmd" to="/drone_$(arg drone_id)_planning/pos_cmd"/>
         <!-- The planned trajectory, drawn in the simulator's viewer -->
         <remap from="plan_marker" to="/drone_$(arg drone_id)_ego_planner_node/optimal_list"/>
-        <remap from="waypoint_markers" to="/exploration_node/exploration/waypoints"/>
+        <remap from="waypoint_markers" to="/exploration_node/exploration/waypoints"
+               unless="$(eval explore == 'frontier')"/>
+        <!-- Frontier exploration has no waypoints: the frontiers it may go to -->
+        <remap from="waypoint_markers" to="/frontier_explorer/frontiers"
+               if="$(eval explore == 'frontier')"/>
+    </node>
+
+    <!-- ============================== -->
+    <!-- Frontier exploration           -->
+    <!-- ============================== -->
+    <node if="$(eval explore == 'frontier')" pkg="star_nav_bringup" type="frontier_explorer.py"
+          name="frontier_explorer" output="screen">
+        <remap from="cloud" to="/drone_$(arg drone_id)_pcl_render_node/cloud"/>
+        <remap from="lidar_pose" to="/drone_$(arg drone_id)_lidar/pose"/>
+        <remap from="odom" to="/drone_$(arg drone_id)_$(arg odom_topic)"/>
+        <param name="altitude" value="$(arg altitude)"/>
+        <!-- What stands in the way of a flight at this height: anything
+             that rises from the ground into the 0.5 m above it -->
+        <param name="robot_height" value="$(eval arg('altitude') + 0.5)"/>
+        <!-- Goals further from obstacles than the planner keeps -->
+        <param name="clearance" value="$(eval arg('obstacles_inflation') + 0.3)"/>
+        <param name="area_center_x" value="$(arg exploration_center_x)"/>
+        <param name="area_center_y" value="$(arg exploration_center_y)"/>
+        <param name="area_width" value="$(eval arg('exploration_width') + 2 * arg('frontier_margin'))"/>
+        <param name="area_height" value="$(eval arg('exploration_height') + 2 * arg('frontier_margin'))"/>
     </node>
 
     <!-- ============================== -->
@@ -103,6 +136,8 @@
         <arg name="exploration_height" value="$(arg exploration_height)"/>
         <arg name="line_spacing" value="$(arg line_spacing)"/>
         <arg name="enable_corner_smoothing" value="$(arg enable_corner_smoothing)"/>
+        <arg name="explore" value="$(arg explore)"/>
+        <arg name="altitude" value="$(arg altitude)"/>
         <arg name="cx" value="320.0"/>
         <arg name="cy" value="240.0"/>
         <arg name="fx" value="387.229248046875"/>
@@ -110,7 +145,7 @@
         <!-- The MuJoCo quadrotor collides: 0.19 m from centre to prop tip,
              so inflate by two 0.1 m voxels instead of the point-mass default. -->
         <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
-        <arg name="sensor" value="$(arg sensor)"/>
+        <arg name="sensor" value="$(arg sensor_used)"/>
         <arg name="lidar_raycasting" value="$(arg lidar_raycasting)"/>
         <arg name="lidar_max_hits" value="$(arg lidar_max_hits)"/>
         <!-- The simulated lidar sits 6 cm above the body centre (LidarConfig.mount) -->

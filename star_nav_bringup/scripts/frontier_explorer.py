@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Frontier exploration for walking robots: map a place nobody described.
+"""Frontier exploration: map a place nobody described.
 
 Takes the place of exploration_node and its preset waypoints
-(``explore:=frontier`` of exploration_ground.launch). From the lidar scans it
+(``explore:=frontier`` of exploration_ground.launch for the walking robots,
+of exploration_mujoco.launch for the quadrotor). From the lidar scans it
 keeps a 2D map of the floor (frontier_map.py: free, obstacle or unknown) and
-sends the planner to the nearest *frontier*, a place the robot can walk to
+sends the planner to the nearest *frontier*, a place the robot can get to
 that borders on floor it has not seen. It looks again whenever that frontier
-has been seen, and is done when none is left; then it walks back to where it
+has been seen, and is done when none is left; then it goes back to where it
 started.
 
-The goal it publishes is the frontier itself: the planner has to find the way
-round the walls (the CMU planner's waypoint router does; exploration_ground.launch
-planner:=cmu).
+The goal it publishes is the frontier itself, at ``altitude``: the planner
+has to find the way to it. The CMU planner's waypoint router finds one round
+the walls; EGO-Planner flies at the goal through its own map and has no
+route round a wall.
 A frontier the robot does not get to in ``goal_timeout`` seconds, or stands
 still in front of, is given up.
 

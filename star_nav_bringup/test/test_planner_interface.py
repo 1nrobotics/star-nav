@@ -106,10 +106,21 @@ class PlannerInterfaceTest(unittest.TestCase):
         self.assertEqual(set(COMMAND), backends)
 
     def test_frontier_exploration_keeps_the_planner(self):
-        launch = Launch("lite3", "explore:=frontier")
-        self.check_backend(launch, "cmu", "legged")
-        self.assertIn("frontier_explorer", launch.nodes)
-        self.assertNotIn("exploration_node", launch.nodes)
+        for robot, robot_type in (("lite3", "legged"), ("mujoco", "aerial")):
+            with self.subTest(robot=robot):
+                launch = Launch(robot, "explore:=frontier")
+                self.check_backend(launch, PLANNERS[robot_type], robot_type)
+                self.assertIn("frontier_explorer", launch.nodes)
+                self.assertNotIn("exploration_node", launch.nodes)
+
+    def test_the_quadrotors_frontier_exploration_uses_the_lidar(self):
+        # The frontier map is made from lidar scans, whatever ``sensor`` says
+        launch = Launch("mujoco", "explore:=frontier")
+        self.assertIn("--sensor lidar", launch.nodes["mujoco_sim"].args)
+        self.assertTrue(launch.params["/drone_0_ego_planner_node/grid_map/enable_pointcloud_raycasting"])
+        # Goals at the height the planner flies at
+        self.assertEqual(launch.params["/frontier_explorer/altitude"], 1.0)
+        self.assertIn("--start 0 0 1.0", launch.nodes["mujoco_sim"].args)
 
 
 if __name__ == "__main__":

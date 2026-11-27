@@ -159,7 +159,7 @@ path folder, EGO's flight type).
 | Robots | aerial | legged |
 | Ramps and steps | not applicable | ground, by terrain analysis |
 | Goal behind a wall | may get stuck: local planner only | routed by the waypoint router (A*) |
-| Frontier exploration (`explore:=frontier`) | no | yes |
+| Frontier exploration (`explore:=frontier`) | yes, in MuJoCo: a frontier is a goal like any other, flown to directly | yes: the waypoint router finds the way to a frontier |
 | Extra files | none | path set, `scripts/fetch_cmu_paths.sh` |
 | License | GPLv3 | BSD |
 
@@ -229,9 +229,10 @@ chosen with `planner:=<name>`. The simulator side of a new robot is in
   exactly the table's backends, and that the planner is wired to the robot's
   topics. It runs in a second:
   the `launch` step of `./scripts/run_local_tests.sh`.
-- The smoke tests run each pair for real: `sim_smoke.test` and
-  `mujoco_smoke.test` (aerial, ego), `lite3_smoke.test`, `t1_smoke.test`
-  and `frontier_smoke.test` (legged, cmu). They are the `aerial` and
+- The smoke tests run each pair for real: `sim_smoke.test`,
+  `mujoco_smoke.test` and `mujoco_frontier_smoke.test` (aerial, ego),
+  `lite3_smoke.test`, `t1_smoke.test` and `frontier_smoke.test` (legged,
+  cmu). They are the `aerial` and
   `legged` groups of `./scripts/run_local_tests.sh`; what each must show is
   in [TESTING.md](TESTING.md).
 

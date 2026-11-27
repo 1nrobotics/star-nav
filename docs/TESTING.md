@@ -24,7 +24,7 @@ notes belong to one type or to both:
 | Planner | EGO-Planner (`planner/ego/`) | CMU local planner, ground version (`planner/cmu/`) |
 | Planner's nodes | `ego_planner_node`, `traj_server` | `terrainAnalysis`, `localPlanner`, `pathFollower`, `cmu_waypoint_router` |
 | Command | position setpoints | velocity |
-| Mission | `exploration_manager` (waypoints) | `exploration_manager` (waypoints), or `frontier_explorer.py` (`explore:=frontier`) |
+| Mission | `exploration_manager` (waypoints), or `frontier_explorer.py` (`explore:=frontier`, MuJoCo) | `exploration_manager` (waypoints), or `frontier_explorer.py` (`explore:=frontier`) |
 | Simulator | lightweight (`uav_simulator/`), or MuJoCo | MuJoCo |
 | Obstacle sensor | depth camera or lidar | lidar |
 | Launch files | `exploration_sim.launch`, `exploration_mujoco.launch` | `exploration_lite3.launch`, `exploration_t1.launch` (both include `exploration_ground.launch`) |
@@ -36,10 +36,12 @@ node; the `launch` step checks this. So a fault in EGO can only fail the
 `aerial` group, and a fault in the CMU planner or in a walking policy only
 the `legged` group.
 
-Both types share the exploration manager, the planner interface
+Both types share the exploration manager, the frontier explorer
+(`frontier_explorer.py`, `frontier_map.py`), the planner interface
 (`launch/planner.xml`, `planning_stack.xml`), the MuJoCo simulator and its
 bridge (`mujoco_sim/`, `mujoco_bridge/`), `odom_visualization` and the mission
-test itself (`star_nav_bringup/test/sim_smoke_test.py`).
+tests themselves (`star_nav_bringup/test/sim_smoke_test.py`,
+`frontier_smoke_test.py`).
 
 ## Steps
 
@@ -52,12 +54,13 @@ test itself (`star_nav_bringup/test/sim_smoke_test.py`).
 | `aerial` | `unit` | EGO's map unit tests (`plan_env`) | seconds |
 | | `sim` | `sim_smoke.test`: the mission in the lightweight simulator | 1 min |
 | | `mujoco` | `mujoco_smoke.test` in MuJoCo, twice: depth camera (`mujoco-depth`), lidar (`mujoco-lidar`) | 1 min each |
+| | `mujoco-frontier` | `mujoco_frontier_smoke.test`: the quadrotor maps the area round its start without waypoints | 40 s |
 | `legged` | `lite3` | `lite3_smoke.test`: the Lite3 walks the mission through the house | 3 min |
 | | `t1` | `t1_smoke.test`: the T1 walks the mission through the house | 3 min |
 | | `frontier` | `test_frontier_map.py` (`frontier-unit`), then `frontier_smoke.test`: the Lite3 maps the house without waypoints | 2 min |
 
-The times are from one machine (2026-11-26); everything takes about a
-quarter of an hour there.
+The times are from one machine (2026-11-26, `mujoco-frontier` 2026-11-27);
+everything takes about a quarter of an hour there.
 
 ```bash
 ./scripts/run_local_tests.sh                    # everything
@@ -80,8 +83,8 @@ The summary lists the steps under their group. Logs are in
    | Change in | Run |
    |---|---|
    | `planner/ego/`, `launch/planners/ego.xml`, `exploration_sim.launch`, `exploration_mujoco.launch`, `uav_simulator/` (not `odom_visualization`), `px4ctrl/` | `common aerial` |
-   | `planner/cmu/`, `launch/planners/cmu.xml`, `scripts/planners/cmu/`, `frontier_explorer.py`, `frontier_map.py`, `exploration_ground.launch`, `exploration_lite3.launch`, `exploration_t1.launch` | `common legged` |
-   | `planner/exploration_manager/`, `launch/planner.xml`, `planning_stack.xml`, `mujoco_sim/`, `mujoco_bridge/`, `star_nav_bringup/test/`, `odom_visualization`, `utils/` | everything |
+   | `planner/cmu/`, `launch/planners/cmu.xml`, `scripts/planners/cmu/`, `exploration_ground.launch`, `exploration_lite3.launch`, `exploration_t1.launch` | `common legged` |
+   | `planner/exploration_manager/`, `frontier_explorer.py`, `frontier_map.py`, `launch/planner.xml`, `planning_stack.xml`, `mujoco_sim/`, `mujoco_bridge/`, `star_nav_bringup/test/`, `odom_visualization`, `utils/` | everything |
    | Shell scripts | `lint` |
    | Documentation, `site/` | nothing; `launch` when launch commands changed |
 
@@ -95,8 +98,8 @@ The summary lists the steps under their group. Logs are in
 
 Without a native ROS installation, Docker covers the quadrotor only:
 `./scripts/run_smoke_test.sh` (`sim`) and `./scripts/run_mujoco_smoke_test.sh`
-(`mujoco-depth`; `SENSOR=lidar` for `mujoco-lidar`). The legged group needs
-the native workspace.
+(`mujoco-depth`; `SENSOR=lidar` for `mujoco-lidar`). `mujoco-frontier` and
+the legged group need the native workspace.
 
 ## What a step must show
 
@@ -141,18 +144,25 @@ The quadrotor in MuJoCo is also checked against the simulator's obstacles
 | Lidar points farther than 2 cm from any surface | | 0.1 % at most |
 | Pillars within 2.5 m of the quadrotor that are in the map | | 95 % at least |
 
-### Frontier exploration (legged)
+### Frontier exploration
 
-`frontier` runs `frontier_smoke.test`: the Lite3 maps the house with no
-waypoints given.
+No waypoints are given; both steps run the same test
+(`frontier_smoke_test.py`). `frontier` (legged) runs `frontier_smoke.test`:
+the Lite3 maps the house. `mujoco-frontier` (aerial) runs
+`mujoco_frontier_smoke.test`: the quadrotor maps the pillar forest round its
+start.
 
-| Check | Value |
-|---|---|
-| The mission reaches `FINISH` within | 600 s |
-| Frontiers given up on a timeout, way home not finished, explorer's time limit reached | none |
-| Floor inside the walls (10.8 m x 10.8 m) that is known | 95 % at least |
-| Distance from the start at the end | 0.6 m at most |
-| Contacts with obstacles | 0 |
+| Check | `frontier` | `mujoco-frontier` |
+|---|---|---|
+| The mission reaches `FINISH` within | 600 s | 240 s |
+| Frontiers given up on a timeout, way home not finished, explorer's time limit reached | none | none |
+| Share of the area that is known | 95 % at least, of the floor inside the walls (10.8 m x 10.8 m) | 95 % at least, of the exploration area with its margin (12 m x 12 m) |
+| Distance from the start at the end | 0.6 m at most | 0.6 m at most |
+| Contacts with obstacles | 0 | 0 |
+
+The start is where the robot is just before the trigger. (Until 2026-11-27
+the test took it when it first saw `EXEC_FRONTIER`, up to a second later: a
+walking robot has hardly moved by then, the quadrotor has flown 0.8 m.)
 
 ### Changing a check
 

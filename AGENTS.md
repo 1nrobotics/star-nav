@@ -54,7 +54,8 @@ procedure and what each step must show to pass.
 - `aerial` (the quadrotor, EGO-Planner): `rostest star_nav_bringup
   sim_smoke.test` (or `docker compose run --rm test`) and
   `rostest star_nav_bringup mujoco_smoke.test`, with the depth camera and
-  with `sensor:=lidar` (or `./scripts/run_mujoco_smoke_test.sh`), must pass.
+  with `sensor:=lidar` (or `./scripts/run_mujoco_smoke_test.sh`), and
+  `mujoco_frontier_smoke.test` must pass.
 - `legged` (Lite3 and T1, the CMU planner): `lite3_smoke.test`,
   `t1_smoke.test` and `frontier_smoke.test` must pass.
 - While working, run `common` and the group of the code you change. Push
