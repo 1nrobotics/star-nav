@@ -58,6 +58,7 @@ cd mujoco_sim && .venv/bin/python -m star_nav_mujoco --help
 | --- | --- | --- |
 | `--robot` | quadrotor | `quadrotor`, `lite3` (quadruped) or `t1` (humanoid), see below |
 | `--fetch NAME` | | Download the model and policy of `lite3` or `t1`, or the beam table of the `mid360` lidar model, then exit |
+| `--describe ROBOT` | | Print the robot's description (size, lidar mount, standing height, speed limits) as the file the launch files load, `star_nav_bringup/config/robots/<robot>.yaml`, then exit |
 | `--world` | forest | `forest` or `house` (rooms, ramp, platform, stairs; `house.py`) |
 | `--seed` | 1 | Forest layout |
 | `--map-size X Y` | 50 50 | Forest extent (m) |

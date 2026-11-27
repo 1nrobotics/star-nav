@@ -75,6 +75,9 @@ JOINT_VEL_SCALE = 0.1
 # face, the lidar on top of the head (1.2 m above the ground).
 CAMERA_POS = (0.15, 0.0, 0.40)
 LIDAR_MOUNT = (0.07, 0.0, 0.53)
+# Standing, with the lidar: length, width (its arms, which are not collision
+# geoms here), height above the ground (m)
+SIZE = (0.25, 0.54, 1.19)
 # Collision geoms of the legs: touching the ground, a ramp or a step with
 # these is walking, not a collision (see Simulator._touching).
 SUPPORT_GEOMS = ('SHANK_collision', 'FOOT_collision')
@@ -221,9 +224,11 @@ class Locomotion(locomotion.JointPolicy):
 class T1(robots.GroundRobot):
   name = 't1'
   title = 'T1'
+  type = 'legged'
   body = TRUNK
   camera = CAMERA
   timestep = TIMESTEP
+  size = SIZE
   stand_height = STAND_HEIGHT
   start_height = START_HEIGHT
   support_geoms = SUPPORT_GEOMS

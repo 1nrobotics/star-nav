@@ -1,0 +1,19 @@
+# The T1 as the planner's side needs to know it: lengths in m,
+# max_speed in m/s, max_turn in rad/s, lidar_mount in the body frame.
+# The launch files load it as /robot, and
+# star_nav_bringup/test/test_planner_interface.py checks what they give the
+# planner against it.
+#
+# Written from mujoco_sim/star_nav_mujoco/robots/t1.py: do not edit.
+# Change the robot there, then (mujoco_sim/tests/test_robots.py checks it):
+#   mujoco_sim/.venv/bin/python -m star_nav_mujoco --describe t1 \
+#     > star_nav_bringup/config/robots/t1.yaml
+name: t1
+type: legged
+length: 0.25
+width: 0.54
+height: 1.19
+lidar_mount: [0.07, 0.0, 0.53]
+stand_height: 0.67
+max_speed: 0.8
+max_turn: 0.8

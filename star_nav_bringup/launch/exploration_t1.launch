@@ -6,10 +6,18 @@
          The lidar is on top of the head (1.2 m), seeing -50 to 30 deg. -->
     <arg name="robot" value="t1"/>
     <arg name="robot_type" value="legged"/>
-    <!-- The T1: trunk at 0.67 m; its arms reach 0.27 m out -->
+    <!-- The T1: trunk at 0.67 m; its arms reach 0.27 m out. Its
+         description is config/robots/t1.yaml; altitude, lidar_offset,
+         robot_length and robot_width repeat it (exploration_ground.launch
+         says why).
+         robot_radius is half its width, the reach of its arms. On the
+         router's 0.1 m grid that keeps the same cells clear as 0.25 m. -->
     <arg name="altitude" value="0.67"/>
     <arg name="lidar_offset" value="[0.07, 0.0, 0.53]"/>
+    <arg name="robot_length" value="0.25"/>
+    <arg name="robot_width" value="0.54"/>
     <arg name="robot_height" value="1.25"/>
+    <arg name="robot_radius" value="0.27"/>
     <arg name="max_step" default="0.09"/>
     <arg name="obstacles_inflation" default="0.35"/>
     <arg name="max_vel" value="0.5"/>

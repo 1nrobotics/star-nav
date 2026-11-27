@@ -48,6 +48,9 @@ def main(argv: list[str] | None = None) -> int:
                   help="download a robot's model and policy, or a lidar "
                   "model's beam table (" + ', '.join(fetchable) +
                   '), then exit')
+  ap.add_argument('--describe', choices=robots.names(), metavar='ROBOT',
+                  help="print a robot's description file "
+                  '(star_nav_bringup/config/robots/), then exit')
   for name in fetchable:  # the earlier spelling, e.g. --fetch-lite3
     ap.add_argument(f'--fetch-{name}', dest='fetch', action='store_const',
                     const=name, help=argparse.SUPPRESS)
@@ -104,6 +107,9 @@ def main(argv: list[str] | None = None) -> int:
   ap.add_argument('--record', default='', metavar='FILE',
                   help='record a video that follows the robot (needs ffmpeg)')
   args = ap.parse_args(argv)
+  if args.describe:
+    sys.stdout.write(robots.description(args.describe))
+    return 0
 
   logging.basicConfig(level=logging.INFO,
                       format='[%(asctime)s] [mujoco_sim] %(message)s',

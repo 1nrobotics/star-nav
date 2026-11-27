@@ -92,9 +92,11 @@ class _Flight:
 class Quadrotor(robots.Robot):
   name = 'quadrotor'
   title = 'Quadrotor'
+  type = 'aerial'
   body = 'quad'
   camera = 'depth'
   rings = 50
+  size = (0.37, 0.37, 0.10)  # rotor tip to rotor tip; up to the lidar's top
   params = quadrotor.Params()
   gains = quadrotor.Gains()
 

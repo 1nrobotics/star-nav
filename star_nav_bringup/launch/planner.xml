@@ -50,11 +50,15 @@
 
     <!-- The robot: speed and acceleration limits, the clearance to keep
          from obstacles (at least its radius), and for a ground robot its
-         height (higher things are overhead, not obstacles) -->
+         height (higher things are overhead, not obstacles), the box around
+         it and how close to an obstacle its route may pass -->
     <arg name="max_vel"/>
     <arg name="max_acc"/>
     <arg name="obstacles_inflation"/>
     <arg name="robot_height" default="0.0"/>
+    <arg name="robot_length" default="0.0"/>
+    <arg name="robot_width" default="0.0"/>
+    <arg name="robot_radius" default="0.0"/>
 
     <!-- The obstacle sensor: depth (camera, its intrinsics below) or lidar
          (at lidar_offset in the body frame) -->

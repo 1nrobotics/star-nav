@@ -65,6 +65,8 @@ OMEGA_SCALE, JOINT_VEL_SCALE = 0.25, 0.05
 # front, the lidar on top.
 CAMERA_POS = (0.29, 0.0, 0.02)
 LIDAR_MOUNT = (0.0, 0.0, 0.10)
+# Standing, with the lidar: length, width, height above the ground (m)
+SIZE = (0.61, 0.39, 0.44)
 # Collision geoms of the legs: touching the ground, a ramp or a step with
 # these is walking, not a collision (see Simulator._touching).
 SUPPORT_GEOMS = ('FOOT_collision', 'SHANK_collision')
@@ -192,9 +194,11 @@ class Locomotion(locomotion.JointPolicy):
 class Lite3(robots.GroundRobot):
   name = 'lite3'
   title = 'Lite3'
+  type = 'legged'
   body = TRUNK
   camera = CAMERA
   timestep = TIMESTEP
+  size = SIZE
   stand_height = STAND_HEIGHT
   start_height = START_HEIGHT
   support_geoms = SUPPORT_GEOMS

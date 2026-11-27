@@ -49,8 +49,8 @@ tests themselves (`star_nav_bringup/test/sim_smoke_test.py`,
 |---|---|---|---|
 | `common` | `lint` | `bash -n` on every shell script | seconds |
 | | `build` | `catkin_make` | seconds when little changed |
-| | `launch` | `test_planner_interface.py`: the planner each robot's launch file starts | seconds |
-| | `pytest` | `mujoco_sim/tests`: the simulator, every robot | 15 s |
+| | `launch` | `test_planner_interface.py`: the planner each robot's launch file starts, and that it is given the robot's sizes (`config/robots/<robot>.yaml`) | seconds |
+| | `pytest` | `mujoco_sim/tests`: the simulator, every robot; that each robot's description file is current | 20 s |
 | `aerial` | `unit` | EGO's map unit tests (`plan_env`) | seconds |
 | | `sim` | `sim_smoke.test`: the mission in the lightweight simulator | 1 min |
 | | `mujoco` | `mujoco_smoke.test` in MuJoCo, twice: depth camera (`mujoco-depth`), lidar (`mujoco-lidar`) | 1 min each |

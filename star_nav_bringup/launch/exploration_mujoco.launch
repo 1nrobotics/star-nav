@@ -64,6 +64,11 @@
     <arg name="sliding_map" default="true"/>
     <arg name="show_occ_time" default="false"/>
     <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+    <!-- The quadrotor's description, written from its module in the
+         simulator (the file says how): on the parameter server as /robot.
+         lidar_offset below repeats its lidar_mount
+         (test/test_planner_interface.py checks it). -->
+    <rosparam command="load" ns="robot" file="$(find star_nav_bringup)/config/robots/quadrotor.yaml"/>
 
     <!-- ============================== -->
     <!-- 1. MuJoCo simulator (no ROS)   -->
@@ -148,7 +153,7 @@
         <arg name="sensor" value="$(arg sensor_used)"/>
         <arg name="lidar_raycasting" value="$(arg lidar_raycasting)"/>
         <arg name="lidar_max_hits" value="$(arg lidar_max_hits)"/>
-        <!-- The simulated lidar sits 6 cm above the body centre (LidarConfig.mount) -->
+        <!-- The simulated lidar sits 6 cm above the body centre (/robot/lidar_mount) -->
         <arg name="lidar_offset" value="[0.0, 0.0, 0.06]"/>
         <!-- Both MuJoCo sensors see the ground; it is in the planner's map
              (below 0.35 m including inflation) but hidden in RViz. -->

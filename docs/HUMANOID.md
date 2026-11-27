@@ -136,7 +136,9 @@ rows cannot be repeated from the launch files):
   the robot.)
 - **Arms have no collision geoms** in the upstream model, so a touch with
   an arm would not be counted. The CMU planner's paths keep 0.45 m clear
-  (0.23 m where nothing else is free); the arms reach 0.27 m.
+  (0.23 m where nothing else is free), which is less than the 0.27 m the
+  arms reach. The waypoint router's route stays 0.27 m from an obstacle
+  (`robot_radius` in `exploration_t1.launch`).
 - **A fall ends the mission.** There is no get-up controller (see
   [Falls and getting up](#falls-and-getting-up)), and a fall is only logged:
   the smoke test fails later, on a waypoint timeout.

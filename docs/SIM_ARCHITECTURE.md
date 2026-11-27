@@ -142,18 +142,41 @@ same `twist()` method.
 
 | Where | What |
 |---|---|
-| `robots/<robot>.py` | Everything the simulator needs: model, policy, mounts, heights, lidar beam elevations, command-line defaults |
-| `exploration_<robot>.launch` | What the planner needs: standing height, lidar mount, the height above which returns are overhead, speed; for frontier exploration the step limit and clearance |
+| `robots/<robot>.py` | Everything the simulator needs: model, policy, mounts, heights, lidar beam elevations, command-line defaults. The source of the robot's description |
+| `star_nav_bringup/config/robots/<robot>.yaml` | The description: what the planner's side needs to know about the robot. Written from the module, not by hand |
+| `exploration_<robot>.launch` | The planner's settings for the robot: the height above which returns are overhead, how close a route may pass, speed; for frontier exploration the step limit and clearance. Four numbers repeated from the description |
 
-Two numbers are in both: the standing height (`altitude` in the launch
-file) and the lidar mount (`lidar_offset`). `tests/test_robots.py` reads
-the launch files and fails if they differ.
+The description is `Robot.describe()`:
 
-A single YAML file per robot, read by both sides, was the first idea. It
-does not work with ROS 1: `roslaunch` cannot read a file into `<arg>`
-values (`$(eval)` has no file access, and args cannot come from the
-parameter server). The launch file is therefore the planner-side half of the
-description, and the test keeps the two halves in agreement.
+| Key | Meaning |
+|---|---|
+| `name`, `type` | The module's name; `aerial` or `legged` (the planner's `robot_type`) |
+| `length`, `width`, `height` | The box around the robot with its lidar, standing or level (m); a ground robot's height is above the ground |
+| `lidar_mount` | Lidar position in the body frame (m) |
+| `stand_height` | Ground robots: the height the body stands at (m) |
+| `max_speed`, `max_turn` | Ground robots: the fastest a command makes it go (m/s, rad/s; the tracker's limits) |
+
+`star-nav-mujoco --describe <robot>` prints the file. After a change to a
+robot's module, write it again:
+
+```bash
+for r in quadrotor lite3 t1; do
+  mujoco_sim/.venv/bin/python -m star_nav_mujoco --describe $r \
+    > star_nav_bringup/config/robots/$r.yaml
+done
+```
+
+The launch files load the file onto the parameter server as `/robot`. They
+cannot take their arguments from it: `roslaunch` cannot read a file into
+`<arg>` values (`$(eval)` has no file access, and args cannot come from the
+parameter server). So a robot's launch file repeats four numbers of the
+description (`altitude`, `lidar_offset`, `robot_length`, `robot_width`), and
+tests keep the three places in agreement:
+
+| Test | Checks |
+|---|---|
+| `mujoco_sim/tests/test_robots.py` | The sizes are the model's (measured from its geoms); the file is what the module describes; the launch file's four numbers |
+| `star_nav_bringup/test/test_planner_interface.py` | `/robot` is the file; the parameters the planner's nodes are given, after every include, agree with `/robot`; the planner's settings fit the robot (`robot_height` at least its height, `max_vel` at most its `max_speed`) |
 
 ### Adding a robot
 
@@ -162,9 +185,12 @@ description, and the test keeps the two halves in agreement.
    `locomotion.JointPolicy`: its constants, `observation()` and `act()`)
    and a `GroundRobot` subclass; `ROBOT = ...`. Use `assets.py` for the
    downloads and `policy.py` for the network.
-2. `exploration_<name>.launch` with its sizes, and `<name>_smoke.test`.
-3. `tests/test_<name>.py`; `test_robots.py` covers the descriptor and the
-   launch file without changes.
+2. `star_nav_bringup/config/robots/<name>.yaml`, written with
+   `--describe <name>`; `exploration_<name>.launch` with the planner's
+   settings for it, and `<name>_smoke.test`.
+3. `tests/test_<name>.py`; `test_robots.py` covers the descriptor, the
+   description file and the launch file without changes. Add the launch
+   file to `test_planner_interface.py` (`ROBOTS`, `DESCRIPTIONS`).
 4. One line each in the README table and [LICENSES.md](LICENSES.md).
 
 Nothing in `sim.py`, `scene.py`, `__main__.py`, `record.py`, `viewer.py` or
@@ -233,8 +259,10 @@ Tests follow the layers:
    takes, or how that changes when the terrain, the sensor noise or the
    robot's speed change. Comparing two trackers or two policies needs that
    (see the evaluation layer below).
-4. **The planner-side description is a launch file** (see above); the test
-   only checks the two numbers that exist on both sides.
+4. **A launch file repeats four numbers of the robot's description** (see
+   [Per-robot settings](#per-robot-settings)), because `roslaunch` cannot
+   read them. Tests fail when they differ, but they are still written
+   twice.
 
 ## Review findings (November 2026)
 
@@ -300,13 +328,25 @@ changing: more robots, better controllers, and measured results.
    indices, the policy's timing and the PD that the Lite3 and the T1 each
    had a copy of; `tests/test_locomotion.py` tests it on a two-joint model,
    without downloaded files. Same check: the same states, step for step.
+6. **One description per robot for the planner's side.**
+   `Robot.describe()` gives the robot's size, lidar mount, standing height
+   and speed limits; `config/robots/<robot>.yaml` is written from it and
+   loaded as `/robot`. The CMU backend's vehicle size (0.6 m × 0.6 m for
+   every robot) and its router's radius were fixed numbers in
+   `planners/cmu.xml`; they are now arguments of the planner interface
+   (`robot_length`, `robot_width`, `robot_radius`) set by each robot's
+   launch file. The planner behaves as before: its vehicle size is used
+   only by a check that is off (`checkRotObstacle`). The radius is 0.25 m
+   for the Lite3 as it was, and 0.27 m for the T1 (half its width, the
+   reach of its arms), which blocks the same cells of the router's 0.1 m
+   grid as 0.25 m did.
 
 ### Next
 
-6. **The fall flag on the wire.** Add `fallen` to the state message
+7. **The fall flag on the wire.** Add `fallen` to the state message
    (`protocol.py`, `protocol.h`, `VERSION` bump), publish it from the
    bridge, and make the smoke test fail on it at once (finding 3).
-7. **An evaluation layer.** A scenario is a world, a mission, a set of
+8. **An evaluation layer.** A scenario is a world, a mission, a set of
    perturbations and a seed; a run returns a result record (JSON): success,
    time, path length, contacts, falls, minimum clearance. The smoke tests
    are the lowest tier of this. It sits beside `sim.py` and needs no ROS
@@ -324,7 +364,7 @@ changing: more robots, better controllers, and measured results.
    Two variants (two trackers, say) run on the same seeds, so the comparison
    is paired and the answer is better, worse or not distinguishable, with a
    veto on any safety regression (falls, contacts).
-8. **Lidar models.** Done for `uniform` and `mid360`: one class per sensor
+9. **Lidar models.** Done for `uniform` and `mid360`: one class per sensor
    in `lidar_models.py` (beam directions, beams per scan, range), chosen with
    `--lidar-model` (`lidar:=` in the launch files); the robot gives the mount
    position and tilt. Still open: `airy`, and more than one sensor at a time.
@@ -338,10 +378,10 @@ changing: more robots, better controllers, and measured results.
    - Measured cost per frame: Mid-360 9.9 ms (forest) and 1.6 ms (house);
      current grid 14.2 ms and 3.0 ms.
    - No protocol change.
-9. **`skills/`.** Short task guides for coding agents and contributors (add
+10. **`skills/`.** Short task guides for coding agents and contributors (add
    a robot, add a scenario, compare two variants), each ending in a command
    whose output shows the task is done.
-10. **Lidar time (only if needed).** Cast the scan in slices during stepping,
+11. **Lidar time (only if needed).** Cast the scan in slices during stepping,
    each with the pose at its time, and add per-point time to the wire format.
    Star Nav uses the ground-truth pose, so nothing downstream needs this yet.
 

@@ -33,18 +33,30 @@
     <arg name="robot"/>
     <!-- What kind it is, which chooses its planner (launch/planner.xml) -->
     <arg name="robot_type"/>
-    <!-- Its sizes, set by its launch file. altitude and lidar_offset repeat
-         stand_height and lidar_mount of the robot's module
-         (mujoco_sim/tests/test_robots.py checks them).
+    <!-- Its description, written from the robot's module in the simulator
+         (config/robots/<robot>.yaml says how): on the parameter server as
+         /robot. roslaunch cannot read an argument from a file, so the
+         robot's launch file repeats four of its numbers below, and
+         test/test_planner_interface.py checks what the nodes are given
+         against /robot. -->
+    <rosparam command="load" ns="robot" file="$(find star_nav_bringup)/config/robots/$(arg robot).yaml"/>
+    <!-- Repeated from the description:
          altitude: height its body stands at (the height of the goals)
          lidar_offset: lidar position in the body frame
-         robot_height: returns above this are overhead, not obstacles
+         robot_length, robot_width: the box around it
+         The planner's settings for this robot:
+         robot_height: returns above this are overhead, not obstacles (at
+                       least its height)
+         robot_radius: how close to an obstacle its route may pass
          max_step: the highest step that is walkable (frontier exploration)
          obstacles_inflation: clearance frontier exploration keeps
-         max_vel: speed the planner walks it at (m/s) -->
+         max_vel: speed the planner walks it at (m/s; at most its max_speed) -->
     <arg name="altitude"/>
     <arg name="lidar_offset"/>
+    <arg name="robot_length"/>
+    <arg name="robot_width"/>
     <arg name="robot_height"/>
+    <arg name="robot_radius"/>
     <arg name="max_step"/>
     <arg name="obstacles_inflation"/>
     <arg name="max_vel"/>
@@ -180,7 +192,10 @@
         <arg name="cloud_topic" value="lidar/cloud"/>
         <!-- In the frame of the robot's body -->
         <arg name="lidar_offset" value="$(arg lidar_offset)"/>
+        <arg name="robot_length" value="$(arg robot_length)"/>
+        <arg name="robot_width" value="$(arg robot_width)"/>
         <arg name="robot_height" value="$(arg robot_height)"/>
+        <arg name="robot_radius" value="$(arg robot_radius)"/>
         <arg name="cmu_obstacle_height" value="$(arg cmu_obstacle_height)"/>
         <arg name="cmu_path_scale" value="$(arg cmu_path_scale)"/>
         <arg name="cmu_min_path_scale" value="$(arg cmu_min_path_scale)"/>

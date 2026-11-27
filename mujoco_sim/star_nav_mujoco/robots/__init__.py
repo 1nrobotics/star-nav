@@ -13,6 +13,11 @@ velocity, and the robot's locomotion policy turns that into joint torques.
 It also follows a velocity from a planner that steers the robot itself; that
 skips the tracker.
 
+The planner's side (the launch files) needs a robot's size, where its lidar
+sits and how fast it goes. ``Robot.describe()`` gives those, and
+``description()`` writes them as the file the launch files load:
+star_nav_bringup/config/robots/<name>.yaml.
+
 Importing this package does not import MuJoCo: the command line lists the
 robots before it has chosen an OpenGL backend (``__main__._select_gl``).
 """
@@ -69,6 +74,8 @@ class Robot:
 
   name = ''  # --robot value, module name and asset directory
   title = ''  # as written in messages
+  # The planner's robot_type (docs/PLANNER_INTERFACE.md): aerial or legged.
+  type = ''
   body = ''  # root body (a free joint: qpos[0:7] is its pose)
   camera = ''  # depth camera
   on_ground = False  # drives or walks: touching the ground is not a contact
@@ -82,6 +89,9 @@ class Robot:
   # Lidar tilted nose-down (deg), by lidar model (lidar_models); a model not
   # listed is mounted level.
   lidar_pitch: dict[str, float] = {}
+  # The box around the robot with its lidar, standing or level: length
+  # (along x), width and height (m). tests/test_robots.py measures the model.
+  size = (0.0, 0.0, 0.0)
   follow_camera = (5.0, -25.0)  # viewer and recorder: distance (m), elevation
   house_wall_height = 1.0  # m
 
@@ -97,6 +107,18 @@ class Robot:
     if pitch is None:
       pitch = self.lidar_pitch.get(cfg.model, 0.0)
     return dataclasses.replace(cfg, mount=mount, pitch=pitch)
+
+  def describe(self) -> dict:
+    """What the planner's side needs to know about the robot.
+
+    Lengths in m; ``lidar_mount`` is in the body frame.
+    """
+    from star_nav_mujoco import lidar  # pylint: disable=g-import-not-at-top
+
+    length, width, height = self.size
+    mount = self.mount_lidar(lidar.LidarConfig()).mount
+    return {'name': self.name, 'type': self.type, 'length': length,
+            'width': width, 'height': height, 'lidar_mount': list(mount)}
 
   # Downloads the robot's files: fetch(log=print). None: nothing to download.
   fetch = None
@@ -131,6 +153,13 @@ class GroundRobot(Robot):
   @property
   def start(self):
     return (0.0, 0.0, self.stand_height)
+
+  def describe(self) -> dict:
+    """Also the height its body stands at and the tracker's limits (m/s,
+    rad/s): the fastest a command can make it go."""
+    tracker = self.tracker()
+    return {**super().describe(), 'stand_height': self.stand_height,
+            'max_speed': tracker.max_speed, 'max_turn': tracker.max_turn}
 
   def attach(self, spec: mujoco.MjSpec, start: tuple[float, float],
              root: pathlib.Path, lidar: bool = False) -> None:
@@ -188,6 +217,38 @@ def get(name: str) -> Robot:
   if name not in names():
     raise ValueError(f'unknown robot {name!r}')
   return importlib.import_module(f'{__name__}.{name}').ROBOT
+
+
+def description(name: str) -> str:
+  """``describe()`` of a robot as YAML: the text of its description file."""
+  robot = get(name)
+
+  def number(v):
+    return repr(round(float(v), 4))
+
+  facts = robot.describe()
+  speeds = 'max_speed in m/s, max_turn in rad/s, ' if 'max_speed' in facts else ''
+  lines = [
+      f'# The {robot.title} as the planner\'s side needs to know it: lengths in m,',
+      f'# {speeds}lidar_mount in the body frame.',
+      '# The launch files load it as /robot, and',
+      '# star_nav_bringup/test/test_planner_interface.py checks what they give the',
+      '# planner against it.',
+      '#',
+      f'# Written from mujoco_sim/star_nav_mujoco/robots/{name}.py: do not edit.',
+      '# Change the robot there, then (mujoco_sim/tests/test_robots.py checks it):',
+      f'#   mujoco_sim/.venv/bin/python -m star_nav_mujoco --describe {name} \\',
+      f'#     > star_nav_bringup/config/robots/{name}.yaml',
+  ]
+  for key, value in facts.items():
+    if isinstance(value, str):
+      text = value
+    elif isinstance(value, list):
+      text = '[' + ', '.join(number(v) for v in value) + ']'
+    else:
+      text = number(value)
+    lines.append(f'{key}: {text}')
+  return '\n'.join(lines) + '\n'
 
 
 def find(model: mujoco.MjModel) -> Robot:
