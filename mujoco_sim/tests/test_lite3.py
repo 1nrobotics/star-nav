@@ -93,6 +93,16 @@ def _go(s, x, y, yaw, seconds):
 
 
 @needs_lite3
+def test_torque_limit_is_the_models():
+  # Torques are clipped to the model's actuator range; the browser demo
+  # (site/tools/export_web_scene.py) uses TORQUE_LIMIT.
+  s = _robot([])
+  np.testing.assert_array_equal(s.model.actuator_ctrlrange,
+                                [[-lite3.TORQUE_LIMIT, lite3.TORQUE_LIMIT]] * 12)
+  s.close()
+
+
+@needs_lite3
 def test_stands_on_a_zero_command():
   s = _robot([])
   s.step(int(2.0 / lite3.TIMESTEP))

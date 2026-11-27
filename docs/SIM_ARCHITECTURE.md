@@ -18,7 +18,8 @@ Written November 2026.
 │               __init__.py: the Robot interface and the registry  │
 │ commands      commands.py (Setpoint, Velocity)                   │
 │ shared by     tracking.py (setpoint → velocity command)          │
-│ the robots    policy.py (MLP, GRU, ONNX weights, in NumPy)       │
+│ the robots    locomotion.py (policy timing, joint PD)            │
+│               policy.py (MLP, GRU, ONNX weights, in NumPy)       │
 │               assets.py (download, checksum, cache directory)    │
 │               quadrotor.py (SE(3) flight controller)             │
 │ scenes        world.py (forest) │ house.py │ scene.py (MJCF)     │
@@ -96,9 +97,25 @@ setpoints only; a velocity sent to it is refused and counted.
 | `GroundRobot` | Purpose |
 |---|---|
 | `attach(spec, start, root, lidar)` | Attach the upstream MJCF with `MjSpec` under a prefix (`lite3/`); add the depth camera and the lidar housing; move collision geoms to `ROBOT_GROUP` |
-| `locomotion(model, data, root)` | The policy and joint control: `twist`, `policy_due`, `before_step()`, `reset()` |
+| `locomotion(model, data, root)` | The policy and joint control (a `Locomotion`): `twist`, `policy_due`, `before_step()`, `reset()` |
 | `tracker` | A class of `tracking.py`: `Holonomic` (Lite3, T1) |
 | `timestep`, `stand_height`, `start_height`, `support_geoms` | Physics step of the policy; body height standing and when placed; the geoms it stands on |
+
+The walking robots' `Locomotion` classes subclass `locomotion.JointPolicy`,
+which has what they share: the check of the actuator order, the joint and
+trunk indices, the policy every `decimation` steps, and the PD torques
+clipped to the actuators' range on every step. A robot gives:
+
+| `JointPolicy` | Purpose |
+|---|---|
+| `title`, `trunk`, `actuators` | Name in messages; root body; actuator names in the policy's joint order |
+| `default_pose`, `action_scale`, `kp`, `kd`, `decimation` | Standing pose and what one unit of action adds to it; PD gains; physics steps per policy step |
+| `observation()` | The policy's input, from `gravity()`, `omega()`, `joint_pos()`, `joint_vel()`, `twist` and `last` (the last action) |
+| `act(obs)` | The network: ONNX Runtime (Lite3), NumPy (T1) |
+| `advance()` | Optional: state that moves with the physics (the T1's gait clock) |
+
+A robot that is not driven by joint angles from a policy (wheels, say)
+implements `Locomotion` itself; `GroundRobot` needs only its four members.
 
 ### Control chain per physics step
 
@@ -141,6 +158,8 @@ description, and the test keeps the two halves in agreement.
 ### Adding a robot
 
 1. `robots/<name>.py`: constants, `fetch`, `attach`, a `Locomotion` class
+   (for a robot with a joint policy, a subclass of
+   `locomotion.JointPolicy`: its constants, `observation()` and `act()`)
    and a `GroundRobot` subclass; `ROBOT = ...`. Use `assets.py` for the
    downloads and `policy.py` for the network.
 2. `exploration_<name>.launch` with its sizes, and `<name>_smoke.test`.
@@ -277,13 +296,17 @@ changing: more robots, better controllers, and measured results.
    `scene.py` know nothing of the quadrotor: its parameters, gains and MJCF
    are in `robots/quadrotor.py`. The physics did not change: the same
    commands give the same states, step for step, for all three robots.
+5. **A shared locomotion class.** `locomotion.JointPolicy` has the joint
+   indices, the policy's timing and the PD that the Lite3 and the T1 each
+   had a copy of; `tests/test_locomotion.py` tests it on a two-joint model,
+   without downloaded files. Same check: the same states, step for step.
 
 ### Next
 
-5. **The fall flag on the wire.** Add `fallen` to the state message
+6. **The fall flag on the wire.** Add `fallen` to the state message
    (`protocol.py`, `protocol.h`, `VERSION` bump), publish it from the
    bridge, and make the smoke test fail on it at once (finding 3).
-6. **An evaluation layer.** A scenario is a world, a mission, a set of
+7. **An evaluation layer.** A scenario is a world, a mission, a set of
    perturbations and a seed; a run returns a result record (JSON): success,
    time, path length, contacts, falls, minimum clearance. The smoke tests
    are the lowest tier of this. It sits beside `sim.py` and needs no ROS
@@ -301,7 +324,7 @@ changing: more robots, better controllers, and measured results.
    Two variants (two trackers, say) run on the same seeds, so the comparison
    is paired and the answer is better, worse or not distinguishable, with a
    veto on any safety regression (falls, contacts).
-7. **Lidar models.** Done for `uniform` and `mid360`: one class per sensor
+8. **Lidar models.** Done for `uniform` and `mid360`: one class per sensor
    in `lidar_models.py` (beam directions, beams per scan, range), chosen with
    `--lidar-model` (`lidar:=` in the launch files); the robot gives the mount
    position and tilt. Still open: `airy`, and more than one sensor at a time.
@@ -315,10 +338,10 @@ changing: more robots, better controllers, and measured results.
    - Measured cost per frame: Mid-360 9.9 ms (forest) and 1.6 ms (house);
      current grid 14.2 ms and 3.0 ms.
    - No protocol change.
-8. **`skills/`.** Short task guides for coding agents and contributors (add
+9. **`skills/`.** Short task guides for coding agents and contributors (add
    a robot, add a scenario, compare two variants), each ending in a command
    whose output shows the task is done.
-9. **Lidar time (only if needed).** Cast the scan in slices during stepping,
+10. **Lidar time (only if needed).** Cast the scan in slices during stepping,
    each with the pose at its time, and add per-point time to the wire format.
    Star Nav uses the ground-truth pose, so nothing downstream needs this yet.
 

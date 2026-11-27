@@ -28,6 +28,7 @@ import mujoco
 import numpy as np
 
 from star_nav_mujoco import assets
+from star_nav_mujoco import locomotion
 from star_nav_mujoco import policy as policy_lib
 from star_nav_mujoco import robots
 from star_nav_mujoco import scene
@@ -174,33 +175,24 @@ def attach(spec: mujoco.MjSpec, start: tuple[float, float], root: pathlib.Path,
   frame.attach_body(trunk, PREFIX, '')
 
 
-class Locomotion:
-  """Runs the velocity policy (numpy) and the joint PD controller."""
+class Locomotion(locomotion.JointPolicy):
+  """The upstream velocity policy (in NumPy), with its gait clock."""
+
+  title = 'T1'
+  trunk = TRUNK
+  actuators = tuple(PREFIX + j for j in JOINTS)
+  default_pose = DEFAULT_POSE
+  kp, kd = KP, KD
+  decimation = DECIMATION
 
   def __init__(self, model: mujoco.MjModel, data: mujoco.MjData,
                root: pathlib.Path | None = None):
-    root = root or asset_dir()
-    self.model, self.data = model, data
-    acts = [PREFIX + j for j in JOINTS]
-    if [model.actuator(i).name for i in range(model.nu)] != acts:
-      raise ValueError('unexpected T1 actuator order')
-    jids = model.actuator_trnid[:, 0]
-    self._qpos = model.jnt_qposadr[jids]
-    self._qvel = model.jnt_dofadr[jids]
-    self._trunk = model.body(TRUNK).id
-    self._root_qvel = model.jnt_dofadr[model.body_jntadr[self._trunk]]
-    self._lo = model.actuator_ctrlrange[:, 0].copy()
-    self._hi = model.actuator_ctrlrange[:, 1].copy()
-    with np.load(root / WEIGHTS_FILE) as w:
+    with np.load((root or asset_dir()) / WEIGHTS_FILE) as w:
       self._layers = [(w[f'w{i}'], w[f'b{i}']) for i in range(len(LAYERS))]
-    self.twist = np.zeros(3, np.float32)
-    self.reset()
+    super().__init__(model, data)
 
   def reset(self) -> None:
-    self.data.qpos[self._qpos] = DEFAULT_POSE
-    self._last = np.zeros(len(JOINTS), np.float32)
-    self._target = DEFAULT_POSE.copy()
-    self._steps = 0
+    super().reset()
     self._phase = 0.0
 
   @property
@@ -209,35 +201,21 @@ class Locomotion:
     return bool(np.any(self.twist))
 
   def observation(self) -> np.ndarray:
-    d = self.data
-    gravity = policy_lib.projected_gravity(d.xquat[self._trunk])
-    omega = d.qvel[self._root_qvel + 3:self._root_qvel + 6]  # body frame
     on = float(self.walking)
     clock = [math.cos(2 * math.pi * self._phase) * on,
              math.sin(2 * math.pi * self._phase) * on]
     return np.concatenate([
-        gravity, omega, np.clip(self.twist, -MAX_CMD, MAX_CMD), clock,
-        d.qpos[self._qpos] - DEFAULT_POSE, d.qvel[self._qvel] * JOINT_VEL_SCALE,
-        self._last]).astype(np.float32)
+        self.gravity(), self.omega(), np.clip(self.twist, -MAX_CMD, MAX_CMD),
+        clock, self.joint_pos(), self.joint_vel() * JOINT_VEL_SCALE,
+        self.last]).astype(np.float32)
 
-  @property
-  def policy_due(self) -> bool:
-    """True if the next ``before_step`` runs the policy (set ``twist`` now)."""
-    return self._steps % DECIMATION == 0
+  def act(self, obs: np.ndarray) -> np.ndarray:
+    return np.clip(policy_lib.mlp(self._layers, obs), -1.0, 1.0)
 
-  def before_step(self) -> None:
-    """Call before every mj_step: policy every DECIMATION steps, PD always."""
-    d = self.data
-    if self._steps % DECIMATION == 0:
-      action = np.clip(
-          policy_lib.mlp(self._layers, self.observation()), -1.0, 1.0)
-      self._last = action.astype(np.float32)
-      self._target = DEFAULT_POSE + self._last
-    self._steps += 1
+  def advance(self) -> None:
     if self.walking:
-      self._phase = math.fmod(self._phase + self.model.opt.timestep * GAIT_FREQUENCY, 1.0)
-    torque = KP * (self._target - d.qpos[self._qpos]) - KD * d.qvel[self._qvel]
-    d.ctrl[:] = np.clip(torque, self._lo, self._hi)
+      self._phase = math.fmod(
+          self._phase + self.model.opt.timestep * GAIT_FREQUENCY, 1.0)
 
 
 class T1(robots.GroundRobot):

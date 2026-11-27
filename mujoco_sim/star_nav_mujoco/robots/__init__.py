@@ -50,7 +50,11 @@ class Controller(Protocol):
 
 
 class Locomotion(Protocol):
-  """A ground robot's policy and joint control; follows ``twist``."""
+  """A ground robot's policy and joint control; follows ``twist``.
+
+  ``locomotion.JointPolicy`` implements it for a robot with a learned policy
+  and joint PD (the walking robots).
+  """
 
   twist: object  # forward (m/s), sideways (m/s), turn rate (rad/s)
   policy_due: bool  # the next before_step runs the policy: set twist now
@@ -109,7 +113,8 @@ class GroundRobot(Robot):
   """A robot on the ground, driven by a learned velocity policy.
 
   A subclass gives the constants, ``attach`` (adds the robot to a scene) and
-  ``locomotion`` (its policy), and chooses its ``tracker``.
+  ``locomotion`` (its policy: a ``Locomotion``, for a walking robot a
+  subclass of ``locomotion.JointPolicy``), and chooses its ``tracker``.
   """
 
   on_ground = True
