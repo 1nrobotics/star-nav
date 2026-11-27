@@ -153,6 +153,7 @@ each; times are simulated):
 | `lite3_smoke.test` (house; the default) | 12/12, 0 contacts, 0 timeouts, reached the platform (peak torso z 0.54 m), 143 s |
 | `lite3_smoke.test world:=forest` | 12/12, 0 contacts, 0 timeouts, 136 s |
 | `frontier_smoke.test` (house) | 18 frontiers, 98.6 % of the floor known, 80 s, 36.2 m walked, home within 0.25 m, 0 contacts (six earlier runs: 15 to 20 frontiers, 98.6 to 98.8 %, 72 to 86 s) |
+| `frontier_smoke.test` (house), 56 runs on 2026-11-27 | 54 passed: 16 to 20 frontiers, 98.5 to 98.7 % of the floor known, 68 to 118 s, 33 to 45 m walked, home within 0.18 to 0.29 m. 1 run with a contact and 1 with a frontier given up ([Limitations](#limitations)) |
 | `pytest` in `mujoco_sim/` | 63 passed (with both robots downloaded) |
 
 The forest test no longer compares a map with the pillars: that check read
@@ -166,13 +167,30 @@ EGO's map.
   ground is an obstacle (`cmu_obstacle_height`); the policy climbs 7 cm
   steps reliably. A step between 8 and 15 cm is not an obstacle to the
   planner and may stall the robot.
-- **A turn next to a wall end can touch it.** On the way to the last
-  waypoint of the house mission the Lite3 walks past the north end of the
-  corridor's west wall, to about (1.0, 1.95), and turns round there, 0.35 m
-  from the wall's end. In 1 of 11 runs of `lite3_smoke.test` it stood 7 cm
-  nearer and its front right foot touched the wall for 0.09 s; it reached
-  all 12 waypoints, and the test failed on the contact
-  ([TESTING.md](TESTING.md#failures-that-do-not-happen-every-time)).
+- **A turn next to an obstacle can touch it.** The path follower turns the
+  robot round on the spot when its next point lies behind it, and the
+  planner does not check the room that takes (`checkRotObstacle` is off).
+  Seen twice
+  ([TESTING.md](TESTING.md#failures-that-do-not-happen-every-time)):
+  - On the way to the last waypoint of the house mission the Lite3 walks
+    past the north end of the corridor's west wall, to about (1.0, 1.95),
+    and turns round there, 0.35 m from the wall's end. In 1 of 21 runs of
+    `lite3_smoke.test` it stood 7 cm nearer and its front right foot touched
+    the wall for 0.09 s; it reached all 12 waypoints, and the test failed on
+    the contact.
+  - In 1 of 56 runs of `frontier_smoke.test` the frontier ahead was seen
+    while the Lite3 walked south past the cabinet, 0.45 m from its east
+    face, and the next frontier lay behind it. Turning round it drifted to
+    0.25 m from the face, and its front right lower leg touched the
+    cabinet's corner at (3.7, -2.5) for 0.5 s. It mapped 98.7 % and came
+    home; the test failed on the contact.
+- **A frontier given up for no known reason.** In 1 of 56 runs of
+  `frontier_smoke.test` the Lite3 stood still for 6 s at (2.62, 2.33), 1 s
+  after it was sent to a frontier 6.3 m away in the open east room, and the
+  explorer gave that frontier up (`stall_time`). It walked to the next one,
+  0.9 m from the first, at once, mapped 98.6 %, came home and touched
+  nothing; the test fails on any frontier given up. 50 further runs,
+  recorded with a bag, did not show it again: the cause is not known.
 - **Static worlds only.** The terrain analysis is set up for a world that
   does not change (`clearDyObs` false).
 - **Ground-truth pose.** No odometry or SLAM is in the loop.
