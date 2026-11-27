@@ -16,6 +16,7 @@ Written November 2026.
 │               run(): real-time loop, ZeroMQ, viewer, recording   │
 │ robots/       one module per robot: quadrotor, lite3, t1         │
 │               __init__.py: the Robot interface and the registry  │
+│ commands      commands.py (Setpoint, Velocity)                   │
 │ shared by     tracking.py (setpoint → velocity command)          │
 │ the robots    policy.py (MLP, GRU, ONNX weights, in NumPy)       │
 │               assets.py (download, checksum, cache directory)    │
@@ -47,11 +48,11 @@ Written November 2026.
 
 Every simulated robot has the same contract with the rest of the stack: it
 takes a position setpoint (`pos_cmd`: position, velocity, acceleration,
-yaw) and returns odometry and sensor data. A ground robot also takes a
-body-frame velocity (`cmd_vel`: forward, sideways, turn rate), which goes to
-its walking policy within the tracker's limits and replaces the position
-setpoint once one has been received; without a new one for `cmd_timeout`
-the robot stands. The planners use one each: EGO sends the quadrotor
+yaw; `commands.Setpoint` in the simulator) and returns odometry and sensor
+data. A ground robot also takes a body-frame velocity (`cmd_vel`: forward,
+sideways, turn rate; `commands.Velocity`), which goes to its walking policy
+within the tracker's limits and replaces the position setpoint once one has
+been received; without a new one for `cmd_timeout` the robot stands. The planners use one each: EGO sends the quadrotor
 setpoints, and the CMU local planner sends the walking robots a velocity
 (their setpoint tracker is still in the simulator, but no planner sends
 them setpoints now). Which planner a robot gets, and what a planner takes and gives, is in
@@ -74,7 +75,7 @@ particular robot. `robots/__init__.py` defines the interface:
 | `lidar_mount`, `lidar_pitch`, `follow_camera`, `house_wall_height` | Lidar position on the body and nose-down tilt by lidar model; viewer and recorder camera; wall height in the house |
 | `check_assets()`, `fetch(log)` | Files downloaded at a pinned commit, never committed (`assets.py`) |
 | `build(cfg, obstacles, extra)` | Returns the scene (`MjSpec`) with the robot in it |
-| `controller(model, data, cfg)` | Returns a `Controller`: `reset()`, and `step(cmd)` before every `mj_step` |
+| `controller(model, data, cfg)` | Returns a `Controller`: `accepts` (the commands of `commands.py` it follows), `reset()`, and `step(cmd)` before every `mj_step` |
 
 The registry is the directory: `robots.names()` lists the modules,
 `robots.get(name)` returns a module's `ROBOT`, and `robots.find(model)`
@@ -82,9 +83,12 @@ returns the robot in a compiled scene. Listing the robots does not import
 MuJoCo, because the command line needs the names before it has chosen an
 OpenGL backend.
 
-**The quadrotor** (`robots/quadrotor.py`) is built by `scene.build_xml` and
-flown by `quadrotor.Controller`, a geometric SE(3) controller that outputs
-four rotor thrusts.
+**The quadrotor** (`robots/quadrotor.py`) is written in MJCF in its own
+module: `parts()` gives its body, rotors, materials and default class, and
+`scene.build_xml` puts them into the scene. It is flown by
+`quadrotor.Controller`, a geometric SE(3) controller that outputs four rotor
+thrusts, with the robot's `params` and `gains`. Its controller accepts
+setpoints only; a velocity sent to it is refused and counted.
 
 **Ground robots** subclass `GroundRobot`, which implements `build` and
 `controller` from four things the robot gives:
@@ -108,8 +112,10 @@ ground robot: cmd ─► tracker ─► twist ─► locomotion policy
 `Simulator.step()` is one loop for every robot. Contact counting, fall
 detection (`Simulator.fallen`) and walkable surfaces (ground, ramp, stairs:
 `house.WALKABLE`) are in `sim.py`. `set_command()` rejects a non-finite
-position and zeroes other non-finite fields. When commands stop for
-`cmd_timeout` (0.5 s), the robot holds the last position.
+position and zeroes other non-finite fields. `set_velocity()` asks the
+controller (`accepts`), not the kind of robot, whether a velocity can be
+followed. When commands stop for `cmd_timeout` (0.5 s), the robot holds the
+last position.
 
 The tracker is the seam for a better local controller: an MPPI tracker
 ([GROUND_PLANNING.md](GROUND_PLANNING.md) §6) is another class with the
@@ -237,9 +243,14 @@ From a read-through of the simulator, bridge, launch files, tests and CI.
 5. **The house has no ground truth.** The world message carries pillars and
    rings only, so the house has no `global_cloud`, no obstacle markers and
    no map-accuracy check.
-6. **Quadrotor names on shared code.** `quadrotor.Command` is the command
-   type for every robot. The bridge logs "quadrotor collision" and topics
-   are `drone_0_*`.
+6. **Quadrotor names on shared code.** `quadrotor.Command` was the command
+   type for every robot, `SimConfig` and `scene.build_xml` carried the
+   quadrotor's parameters for every robot, and the bridge logged "quadrotor
+   collision". Done: the commands are `commands.Setpoint` and
+   `commands.Velocity`, the parameters and the MJCF are in the quadrotor's
+   module, and the bridge logs "robot collision". Topics are still
+   `drone_0_*`: that prefix is part of the planner interface
+   ([PLANNER_INTERFACE.md](PLANNER_INTERFACE.md#topics)).
 7. **Smaller:**
    - When the viewer replaces `sim.data`, the controller keeps the old one
      (not verified that the viewer ever does this).
@@ -261,13 +272,18 @@ changing: more robots, better controllers, and measured results.
    lookups became plain arguments set by each robot's launch file.
 3. **A robot interface.** `Simulator` has no `legged` branches; the
    quadrotor is a robot like the others.
+4. **Neutral commands.** `commands.py` has the two commands a planner
+   sends, and a controller says which it follows. `SimConfig` and
+   `scene.py` know nothing of the quadrotor: its parameters, gains and MJCF
+   are in `robots/quadrotor.py`. The physics did not change: the same
+   commands give the same states, step for step, for all three robots.
 
 ### Next
 
-4. **The fall flag on the wire.** Add `fallen` to the state message
+5. **The fall flag on the wire.** Add `fallen` to the state message
    (`protocol.py`, `protocol.h`, `VERSION` bump), publish it from the
    bridge, and make the smoke test fail on it at once (finding 3).
-5. **An evaluation layer.** A scenario is a world, a mission, a set of
+6. **An evaluation layer.** A scenario is a world, a mission, a set of
    perturbations and a seed; a run returns a result record (JSON): success,
    time, path length, contacts, falls, minimum clearance. The smoke tests
    are the lowest tier of this. It sits beside `sim.py` and needs no ROS
@@ -285,7 +301,7 @@ changing: more robots, better controllers, and measured results.
    Two variants (two trackers, say) run on the same seeds, so the comparison
    is paired and the answer is better, worse or not distinguishable, with a
    veto on any safety regression (falls, contacts).
-6. **Lidar models.** Done for `uniform` and `mid360`: one class per sensor
+7. **Lidar models.** Done for `uniform` and `mid360`: one class per sensor
    in `lidar_models.py` (beam directions, beams per scan, range), chosen with
    `--lidar-model` (`lidar:=` in the launch files); the robot gives the mount
    position and tilt. Still open: `airy`, and more than one sensor at a time.
@@ -299,14 +315,12 @@ changing: more robots, better controllers, and measured results.
    - Measured cost per frame: Mid-360 9.9 ms (forest) and 1.6 ms (house);
      current grid 14.2 ms and 3.0 ms.
    - No protocol change.
-7. **`skills/`.** Short task guides for coding agents and contributors (add
+8. **`skills/`.** Short task guides for coding agents and contributors (add
    a robot, add a scenario, compare two variants), each ending in a command
    whose output shows the task is done.
-8. **Lidar time (only if needed).** Cast the scan in slices during stepping,
+9. **Lidar time (only if needed).** Cast the scan in slices during stepping,
    each with the pose at its time, and add per-point time to the wire format.
    Star Nav uses the ground-truth pose, so nothing downstream needs this yet.
-
-Also open from the findings: a neutral name for `quadrotor.Command`.
 
 ### What we take from the Antigravity Robotics plugin
 

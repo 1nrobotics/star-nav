@@ -5,12 +5,13 @@ is called, how it is added to the scene, what drives it and where its sensors
 sit. ``Simulator`` only talks to that object, so adding a robot means adding
 a module here (see docs/SIM_ARCHITECTURE.md), not editing the simulator.
 
-Every robot follows the same command, the planner's position setpoint, with
-its own ``Controller``. A ground robot's is a chain: a tracker
-(``tracking.py``) turns the setpoint into a body-frame velocity, and the
-robot's locomotion policy turns that into joint torques. A ground robot also
-follows a body-frame velocity (``tracking.Velocity``) from a planner that
-steers it itself; that skips the tracker.
+A planner commands a robot with a position setpoint or a body-frame velocity
+(``commands.py``), and the robot's ``Controller`` says which of the two it
+follows. Every robot follows a setpoint. A ground robot's controller is a
+chain: a tracker (``tracking.py``) turns the setpoint into a body-frame
+velocity, and the robot's locomotion policy turns that into joint torques.
+It also follows a velocity from a planner that steers the robot itself; that
+skips the tracker.
 
 Importing this package does not import MuJoCo: the command line lists the
 robots before it has chosen an OpenGL backend (``__main__._select_gl``).
@@ -24,6 +25,7 @@ import pathlib
 import pkgutil
 from typing import Protocol
 
+from star_nav_mujoco import commands
 from star_nav_mujoco import scene
 from star_nav_mujoco import tracking
 
@@ -33,14 +35,17 @@ DEFAULT = 'quadrotor'
 class Controller(Protocol):
   """Follows the planner's command by writing the model's actuators."""
 
+  # The commands (classes of commands.py) it follows; the simulator refuses
+  # any other.
+  accepts: tuple[type, ...]
+
   def reset(self) -> None:
     """Puts the robot in its starting state (after mj_resetData)."""
 
   def step(self, cmd) -> None:
     """Called before every mj_step with the command to follow.
 
-    A ``quadrotor.Command`` (position setpoint) or, for a ground robot, a
-    ``tracking.Velocity``.
+    ``cmd`` is of one of the classes in ``accepts``.
     """
 
 
@@ -134,8 +139,7 @@ class GroundRobot(Robot):
 
     root = self.check_assets()
     spec = mujoco.MjSpec.from_string(scene.build_xml(
-        obstacles, cfg.params, cfg.start, self.timestep, quadrotor_body=False,
-        extra=extra, draw=cfg.draw))
+        obstacles, cfg.start, self.timestep, extra=extra, draw=cfg.draw))
     self.attach(spec, cfg.start[:2], root, lidar=cfg.lidar is not None)
     return spec
 
@@ -145,6 +149,8 @@ class GroundRobot(Robot):
 
 class _GroundController:
   """Tracker, then the locomotion policy."""
+
+  accepts = (commands.Setpoint, commands.Velocity)
 
   def __init__(self, robot: GroundRobot, model, data):
     self._robot, self._data = robot, data
@@ -158,7 +164,7 @@ class _GroundController:
 
   def step(self, cmd) -> None:
     loco, d = self.locomotion, self._data
-    if loco.policy_due and isinstance(cmd, tracking.Velocity):
+    if loco.policy_due and isinstance(cmd, commands.Velocity):
       loco.twist = self.tracker.limit(cmd.twist)
     elif loco.policy_due:
       yaw = 2.0 * math.atan2(d.qpos[6], d.qpos[3])  # the body stays level

@@ -2,8 +2,9 @@
 
 The controller follows Lee, Leok and McClamroch, "Geometric tracking control
 of a quadrotor UAV on SE(3)" (CDC 2010) and plays the role of the flight
-controller: it turns the planner's position command (position, velocity,
-acceleration, yaw) into four rotor thrusts.
+controller: it turns the planner's position setpoint
+(``commands.Setpoint``: position, velocity, acceleration, yaw) into four
+rotor thrusts.
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ import dataclasses
 import math
 
 import numpy as np
+
+from star_nav_mujoco import commands
 
 GRAVITY = 9.81
 
@@ -50,21 +53,6 @@ class Gains:
   integral_zone: float = 0.3  # metres
 
 
-@dataclasses.dataclass
-class Command:
-  """Position command, as published by the EGO planner trajectory server."""
-
-  pos: np.ndarray
-  vel: np.ndarray = dataclasses.field(default_factory=lambda: np.zeros(3))
-  acc: np.ndarray = dataclasses.field(default_factory=lambda: np.zeros(3))
-  yaw: float = 0.0
-  yaw_rate: float = 0.0
-
-  @classmethod
-  def hover(cls, pos, yaw: float = 0.0) -> 'Command':
-    return cls(pos=np.asarray(pos, dtype=float).copy(), yaw=yaw)
-
-
 def _vee(m: np.ndarray) -> np.ndarray:
   return np.array([m[2, 1], m[0, 2], m[1, 0]])
 
@@ -94,7 +82,7 @@ class Controller:
 
   def update(
       self,
-      cmd: Command,
+      cmd: commands.Setpoint,
       pos: np.ndarray,
       rot: np.ndarray,
       vel: np.ndarray,

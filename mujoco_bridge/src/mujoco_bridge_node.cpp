@@ -260,7 +260,7 @@ class Bridge {
 
     if (s.contacts != last_contacts_) {
       if (s.contacts > last_contacts_) {
-        ROS_WARN_THROTTLE(1.0, "[mujoco_bridge] quadrotor collision (%u contact steps)",
+        ROS_WARN_THROTTLE(1.0, "[mujoco_bridge] robot collision (%u contact steps)",
                           s.contacts);
       }
       last_contacts_ = s.contacts;

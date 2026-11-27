@@ -23,11 +23,11 @@ import pathlib
 import sys
 
 from star_nav_mujoco import house
-from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
 from star_nav_mujoco import tracking
 from star_nav_mujoco import world
 from star_nav_mujoco.robots import lite3
+from star_nav_mujoco.robots import quadrotor
 from star_nav_mujoco.robots import t1
 
 HALF = 8.0  # m: keep obstacles within this box around the origin
@@ -39,15 +39,16 @@ def forest() -> str:
   cfg = world.WorldConfig(seed=1, start=START[:2])
   obstacles = [ob for ob in world.generate(cfg)
                if abs(ob.x) <= HALF and abs(ob.y) <= HALF]
-  return scene.build_xml(obstacles, quadrotor.Params(), START)
+  return scene.build_xml(obstacles, START,
+                         robot=quadrotor.ROBOT.parts(START))
 
 
 def walker_scene(module) -> str:
   """The house, and the robot's upstream MJCF attached as it is."""
   name = module.ROBOT.name
   xml = scene.build_xml(
-      [], quadrotor.Params(), (0.0, 0.0, 0.0), module.TIMESTEP,
-      quadrotor_body=False, extra=house.xml(module.HOUSE_WALL_HEIGHT))
+      [], (0.0, 0.0, 0.0), module.TIMESTEP,
+      extra=house.xml(module.HOUSE_WALL_HEIGHT))
   body = module.TRUNK[len(module.PREFIX):]
   model = f'    <model name="{name}" file="{name}/{module.MODEL_XML}"/>\n'
   attach = (f'    <attach model="{name}" body="{body}" '

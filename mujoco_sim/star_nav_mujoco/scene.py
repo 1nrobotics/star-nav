@@ -1,14 +1,16 @@
-"""Builds the MuJoCo scene (MJCF) for the forest world and the quadrotor.
+"""Builds the MuJoCo scene (MJCF): the ground, the obstacles and the lights.
 
-Other robots (``robots/``) are attached to it with MjSpec.
+The robot is not in here. A robot written in MJCF gives its ``Parts`` to
+``build_xml`` (the quadrotor); one with a model file of its own is attached
+to the scene with MjSpec (the walking robots). See ``robots/``.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import math
 
 from star_nav_mujoco import overlay
-from star_nav_mujoco import quadrotor
 from star_nav_mujoco import world
 
 # Depth camera, matching the intrinsics the planner is configured with.
@@ -26,7 +28,18 @@ RING_SEGMENTS = 24
 RING_TUBE = 0.04
 
 
-def _f(*v: float) -> str:
+@dataclasses.dataclass(frozen=True)
+class Parts:
+  """A robot written in MJCF: what goes into each section of the scene."""
+
+  body: str = ''  # <worldbody>
+  actuators: str = ''  # <actuator>
+  assets: str = ''  # <asset>
+  defaults: str = ''  # <default>
+
+
+def fmt(*v: float) -> str:
+  """Numbers as an MJCF attribute value."""
   return ' '.join(f'{x:.4g}' for x in v)
 
 
@@ -36,79 +49,37 @@ def _obstacles_xml(obstacles: list[world.Obstacle]) -> str:
     if ob.kind == world.PILLAR:
       out.append(
           f'<geom class="obstacle" type="cylinder" material="pillar" '
-          f'pos="{_f(ob.x, ob.y, ob.b / 2)}" size="{_f(ob.a, ob.b / 2)}"/>'
+          f'pos="{fmt(ob.x, ob.y, ob.b / 2)}" size="{fmt(ob.a, ob.b / 2)}"/>'
       )
     else:
       pts = world.ring_points(ob, RING_SEGMENTS)
       for p, q in zip(pts[:-1], pts[1:]):
         out.append(
             f'<geom class="obstacle" type="capsule" material="ring" '
-            f'fromto="{_f(*p, *q)}" size="{RING_TUBE}"/>'
+            f'fromto="{fmt(*p, *q)}" size="{RING_TUBE}"/>'
         )
-  return '\n    '.join(out)
-
-
-def _quadrotor_xml(p: quadrotor.Params, start: tuple[float, float, float],
-                   lidar_mount: tuple[float, float, float] | None) -> str:
-  rotors = []
-  for i, (x, y, _) in enumerate(p.rotor_layout()):
-    rotors.append(
-        f'<site name="rotor{i}" pos="{_f(x, y, 0.02)}"/>\n'
-        f'      <geom class="drone" type="cylinder" material="prop" '
-        f'pos="{_f(x, y, 0.025)}" size="{_f(p.prop_radius, 0.004)}"/>\n'
-        f'      <geom class="drone" type="capsule" material="frame" '
-        f'fromto="0 0 0 {_f(x, y, 0)}" size="0.008"/>'
-    )
-  lidar = ''
-  if lidar_mount is not None:
-    lidar = (f'<geom class="drone" type="cylinder" material="lidar" '
-             f'pos="{_f(*lidar_mount)}" size="0.035 0.02"/>')
-  return f'''
-    <body name="quad" pos="{_f(*start)}">
-      <freejoint name="quad"/>
-      <inertial pos="0 0 0" mass="{p.mass}" diaginertia="{_f(*p.inertia)}"/>
-      <geom class="drone" type="box" material="frame" size="0.06 0.045 0.02"/>
-      {chr(10).join('      ' + r for r in rotors).strip()}
-      {lidar}
-      <camera name="depth" pos="{CAM_OFFSET} 0 0" xyaxes="0 -1 0 0 0 1"
-              fovy="{CAM_FOVY:.4f}" resolution="{CAM_WIDTH} {CAM_HEIGHT}"/>
-      <camera name="chase" mode="trackcom" pos="-3 -1.5 1.4" xyaxes="0.45 -0.89 0 0.3 0.15 0.94"/>
-    </body>'''
-
-
-def _actuators_xml(p: quadrotor.Params) -> str:
-  out = []
-  for i, (_, _, spin) in enumerate(p.rotor_layout()):
-    out.append(
-        f'<general name="motor{i}" site="rotor{i}" '
-        f'gear="0 0 1 0 0 {spin * p.torque_coeff:.4g}" '
-        f'dyntype="filter" dynprm="{p.motor_tau}" '
-        f'ctrlrange="0 {p.max_thrust}" ctrllimited="true"/>'
-    )
   return '\n    '.join(out)
 
 
 def build_xml(
     obstacles: list[world.Obstacle],
-    params: quadrotor.Params,
     start: tuple[float, float, float],
     timestep: float = 0.002,
-    lidar_mount: tuple[float, float, float] | None = None,
-    quadrotor_body: bool = True,
     extra: str = '',
     draw: bool = False,
+    robot: Parts = Parts(),
 ) -> str:
-  """Returns the scene; without ``quadrotor_body`` the robot is added later.
+  """Returns the scene; without ``robot`` the robot is attached later.
 
-  ``extra`` is more worldbody XML (e.g. ``house.xml()``). ``draw`` adds the
-  markers the planner's paths are drawn with (overlay.py).
+  ``start`` is where the robot stands: the view is centred on it and the
+  setpoint marker starts there. ``extra`` is more worldbody XML (e.g.
+  ``house.xml()``). ``draw`` adds the markers the planner's paths are drawn
+  with (overlay.py).
   """
   markers = overlay.xml(MARKER_GROUP) if draw else ''
-  robot = _quadrotor_xml(params, start, lidar_mount) if quadrotor_body else ''
-  actuators = _actuators_xml(params) if quadrotor_body else ''
   return f'''<mujoco model="star_nav">
   <option timestep="{timestep}" integrator="implicitfast"/>
-  <statistic extent="6" center="{_f(start[0], start[1], 0.5)}"/>
+  <statistic extent="6" center="{fmt(start[0], start[1], 0.5)}"/>
   <visual>
     <global offwidth="{max(CAM_WIDTH, 1280)}" offheight="{max(CAM_HEIGHT, 720)}"
             azimuth="-135" elevation="-30"/>
@@ -124,9 +95,7 @@ def build_xml(
     <material name="ground" texture="grid" texrepeat="25 25"/>
     <material name="pillar" rgba="0.35 0.55 0.3 1"/>
     <material name="ring" rgba="0.85 0.55 0.2 1"/>
-    <material name="frame" rgba="0.15 0.15 0.18 1"/>
-    <material name="prop" rgba="0.9 0.4 0.1 0.8"/>
-    <material name="lidar" rgba="0.2 0.25 0.3 1"/>
+    {robot.assets}
     <!-- The house (house.py) and the ground; textures.py textures them -->
     <material name="floor" rgba="0.78 0.6 0.42 1"/>
     <material name="grass" rgba="0.36 0.52 0.26 1"/>
@@ -141,23 +110,21 @@ def build_xml(
     <default class="obstacle">
       <geom contype="1" conaffinity="1"/>
     </default>
-    <default class="drone">
-      <geom contype="2" conaffinity="1" mass="0"/>
-    </default>
+    {robot.defaults}
   </default>
   <worldbody>
     <light pos="4 -4 12" dir="-0.3 0.3 -1" diffuse="0.8 0.8 0.8" castshadow="true"/>
-    <geom name="ground" type="plane" size="{_f(30, 30, 0.1)}" material="ground"
+    <geom name="ground" type="plane" size="{fmt(30, 30, 0.1)}" material="ground"
           contype="1" conaffinity="2"/>
     {_obstacles_xml(obstacles)}
     {extra}
-    {robot}
+    {robot.body}
     <!-- The planner's position setpoint: not drawn -->
-    <body name="setpoint" mocap="true" pos="{_f(*start)}"/>
+    <body name="setpoint" mocap="true" pos="{fmt(*start)}"/>
     {markers}
   </worldbody>
   <actuator>
-    {actuators}
+    {robot.actuators}
   </actuator>
 </mujoco>
 '''

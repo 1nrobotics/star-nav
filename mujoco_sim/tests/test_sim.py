@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 
 from star_nav_mujoco import assets
+from star_nav_mujoco import commands
 from star_nav_mujoco import lidar
 from star_nav_mujoco import lidar_models
 from star_nav_mujoco import overlay
@@ -98,7 +99,7 @@ def test_hover_is_stable():
 
 def test_step_response():
   s = sim.Simulator(render_depth=False, obstacles=[])
-  s.set_command(quadrotor.Command.hover([2.0, 0.0, 1.0], yaw=1.0))
+  s.set_command(commands.Setpoint.hover([2.0, 0.0, 1.0], yaw=1.0))
   peak = 0.0
   for _ in range(int(4 / s.model.opt.timestep)):
     s.step()
@@ -115,7 +116,7 @@ def test_tracks_planner_style_trajectory():
   for _ in range(int(10 / s.model.opt.timestep)):
     t = s.time
     c, si = math.cos(w * t), math.sin(w * t)
-    s.set_command(quadrotor.Command(
+    s.set_command(commands.Setpoint(
         np.array([r * c - r, r * si, 1.0]), np.array([-r * w * si, r * w * c, 0]),
         np.array([-r * w * w * c, -r * w * w * si, 0]), yaw=w * t, yaw_rate=w))
     s.step()
@@ -127,7 +128,7 @@ def test_tracks_planner_style_trajectory():
 
 def test_holds_position_when_commands_stop():
   s = sim.Simulator(render_depth=False, obstacles=[])
-  s.set_command(quadrotor.Command(np.array([0.5, 0, 1]), vel=np.array([3, 0, 0])))
+  s.set_command(commands.Setpoint(np.array([0.5, 0, 1]), vel=np.array([3, 0, 0])))
   s.step(int(3 / s.model.opt.timestep))
   np.testing.assert_allclose(s.pos, [0.5, 0, 1], atol=0.05)
 
@@ -135,7 +136,7 @@ def test_holds_position_when_commands_stop():
 def test_collision_is_detected():
   wall = [world.Obstacle(world.PILLAR, 1.5, 0.0, 0.0, 0.4, 3.0, 0.0)]
   s = sim.Simulator(render_depth=False, obstacles=wall)
-  s.set_command(quadrotor.Command.hover([3.0, 0.0, 1.0]))
+  s.set_command(commands.Setpoint.hover([3.0, 0.0, 1.0]))
   s.step(int(3 / s.model.opt.timestep))
   assert s.contact_steps > 0
 
@@ -144,7 +145,7 @@ def test_collision_is_detected():
 def depth_scene():
   pillar = world.Obstacle(world.PILLAR, 3.0, 0.0, 0.0, 0.5, 3.0, 0.0)
   s = sim.Simulator(obstacles=[pillar])
-  s.set_command(quadrotor.Command.hover([0, 0, 1], yaw=0.3))
+  s.set_command(commands.Setpoint.hover([0, 0, 1], yaw=0.3))
   s.step(int(3 / s.model.opt.timestep))
   yield s, s.render_depth()
   s.close()
@@ -205,7 +206,7 @@ def test_recorder_writes_video(tmp_path):
 def test_depth_sees_nothing_at_the_setpoint():
   # The setpoint is not drawn; it must not appear as an obstacle.
   s = sim.Simulator(obstacles=[])
-  s.set_command(quadrotor.Command.hover((0.6, 0.0, 1.0)))
+  s.set_command(commands.Setpoint.hover((0.6, 0.0, 1.0)))
   mujoco.mj_forward(s.model, s.data)
   centre = s.render_depth().image_mm[200:280, 280:360].astype(int)
   assert not ((centre > 0) & (centre < 2000)).any()  # nothing within 2 m
@@ -387,6 +388,7 @@ def test_lidar_protocol_round_trip(lidar_scene):
 
 def test_quadrotor_does_not_follow_a_velocity_command():
   s = sim.Simulator(obstacles=[], render_depth=False)
+  assert s.controller.accepts == (commands.Setpoint,)
   assert not s.set_velocity([0.5, 0.0, 0.0])
   s.step(500)
   np.testing.assert_allclose(s.pos, s.cfg.start, atol=0.02)
@@ -494,13 +496,13 @@ def test_no_markers_unless_asked():
 def test_non_finite_command_fields_are_ignored():
   # A NaN yaw rate once reached the motors and the quadrotor fell.
   s = sim.Simulator(render_depth=False, obstacles=[])
-  bad = quadrotor.Command(np.array([0.0, 0.0, 1.0]), np.array([np.nan, 0.0, 0.0]),
+  bad = commands.Setpoint(np.array([0.0, 0.0, 1.0]), np.array([np.nan, 0.0, 0.0]),
                           np.zeros(3), float('nan'), float('nan'))
   assert not s.set_command(bad)
   s.step(1000)  # 2 s
   assert np.all(np.isfinite(s.data.ctrl))
   assert s.pos[2] == pytest.approx(1.0, abs=0.05)
   # A non-finite position is rejected; the previous target stays.
-  assert not s.set_command(quadrotor.Command.hover((np.inf, 0.0, 1.0)))
+  assert not s.set_command(commands.Setpoint.hover((np.inf, 0.0, 1.0)))
   s.step(500)
   np.testing.assert_allclose(s.pos, [0.0, 0.0, 1.0], atol=0.05)
