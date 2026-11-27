@@ -110,6 +110,7 @@ noted; times are simulated):
 | `t1_smoke.test` (house; the default) | 12/12, 0 contacts, 0 timeouts, reached the platform (peak trunk z 0.87 m), 183 s |
 | `t1_smoke.test world:=forest` | 12/12, 0 contacts, 0 timeouts, 166 s |
 | `t1_smoke.test`, 10 runs (`run_local_tests.sh --repeat 10 t1`) | 8 passed; in 2 the T1 fell going down the steps, about 75 s into the mission |
+| The same, 10 more runs (2026-11-27) | 9 passed; in 1 the T1 stumbled off the last step 73 s into the mission, leaned on the corridor's wall and fell 5 s later |
 | `exploration_t1.launch explore:=frontier` (house), 5 runs (2026-11-27; the first with the T1) | In all 5 no frontier was left and the T1 came home: 16 to 17 frontiers, 99.7 % of the floor inside the walls known, 80 to 84 s, 29 to 30 m walked, home within 0.21 to 0.30 m, no fall, 0 contacts. 2 more runs after the explorer stopped taking a turn on the spot for standing still: 15 and 17 frontiers, none given up, no fall, 0 contacts. No test runs it ([QUADRUPED.md](QUADRUPED.md#frontier-exploration-explorefrontier) describes the mission) |
 
 When the T1 was added it followed EGO (`planner:=ego`, since removed; these
