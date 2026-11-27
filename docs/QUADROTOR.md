@@ -82,6 +82,7 @@ from the trigger to `FINISH`):
 | Check | Result |
 |---|---|
 | `mujoco_frontier_smoke.test` (12 m x 12 m), 10 runs (`run_local_tests.sh --repeat 10 mujoco-frontier`) | 10 passed: 4 to 8 frontiers, 99.6 to 99.7 % of the area known, 22 to 27 s, 26 to 30 m flown, home within 0.06 to 0.30 m, 0 contacts |
+| The same, 5 more runs, after the explorer stopped taking a turn on the spot for standing still | 5 passed |
 | 24 m x 24 m (`exploration_width:=21 exploration_height:=21`), one run | 43 frontiers, 99.7 % of the area known, 64 s, 82 m flown, home within 0.18 m, 0 contacts |
 
 ## Tests
