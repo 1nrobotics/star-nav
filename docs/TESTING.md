@@ -170,6 +170,7 @@ sign they leave, so that a failed step can be told apart from a new fault.
 | Type | Steps | Fault | Sign in the log | How often | State |
 |---|---|---|---|---|---|
 | `legged` | `t1` | The T1 falls going down the house's 7 cm steps | `t1 fell at t=...`, then every later waypoint times out | 17 of 120 runs of the simulator alone; 2 of 10 runs of `t1` (both about 75 s into the mission) | Open; [HUMANOID.md](HUMANOID.md#limitations) |
+| `legged` | `lite3` | The Lite3 touches the north end of the corridor's west wall with a front leg, turning round next to it on the way to the last waypoint | `Contact at t=...: lite3/FR_FOOT... / world:geom7(box size=[0.05 2.5  0.5 ]) at [0.65 1.8 ...]` about 130 s into the mission; all 12 waypoints are still reached, and the test fails with `the robot collided with an obstacle` | 1 of 11 runs of `lite3` (2026-11-27) | Open; [QUADRUPED.md](QUADRUPED.md#limitations) |
 
 **Judging a failed step**
 
