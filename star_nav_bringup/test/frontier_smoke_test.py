@@ -105,6 +105,10 @@ class FrontierSmokeTest(unittest.TestCase):
         self.wait_for(lambda: self.trigger_pub.get_num_connections() > 0,
                       self.startup_timeout, "frontier_explorer to subscribe to the trigger")
         rospy.sleep(self.settle_time)
+        # Where it starts, taken before the trigger: a quadrotor is most of a
+        # metre away by the time EXEC_FRONTIER is seen below.
+        with self.lock:
+            home = self.pos.copy()
 
         deadline = rospy.Time.now() + rospy.Duration(self.startup_timeout)
         while not rospy.is_shutdown() and rospy.Time.now() < deadline:
@@ -115,7 +119,6 @@ class FrontierSmokeTest(unittest.TestCase):
             rospy.sleep(1.0)
         with self.lock:
             self.assertIn("EXEC_FRONTIER", self.states, "exploration was never triggered")
-            home = self.pos.copy()
             self.track = 0.0
         start = rospy.Time.now()
 

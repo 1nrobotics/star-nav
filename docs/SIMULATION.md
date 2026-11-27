@@ -134,7 +134,18 @@ roslaunch star_nav_bringup exploration_lite3.launch explore:=frontier use_rviz:=
 rostest star_nav_bringup frontier_smoke.test               # maps the whole house
 ```
 
-It stays inside the exploration area plus `frontier_margin` (1.5 m).
+It stays inside the exploration area plus `frontier_margin` (1.5 m). The
+T1 takes the same argument (`exploration_t1.launch explore:=frontier`).
+
+The quadrotor maps the pillar forest the same way, flying to each frontier
+with EGO-Planner; it uses the lidar for this whatever `sensor` says
+([QUADROTOR.md](QUADROTOR.md#frontier-exploration-explorefrontier)):
+
+```bash
+roslaunch star_nav_bringup exploration_mujoco.launch explore:=frontier use_rviz:=true
+./scripts/trigger_exploration.sh
+rostest star_nav_bringup mujoco_frontier_smoke.test        # maps 12 m x 12 m round the start
+```
 
 The walking robots are steered by CMU's local planner: terrain analysis, a local planner that picks one of its
 pre-computed paths, and a path follower that sends the robot a velocity.

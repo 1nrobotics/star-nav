@@ -23,6 +23,8 @@
 #   sim      sim_smoke.test: lightweight simulator
 #   mujoco   mujoco_smoke.test in MuJoCo: depth camera (mujoco-depth), then
 #            lidar (mujoco-lidar); either name runs that one alone
+#   mujoco-frontier  mujoco_frontier_smoke.test: the quadrotor maps the
+#            area around its start without waypoints
 # legged: the Lite3 and the T1, walking with the CMU planner
 #   lite3    lite3_smoke.test: Lite3 in the house
 #   t1       t1_smoke.test: T1 in the house
@@ -48,7 +50,7 @@ python="${MUJOCO_SIM_PYTHON:-${repo}/mujoco_sim/.venv/bin/python}"
 mkdir -p "${logs}"
 
 common=(lint build launch pytest)
-aerial=(unit sim mujoco)
+aerial=(unit sim mujoco mujoco-frontier)
 legged=(lite3 t1 frontier)
 
 repeat=1
@@ -81,7 +83,7 @@ fi
 # group_of <step>: the kind of robot it tests
 group_of() {
   case "$1" in
-    unit|sim|mujoco|mujoco-depth|mujoco-lidar) echo aerial ;;
+    unit|sim|mujoco|mujoco-depth|mujoco-lidar|mujoco-frontier) echo aerial ;;
     lite3|t1|frontier) echo legged ;;
     *) echo common ;;
   esac
@@ -244,6 +246,9 @@ for step in "${steps[@]}"; do
       ;;
     mujoco-lidar)
       smoke mujoco-lidar mujoco_smoke.test sensor:=lidar
+      ;;
+    mujoco-frontier)
+      smoke mujoco-frontier mujoco_frontier_smoke.test
       ;;
     lite3|t1)
       if downloaded "${step}" "${step}"; then

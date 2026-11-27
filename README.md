@@ -182,6 +182,7 @@ roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true     # kinematic
 roslaunch star_nav_bringup exploration_mujoco.launch use_rviz:=true  # MuJoCo simulation
 rostest star_nav_bringup sim_smoke.test                              # end-to-end test
 rostest star_nav_bringup mujoco_smoke.test                           # end-to-end test, MuJoCo
+roslaunch star_nav_bringup exploration_mujoco.launch explore:=frontier # no waypoints: the quadrotor maps the area itself
 # legged: the walking robots
 roslaunch star_nav_bringup exploration_lite3.launch use_rviz:=true   # Lite3 quadruped (setup_mujoco_env.sh --lite3)
 rostest star_nav_bringup lite3_smoke.test                            # end-to-end test, Lite3 in the house

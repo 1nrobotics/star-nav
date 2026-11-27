@@ -100,9 +100,9 @@ What was checked:
 ## Demo videos
 
 The videos (on the quadruped page `lite3-house-rviz.mp4`, `lite3-house.mp4`,
-`lite3-forest-lidar.mp4`; on the humanoid page `t1-house.mp4`; on the
-quadrotor page `exploration-demo.mp4`, `lidar-exploration-demo.mp4`) are not
-tracked in git, to keep the
+`lite3-forest-lidar.mp4`, `lite3-house-frontier.mp4`; on the humanoid page
+`t1-house.mp4`; on the quadrotor page `exploration-demo.mp4`,
+`lidar-exploration-demo.mp4`) are not tracked in git, to keep the
 repository small (`.gitignore`). They are attached to the `site-assets` GitHub
 release, and the Pages workflow downloads them at deploy time. To preview
 locally, download them into `assets/`; without them the page shows the poster
@@ -132,6 +132,29 @@ camera alone (`--record` in `sim_args`), sped up 4× (crf 27 to 28). Posters:
 poster `assets/t1-house.jpg`. Each starts 2 s before the trigger and ends
 4 s after the mission's `FINISH`.
 Pass `-draw_mouse 0` to ffmpeg's x11grab to keep the pointer out.
+
+The frontier exploration video (`lite3-house-frontier.mp4`) is the
+simulator's follow camera with the explorer's map in the corner: what has
+been seen, the frontiers, the path so far, the robot and the frontier it is
+going to. `tools/record_map.py` keeps these from the ROS topics during the
+run, and `tools/map_inset.py` draws them over the simulator's recording.
+Both are on the simulator's clock, so nothing has to be aligned. They need
+numpy, Pillow and ffmpeg:
+
+```bash
+roslaunch star_nav_bringup exploration_lite3.launch explore:=frontier \
+  viewer:=false sim_args:="--record /tmp/lite3-frontier.mp4" &    # wait for it to start
+python3 site/tools/record_map.py /tmp/lite3-frontier.npz          # triggers the run, returns at FINISH; then stop roslaunch
+python3 site/tools/map_inset.py /tmp/lite3-frontier.mp4 /tmp/lite3-frontier.npz \
+  site/assets/lite3-house-frontier.mp4 --speed 2
+ffmpeg -ss 25 -i site/assets/lite3-house-frontier.mp4 -frames:v 1 -q:v 4 site/assets/lite3-house-frontier.jpg
+```
+
+The tools take a run of the T1 (`exploration_t1.launch`) or of the
+quadrotor (`exploration_mujoco.launch`) in the same way; the site shows the
+Lite3's only. The video starts 2 s before the trigger and ends 2 s after `FINISH`.
+`map_inset.py --frame T` writes the inset alone at simulator time `T`, to
+look at it without encoding a video.
 
 The quadrotor video puts the simulator's follow camera next to the RViz window for one mission
 (seed 1, default exploration area). To regenerate it:

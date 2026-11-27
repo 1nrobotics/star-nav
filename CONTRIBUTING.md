@@ -53,7 +53,7 @@ roslaunch star_nav_bringup exploration_sim.launch use_rviz:=true
   | Group | For | Steps |
   |---|---|---|
   | `common` | every robot | `bash -n` on the shell scripts, `catkin_make`, the planner interface, `pytest` in `mujoco_sim/` |
-  | `aerial` | the quadrotor (EGO-Planner) | EGO's map unit tests, `sim_smoke.test`, `mujoco_smoke.test` (depth camera and lidar) |
+  | `aerial` | the quadrotor (EGO-Planner) | EGO's map unit tests, `sim_smoke.test`, `mujoco_smoke.test` (depth camera and lidar), `mujoco_frontier_smoke.test` |
   | `legged` | the Lite3 and the T1 (CMU planner) | `lite3_smoke.test`, `t1_smoke.test` and `frontier_smoke.test`, when the robots are downloaded |
 
   It prints a summary and exits non-zero when a step fails. While you work,

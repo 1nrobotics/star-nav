@@ -26,6 +26,7 @@
       Star Nav <span class="sub">· Quadruped</span>
     </a>
     <nav class="links">
+      <a href="#frontier">No waypoints</a>
       <a href="#live">Live</a>
       <a href="#results">Results</a>
       <a href="#specs">Key facts</a>
@@ -90,6 +91,32 @@
     </div>
   </div>
 
+  <section id="frontier">
+    <div class="wrap">
+      <h2>Mapping without waypoints</h2>
+      <p class="sub">
+        Nobody tells the Lite3 where to go here. It walks to the nearest
+        border of the floor its lidar has seen until none is left, then walks
+        home. CMU's planner finds the way to each border.
+      </p>
+      <figure class="video">
+        <div class="video-frame">
+          <video controls muted loop playsinline preload="metadata" poster="assets/lite3-house-frontier.jpg">
+            <source src="assets/lite3-house-frontier.mp4" type="video/mp4">
+            Your browser cannot play this video. <a href="assets/lite3-house-frontier.mp4">Download it</a>.
+          </video>
+        </div>
+        <figcaption>
+          <b>The house mapped and the robot home again in 78&nbsp;s; the video is at 2&times; speed.</b>
+          The corner shows the map as it grows: white is floor the robot has
+          seen, black obstacles, grey not seen yet, orange the borders left
+          (frontiers). The blue line is the path so far and the ring the
+          frontier it is going to.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
   <section id="live">
     <div class="wrap">
       <h2>Live in your browser</h2>
@@ -143,6 +170,7 @@
             <tbody>
               <tr><td>House, lidar</td><td class="ok">12/12, 0 contacts, reached the platform</td></tr>
               <tr><td>Forest, lidar</td><td class="ok">12/12, 0 contacts</td></tr>
+              <tr><td>House, no waypoints, 76 runs</td><td class="warn">74 complete: 98.6&nbsp;% of the floor mapped, back home, 0 contacts; 1 contact with a cabinet, 1 frontier given up</td></tr>
             </tbody>
           </table>
         </div>

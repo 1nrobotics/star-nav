@@ -116,8 +116,9 @@ takes the place of `exploration_manager` and sends the planner its goals.
   They are grouped into clusters of 5 cells or more.
 - **Mission**: walk to the nearest cluster (by path length); when no frontier
   is left near the goal, take the next one. A frontier that takes more than
-  60 s, or at which the robot stands for 6 s, is given up. When none is left
-  the robot walks home. The states are on `/exploration/state`
+  60 s (`goal_timeout`), or on the way to which the robot stands still for
+  6 s (`stall_time`), is given up; a robot that turns on the spot does not
+  stand still. When none is left the robot walks home. The states are on `/exploration/state`
   (`PLAN_TO_FRONTIER`, `EXEC_FRONTIER`, `RETURN_HOME`, `FINISH`).
 - **Goals**: the frontier itself; the CMU planner's waypoint router finds
   the way to it.
@@ -153,6 +154,8 @@ each; times are simulated):
 | `lite3_smoke.test` (house; the default) | 12/12, 0 contacts, 0 timeouts, reached the platform (peak torso z 0.54 m), 143 s |
 | `lite3_smoke.test world:=forest` | 12/12, 0 contacts, 0 timeouts, 136 s |
 | `frontier_smoke.test` (house) | 18 frontiers, 98.6 % of the floor known, 80 s, 36.2 m walked, home within 0.25 m, 0 contacts (six earlier runs: 15 to 20 frontiers, 98.6 to 98.8 %, 72 to 86 s) |
+| `frontier_smoke.test` (house), 56 runs on 2026-11-27 | 54 passed: 16 to 20 frontiers, 98.5 to 98.7 % of the floor known, 68 to 118 s, 33 to 45 m walked, home within 0.18 to 0.29 m. 1 run with a contact and 1 with a frontier given up ([Limitations](#limitations)) |
+| The same, 20 more runs (`run_local_tests.sh --repeat 20 frontier`), after the explorer stopped taking a turn on the spot for standing still | 20 passed: 16 to 21 frontiers, 0 given up, 0 contacts |
 | `pytest` in `mujoco_sim/` | 63 passed (with both robots downloaded) |
 
 The forest test no longer compares a map with the pillars: that check read
@@ -166,17 +169,60 @@ EGO's map.
   ground is an obstacle (`cmu_obstacle_height`); the policy climbs 7 cm
   steps reliably. A step between 8 and 15 cm is not an obstacle to the
   planner and may stall the robot.
-- **A turn next to a wall end can touch it.** On the way to the last
-  waypoint of the house mission the Lite3 walks past the north end of the
-  corridor's west wall, to about (1.0, 1.95), and turns round there, 0.35 m
-  from the wall's end. In 1 of 11 runs of `lite3_smoke.test` it stood 7 cm
-  nearer and its front right foot touched the wall for 0.09 s; it reached
-  all 12 waypoints, and the test failed on the contact
+- **A turn next to an obstacle can touch it.** The path follower turns the
+  robot round on the spot when its next point lies at its side or behind
+  it. The Lite3 walks past an obstacle as near as 0.3 m from its own centre,
+  and a turn on the spot takes a circle of 0.36 m round the centre, more
+  with the legs. The planner does not check that room (`checkRotObstacle`
+  is off). Seen in two tests
+  ([TESTING.md](TESTING.md#failures-that-do-not-happen-every-time)) and
+  once from a script:
+  - On the way to the last waypoint of the house mission the Lite3 walks
+    past the north end of the corridor's west wall, to about (1.0, 1.95),
+    and turns round there, 0.35 m from the wall's end. In 1 of 11 runs of
+    `lite3_smoke.test` it stood 7 cm nearer and its front right foot touched
+    the wall for 0.09 s; it reached all 12 waypoints, and the test failed on
+    the contact.
+  - In 1 of 76 runs of `frontier_smoke.test` the frontier ahead was seen
+    while the Lite3 walked south past the cabinet, 0.45 m from its east
+    face, and the next frontier lay behind it. The local planner walks
+    forwards only and takes a goal behind the robot for one at its side,
+    here the cabinet's side: the Lite3 walked on for 1.6 s, went round the
+    cabinet's corner and turned round 0.25 m from it. Its front right lower
+    leg touched the corner at (3.7, -2.5) for 0.5 s. It mapped 98.7 % and
+    came home; the test failed on the contact.
+  - The same change of goal alone, from a script: the Lite3 starts at
+    (3.3, 1.0) with the goal (3.75, -3.35), and while it passes the cabinet
+    (at y between -1.0 and -1.7) the goal becomes (-4.55, 2.05). 1 contact
+    in 54 runs of 35 s: it turned round 0.32 m from the cabinet's east face
+    and a hind leg touched it. In the other 53 the box round the robot
+    (0.61 m x 0.39 m) came within 0.07 to 0.20 m of the cabinet.
+
+  It is not fixed. The planner has two means, `checkRotObstacle` and a
+  larger smallest path scale (`cmu_min_path_scale`); each changes every
+  walking mission, and neither has been tested.
+- **A frontier given up in one run; the cause is not known.** In 1 of 56
+  runs of `frontier_smoke.test` the explorer gave up a frontier 6.3 m away
+  in the open east room, 7 s after it chose it, with the Lite3 at
+  (2.62, 2.33): for 6 s it had read a speed of 0.05 m/s or less
+  (`stall_time`). The Lite3 walked to the next frontier, 0.9 m from the
+  first, at once, mapped 98.6 %, came home and touched nothing; the test
+  fails on any frontier given up. That run was not recorded, and 50 further
+  runs with a bag did not show it.
+  The explorer then read only the speed along the ground, twice a second,
+  and a Lite3 that turns on the spot moves at 0.02 to 0.05 m/s: in the
+  scripted runs above a turn of 85° to 126° (2.4 to 3.6 s) counted as up to
+  3.5 s of standing still. Since 2026-11-27 a turn is not standing still
+  (yaw rate above 0.1 rad/s). 20 runs since have given no frontier up. That
+  does not show the fault is gone: half a turn takes 5.2 s, less than the
+  6 s, and 168 runs without it are needed
   ([TESTING.md](TESTING.md#failures-that-do-not-happen-every-time)).
 - **Static worlds only.** The terrain analysis is set up for a world that
   does not change (`clearDyObs` false).
 - **Ground-truth pose.** No odometry or SLAM is in the loop.
-- **Frontier exploration has only been run with the Lite3 in the house.**
+- **Frontier exploration is tested with the Lite3 in the house only.** The
+  T1 has done it there in 5 runs by hand ([HUMANOID.md](HUMANOID.md#measured));
+  neither robot has in the forest.
 - **The frontier map is not checked or saved.** Coverage counts known cells;
   the map is not compared with the simulator's world, and it is not written
   to a file.
