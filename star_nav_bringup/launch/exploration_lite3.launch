@@ -9,10 +9,15 @@
     <arg name="robot" value="lite3"/>
     <arg name="robot_type" value="legged"/>
     <!-- The Lite3: torso at 0.34 m; it walks under a table (0.75 m) and
-         climbs 7 cm steps -->
+         climbs 7 cm steps. Its description is config/robots/lite3.yaml;
+         altitude, lidar_offset, robot_length and robot_width repeat it
+         (exploration_ground.launch says why). -->
     <arg name="altitude" value="0.34"/>
     <arg name="lidar_offset" value="[0.0, 0.0, 0.10]"/>
+    <arg name="robot_length" value="0.61"/>
+    <arg name="robot_width" value="0.39"/>
     <arg name="robot_height" value="0.55"/>
+    <arg name="robot_radius" value="0.25"/>
     <arg name="max_step" default="0.09"/>
     <arg name="obstacles_inflation" default="0.3"/>
     <arg name="max_vel" value="0.6"/>

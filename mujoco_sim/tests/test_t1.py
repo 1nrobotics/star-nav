@@ -15,9 +15,9 @@ import mujoco
 import numpy as np
 import pytest
 
+from star_nav_mujoco import commands
 from star_nav_mujoco import house
 from star_nav_mujoco import lidar
-from star_nav_mujoco import quadrotor
 from star_nav_mujoco import scene
 from star_nav_mujoco import sim
 from star_nav_mujoco import textures
@@ -57,7 +57,7 @@ def test_extract_weights_rejects_a_different_network(tmp_path):
 
 def test_textures_cover_the_scene_materials():
   spec = mujoco.MjSpec.from_string(scene.build_xml(
-      [], quadrotor.Params(), (0.0, 0.0, 1.0), extra=house.xml()))
+      [], (0.0, 0.0, 1.0), extra=house.xml()))
   textures.apply(spec)
   m = spec.compile()
   role = mujoco.mjtTextureRole.mjTEXROLE_RGB
@@ -73,7 +73,7 @@ def test_textures_cover_the_scene_materials():
 
 def test_house_floor_is_for_show_only():
   spec = mujoco.MjSpec.from_string(scene.build_xml(
-      [], quadrotor.Params(), (0.0, 0.0, 1.0), extra=house.xml()))
+      [], (0.0, 0.0, 1.0), extra=house.xml()))
   m = spec.compile()
   floor = [g for g in range(m.ngeom)
            if m.geom_matid[g] == m.material('floor').id]
@@ -106,7 +106,7 @@ def _robot(obstacles, **kw):
 
 
 def _go(s, x, y, yaw, seconds):
-  cmd = quadrotor.Command(np.array([x, y, t1.STAND_HEIGHT]), np.zeros(3),
+  cmd = commands.Setpoint(np.array([x, y, t1.STAND_HEIGHT]), np.zeros(3),
                           np.zeros(3), yaw, 0.0)
   for _ in range(int(seconds / 0.1)):
     s.set_command(cmd)  # keep it fresh (cmd_timeout)
@@ -178,7 +178,7 @@ def _walk_y(s, y0, y1, speed, yaw):
   for _ in range(int(abs(y1 - y0) / speed / 0.02) + 300):
     y = min(y + d * speed * 0.02, y1) if d > 0 else max(y + d * speed * 0.02, y1)
     vel = np.array([0.0, d * speed if y != y1 else 0.0, 0.0])
-    s.set_command(quadrotor.Command(np.array([1.5, y, t1.STAND_HEIGHT]), vel,
+    s.set_command(commands.Setpoint(np.array([1.5, y, t1.STAND_HEIGHT]), vel,
                                     np.zeros(3), yaw, 0.0))
     s.step(int(0.02 / t1.TIMESTEP))
     peak = max(peak, s.pos[2])

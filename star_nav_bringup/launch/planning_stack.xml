@@ -34,6 +34,9 @@
     <arg name="planning_horizon" default="7.5"/>
     <arg name="altitude" default="1.0"/>
     <arg name="robot_height" default="0.0"/>
+    <arg name="robot_length" default="0.0"/>
+    <arg name="robot_width" default="0.0"/>
+    <arg name="robot_radius" default="0.0"/>
     <!-- Exploration timing (s) and arrival distance (m) -->
     <arg name="waypoint_timeout" default="30.0"/>
     <arg name="waypoint_tolerance" default="0.5"/>
@@ -76,6 +79,9 @@
         <arg name="max_acc" value="$(arg max_acc)"/>
         <arg name="obstacles_inflation" value="$(arg obstacles_inflation)"/>
         <arg name="robot_height" value="$(arg robot_height)"/>
+        <arg name="robot_length" value="$(arg robot_length)"/>
+        <arg name="robot_width" value="$(arg robot_width)"/>
+        <arg name="robot_radius" value="$(arg robot_radius)"/>
         <arg name="sensor" value="$(arg sensor)"/>
         <arg name="lidar_offset" value="$(arg lidar_offset)"/>
         <arg name="cx" value="$(arg cx)"/>

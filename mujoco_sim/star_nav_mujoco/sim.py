@@ -1,7 +1,7 @@
 """Robot simulator: MuJoCo physics, controller, depth camera and lidar.
 
-The robot is one of ``robots/`` (the quadrotor by default); all follow the
-planner's position setpoints and carry the same sensors.
+The robot is one of ``robots/`` (the quadrotor by default); all take the
+same commands (``commands.py``) and carry the same sensors.
 """
 
 from __future__ import annotations
@@ -15,15 +15,14 @@ import time
 import mujoco
 import numpy as np
 
+from star_nav_mujoco import commands
 from star_nav_mujoco import house
 from star_nav_mujoco import lidar as lidar_lib
 from star_nav_mujoco import overlay
 from star_nav_mujoco import protocol
-from star_nav_mujoco import quadrotor
 from star_nav_mujoco import robots
 from star_nav_mujoco import scene
 from star_nav_mujoco import textures
-from star_nav_mujoco import tracking
 from star_nav_mujoco import world
 
 log = logging.getLogger('star_nav_mujoco')
@@ -35,8 +34,6 @@ _CAM_TO_OPTICAL = np.diag([1.0, -1.0, -1.0])
 @dataclasses.dataclass
 class SimConfig:
   world: world.WorldConfig = dataclasses.field(default_factory=world.WorldConfig)
-  params: quadrotor.Params = dataclasses.field(default_factory=quadrotor.Params)
-  gains: quadrotor.Gains = dataclasses.field(default_factory=quadrotor.Gains)
   start: tuple[float, float, float] = (0.0, 0.0, 1.0)
   robot: str = robots.DEFAULT  # a module of robots/
   house: bool = False  # the house (house.py) instead of the forest
@@ -139,7 +136,7 @@ class Simulator:
     self.fallen = False
     self._twist = None  # set_velocity: follow a velocity, not the setpoint
     self.controller.reset()
-    self.set_command(quadrotor.Command.hover(self.cfg.start), t=0.0)
+    self.set_command(commands.Setpoint.hover(self.cfg.start), t=0.0)
     mujoco.mj_forward(self.model, self.data)
 
   @property
@@ -166,7 +163,7 @@ class Simulator:
 
   # -- commands ----------------------------------------------------------------
 
-  def set_command(self, cmd: quadrotor.Command, t: float | None = None) -> bool:
+  def set_command(self, cmd: commands.Setpoint, t: float | None = None) -> bool:
     """Sets the tracking target. Returns False if any field was not finite.
 
     Like a flight controller, non-finite fields are treated as not set: a
@@ -179,7 +176,7 @@ class Simulator:
               math.isfinite(cmd.yaw) and math.isfinite(cmd.yaw_rate))
     if not finite:
       last_yaw = getattr(self, '_cmd', None)
-      cmd = quadrotor.Command(
+      cmd = commands.Setpoint(
           np.asarray(cmd.pos, float),
           np.nan_to_num(np.asarray(cmd.vel, float), nan=0.0, posinf=0.0, neginf=0.0),
           np.nan_to_num(np.asarray(cmd.acc, float), nan=0.0, posinf=0.0, neginf=0.0),
@@ -191,17 +188,17 @@ class Simulator:
     return bool(finite)
 
   def set_velocity(self, twist, t: float | None = None) -> bool:
-    """Sets a body-frame velocity for a ground robot to follow.
+    """Sets a body-frame velocity for the robot to follow.
 
     Forward (m/s), sideways (m/s) and turn rate (rad/s), from a planner that
     steers the robot itself. From the first one on the robot follows these
     instead of the position setpoint, and stands when they stop. Returns
-    False (and changes nothing) for a robot that flies or a value that is
-    not finite.
+    False (and changes nothing) for a robot whose controller does not
+    follow velocities (``Controller.accepts``) or a value that is not finite.
     """
     twist = np.asarray(twist, float)
-    if (not self.robot.on_ground or twist.shape != (3,) or
-        not np.all(np.isfinite(twist))):
+    if (commands.Velocity not in self.controller.accepts or
+        twist.shape != (3,) or not np.all(np.isfinite(twist))):
       return False
     self._twist = twist
     self._twist_time = self.data.time if t is None else t
@@ -220,11 +217,11 @@ class Simulator:
   def _active_command(self):
     if self._twist is not None:
       if self.data.time - self._twist_time > self.cfg.cmd_timeout:
-        return tracking.Velocity(np.zeros(3))  # commands stopped: stand
-      return tracking.Velocity(self._twist)
+        return commands.Velocity(np.zeros(3))  # commands stopped: stand
+      return commands.Velocity(self._twist)
     if self.data.time - self._cmd_time > self.cfg.cmd_timeout:
       # Commands stopped: hold the last commanded position.
-      return quadrotor.Command.hover(self._cmd.pos, self._cmd.yaw)
+      return commands.Setpoint.hover(self._cmd.pos, self._cmd.yaw)
     return self._cmd
 
   # -- stepping ----------------------------------------------------------------
@@ -437,7 +434,7 @@ def run(sim: Simulator, rc: RunConfig) -> None:
             continue
           elif topic == protocol.TOPIC_CMD:
             _, pos, vel, acc, yaw, yaw_rate = protocol.unpack_cmd(payload)
-            ok = sim.set_command(quadrotor.Command(pos, vel, acc, yaw, yaw_rate))
+            ok = sim.set_command(commands.Setpoint(pos, vel, acc, yaw, yaw_rate))
           else:
             continue
         except (protocol.ProtocolError, struct.error) as e:
@@ -470,7 +467,7 @@ def run(sim: Simulator, rc: RunConfig) -> None:
               stats['lidar'] / span, 1000 * stats['cast'] / max(stats['lidar'], 1))
         if stats['bad_cmds']:
           log.warning('%d commands not followed as sent in the last %.0fs '
-                      '(non-finite fields, or a velocity for a robot that flies)',
+                      '(non-finite fields, or a velocity for a robot that follows none)',
                       stats['bad_cmds'], span)
         log.info('rt=%.2f physics=%.0fHz%s cmds=%.0fHz contacts=%d',
                  stats['steps'] * dt / span, stats['steps'] / span, sensors,

@@ -6,8 +6,8 @@ yaw the planner sends, and the robot's pose. Each robot names its tracker
 (``Robot.tracker``): ``Holonomic`` for one that walks in any direction.
 
 A planner that steers the robot itself (the CMU local planner) sends a
-``Velocity`` instead: it goes to the policy as it is, within the tracker's
-limits.
+``commands.Velocity`` instead: it goes to the policy as it is, within the
+tracker's limits (``limit``).
 """
 
 from __future__ import annotations
@@ -16,12 +16,6 @@ import dataclasses
 import math
 
 import numpy as np
-
-
-@dataclasses.dataclass
-class Velocity:
-  """A body-frame velocity command, in place of a setpoint."""
-  twist: np.ndarray  # forward (m/s), sideways (m/s), turn rate (rad/s)
 
 
 @dataclasses.dataclass

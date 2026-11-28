@@ -136,6 +136,7 @@ to know:
 | World | `map_size_x`, `map_size_y`, `map_size_z` | Metres. |
 | Robot | `max_vel`, `max_acc`, `obstacles_inflation` | Speed and acceleration limits; clearance to keep (at least the robot's radius). |
 | Robot (ground) | `robot_height` | Higher things are overhead, not obstacles. |
+| | `robot_length`, `robot_width`, `robot_radius` | The box around the robot (from its description, `config/robots/<robot>.yaml`), and how close to an obstacle its route may pass. |
 | Sensor | `sensor`, `lidar_offset`, `cx`, `cy`, `fx`, `fy` | `depth` or `lidar`; lidar position in the body frame; camera intrinsics. |
 | EGO options | `lidar_raycasting`, `lidar_max_hits`, `sliding_map`, `sliding_size`, `show_occ_time`, `planning_horizon`, `obj_num`, `visualization_min_height`, `visualization_max_height` | Used by `planners/ego.xml` only. |
 | CMU options | `cmu_obstacle_height`, `cmu_path_scale`, `cmu_min_path_scale` | Used by `planners/cmu.xml` only. |

@@ -49,8 +49,8 @@ tests themselves (`star_nav_bringup/test/sim_smoke_test.py`,
 |---|---|---|---|
 | `common` | `lint` | `bash -n` on every shell script | seconds |
 | | `build` | `catkin_make` | seconds when little changed |
-| | `launch` | `test_planner_interface.py`: the planner each robot's launch file starts | seconds |
-| | `pytest` | `mujoco_sim/tests`: the simulator, every robot | 15 s |
+| | `launch` | `test_planner_interface.py`: the planner each robot's launch file starts, and that it is given the robot's sizes (`config/robots/<robot>.yaml`) | seconds |
+| | `pytest` | `mujoco_sim/tests`: the simulator, every robot; that each robot's description file is current | 20 s |
 | `aerial` | `unit` | EGO's map unit tests (`plan_env`) | seconds |
 | | `sim` | `sim_smoke.test`: the mission in the lightweight simulator | 1 min |
 | | `mujoco` | `mujoco_smoke.test` in MuJoCo, twice: depth camera (`mujoco-depth`), lidar (`mujoco-lidar`) | 1 min each |
@@ -179,8 +179,8 @@ sign they leave, so that a failed step can be told apart from a new fault.
 
 | Type | Steps | Fault | Sign in the log | How often | State |
 |---|---|---|---|---|---|
-| `legged` | `t1` | The T1 falls going down the house's 7 cm steps | `t1 fell at t=...`, then every later waypoint times out | 17 of 120 runs of the simulator alone; 2 of 10 runs of `t1` (both about 75 s into the mission) | Open; [HUMANOID.md](HUMANOID.md#limitations) |
-| `legged` | `lite3` | The Lite3 touches the north end of the corridor's west wall with a front leg, turning round next to it on the way to the last waypoint | `Contact at t=...: lite3/FR_FOOT... / world:geom7(box size=[0.05 2.5  0.5 ]) at [0.65 1.8 ...]` about 130 s into the mission; all 12 waypoints are still reached, and the test fails with `the robot collided with an obstacle` | 1 of 11 runs of `lite3` (2026-11-27) | Open; [QUADRUPED.md](QUADRUPED.md#limitations) |
+| `legged` | `t1` | The T1 falls going down the house's 7 cm steps | `t1 fell at t=...`, then every later waypoint times out | 17 of 120 runs of the simulator alone; 3 of 20 runs of `t1` (2 of 10, then 1 of 10; all about 75 s into the mission) | Open; [HUMANOID.md](HUMANOID.md#limitations) |
+| `legged` | `lite3` | The Lite3 touches the north end of the corridor's west wall with a front leg, turning round next to it on the way to the last waypoint | `Contact at t=...: lite3/FR_FOOT... / world:geom7(box size=[0.05 2.5  0.5 ]) at [0.65 1.8 ...]` about 130 s into the mission; all 12 waypoints are still reached, and the test fails with `the robot collided with an obstacle` | 1 of 21 runs of `lite3` (1 of 11, then 0 of 10; 2026-11-27) | Open; [QUADRUPED.md](QUADRUPED.md#limitations) |
 | `legged` | `frontier` | The Lite3 touches the cabinet with a leg, turning round next to it when the next frontier lies behind it | `Contact at t=...: world:geom13(box size=[0.2 0.5 0.4]) / lite3/FR_SHANK... at [ 3.7 -2.5 ...]` about 43 s into the mission; the map is still finished, and the test fails with `the robot collided with an obstacle` | 1 of 76 runs of `frontier` (2026-11-27); 1 of 54 runs of that change of goal alone, from a script | Open; the same cause as the row above; [QUADRUPED.md](QUADRUPED.md#limitations) |
 | `legged` | `frontier` | A frontier is given up: on the way to it the Lite3 stood still for 6 s, or turned on the spot and was taken to stand still | `[frontier] TIMEOUT: gave up frontier (...)` once, 7 s after that frontier was chosen; the map is still finished, and the test fails with `exploration reported: [...]` | 1 of 56 runs of `frontier` (2026-11-27); not in 50 further runs with a bag. Since the explorer does not take a turn for standing still (2026-11-27): 0 of 20 | Open: the cause of that run is not known, and 168 runs without it are needed; [QUADRUPED.md](QUADRUPED.md#limitations) |
 

@@ -7,7 +7,7 @@ files in sync and bump VERSION on any change.
 Simulator -> bridge (simulator binds a PUB socket, default tcp://*:5555):
 
   b"state"  STATE   time, position, orientation (w, x, y, z), world linear
-                    velocity, body angular velocity, quadrotor contact count
+                    velocity, body angular velocity, contact count
   b"depth"  DEPTH   time, camera optical-frame pose in world (x right,
                     y down, z forward), intrinsics, then uint16 depth in mm
                     (row-major, 0 = no return)

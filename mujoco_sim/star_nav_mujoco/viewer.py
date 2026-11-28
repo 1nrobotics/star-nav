@@ -20,7 +20,7 @@ from star_nav_mujoco import robots
 log = logging.getLogger('star_nav_mujoco')
 
 
-class FollowQuadrotor(plugin.ViewerPlugin):
+class FollowRobot(plugin.ViewerPlugin):
   """Starts the browser camera orbiting around the robot."""
 
   @messages.handler
@@ -41,6 +41,6 @@ def launch(port: int, stack: contextlib.ExitStack) -> viewer_handle.ViewerHandle
   config = viewer_protocol.ViewerConfig(
       title='Star Nav MuJoCo', gfx='web', http_port=port)
   handle = stack.enter_context(
-      launch_web.launch(config, plugins=[FollowQuadrotor()]))
+      launch_web.launch(config, plugins=[FollowRobot()]))
   log.info('Web viewer: http://localhost:%d', port)
   return handle

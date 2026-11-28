@@ -23,7 +23,7 @@ import mujoco
 import numpy as np
 
 from star_nav_mujoco import assets
-from star_nav_mujoco import policy as policy_lib
+from star_nav_mujoco import locomotion
 from star_nav_mujoco import robots
 from star_nav_mujoco import scene
 from star_nav_mujoco.assets import MissingAssets
@@ -57,7 +57,7 @@ JOINTS = ('FL_HipX_joint', 'FL_HipY_joint', 'FL_Knee_joint',
 DEFAULT_POSE = np.array([0.0, -0.65, 1.3] * 4, np.float32)
 ACTION_SCALE = np.array([0.125, 0.25, 0.25] * 4, np.float32)
 KP, KD = 30.0, 1.0
-TORQUE_LIMIT = 30.0  # N m, the model's ctrlrange
+TORQUE_LIMIT = 30.0  # N m, the model's ctrlrange (torques are clipped to it)
 MAX_CMD = 0.8  # the runner clips each command to this (m/s, rad/s)
 OMEGA_SCALE, JOINT_VEL_SCALE = 0.25, 0.05
 
@@ -65,6 +65,8 @@ OMEGA_SCALE, JOINT_VEL_SCALE = 0.25, 0.05
 # front, the lidar on top.
 CAMERA_POS = (0.29, 0.0, 0.02)
 LIDAR_MOUNT = (0.0, 0.0, 0.10)
+# Standing, with the lidar: length, width, height above the ground (m)
+SIZE = (0.61, 0.39, 0.44)
 # Collision geoms of the legs: touching the ground, a ramp or a step with
 # these is walking, not a collision (see Simulator._touching).
 SUPPORT_GEOMS = ('FOOT_collision', 'SHANK_collision')
@@ -157,69 +159,46 @@ def attach(spec: mujoco.MjSpec, start: tuple[float, float], root: pathlib.Path,
   frame.attach_body(torso, PREFIX, '')
 
 
-class Locomotion:
-  """Runs the velocity policy and the joint PD controller."""
+class Locomotion(locomotion.JointPolicy):
+  """The upstream velocity policy (ONNX), with the runner's observation."""
+
+  title = 'Lite3'
+  trunk = TRUNK
+  actuators = tuple(PREFIX + j + '_ctrl' for j in JOINTS)
+  default_pose = DEFAULT_POSE
+  action_scale = ACTION_SCALE
+  kp, kd = KP, KD
+  decimation = DECIMATION
 
   def __init__(self, model: mujoco.MjModel, data: mujoco.MjData,
                root: pathlib.Path | None = None):
     import onnxruntime  # pylint: disable=g-import-not-at-top
 
-    root = root or asset_dir()
-    self.model, self.data = model, data
-    acts = [PREFIX + j + '_ctrl' for j in JOINTS]
-    if [model.actuator(i).name for i in range(model.nu)] != acts:
-      raise ValueError('unexpected Lite3 actuator order')
-    jids = model.actuator_trnid[:, 0]
-    self._qpos = model.jnt_qposadr[jids]
-    self._qvel = model.jnt_dofadr[jids]
-    self._trunk = model.body(TRUNK).id
-    self._root_qvel = model.jnt_dofadr[model.body_jntadr[self._trunk]]
-
     opts = onnxruntime.SessionOptions()
     opts.intra_op_num_threads = 1
     self._policy = onnxruntime.InferenceSession(
-        str(root / POLICY_FILE), opts, providers=['CPUExecutionProvider'])
-    self.twist = np.zeros(3, np.float32)
-    self.reset()
-
-  def reset(self) -> None:
-    self.data.qpos[self._qpos] = DEFAULT_POSE
-    self._last = np.zeros(len(JOINTS), np.float32)
-    self._target = DEFAULT_POSE.copy()
-    self._steps = 0
+        str((root or asset_dir()) / POLICY_FILE), opts,
+        providers=['CPUExecutionProvider'])
+    super().__init__(model, data)
 
   def observation(self) -> np.ndarray:
-    d = self.data
-    gravity = policy_lib.projected_gravity(d.xquat[self._trunk])
-    omega = d.qvel[self._root_qvel + 3:self._root_qvel + 6]  # body frame
     return np.concatenate([
-        omega * OMEGA_SCALE, gravity, np.clip(self.twist, -MAX_CMD, MAX_CMD),
-        d.qpos[self._qpos] - DEFAULT_POSE, d.qvel[self._qvel] * JOINT_VEL_SCALE,
-        self._last]).astype(np.float32)
+        self.omega() * OMEGA_SCALE, self.gravity(),
+        np.clip(self.twist, -MAX_CMD, MAX_CMD), self.joint_pos(),
+        self.joint_vel() * JOINT_VEL_SCALE, self.last]).astype(np.float32)
 
-  @property
-  def policy_due(self) -> bool:
-    """True if the next ``before_step`` runs the policy (set ``twist`` now)."""
-    return self._steps % DECIMATION == 0
-
-  def before_step(self) -> None:
-    """Call before every mj_step: policy every DECIMATION steps, PD always."""
-    d = self.data
-    if self._steps % DECIMATION == 0:
-      action = self._policy.run(None, {'obs': self.observation()[None]})[0][0]
-      self._last = action.astype(np.float32)
-      self._target = DEFAULT_POSE + self._last * ACTION_SCALE
-    self._steps += 1
-    torque = KP * (self._target - d.qpos[self._qpos]) - KD * d.qvel[self._qvel]
-    d.ctrl[:] = np.clip(torque, -TORQUE_LIMIT, TORQUE_LIMIT)
+  def act(self, obs: np.ndarray) -> np.ndarray:
+    return self._policy.run(None, {'obs': obs[None]})[0][0]
 
 
 class Lite3(robots.GroundRobot):
   name = 'lite3'
   title = 'Lite3'
+  type = 'legged'
   body = TRUNK
   camera = CAMERA
   timestep = TIMESTEP
+  size = SIZE
   stand_height = STAND_HEIGHT
   start_height = START_HEIGHT
   support_geoms = SUPPORT_GEOMS
